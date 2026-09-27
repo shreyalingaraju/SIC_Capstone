@@ -61,24 +61,26 @@ error. 3 Stage 7 incomplete on this branch (no outputs produced).
 
 import argparse
 import dataclasses
-import math
+import functools
 import gc
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import h3
 import numpy as np
 import pandas as pd
 import psutil
-from pyproj import CRS
+from pyproj import CRS, Transformer
 from scipy.spatial import cKDTree
 
 
@@ -404,6 +406,24 @@ CRIME_COLUMNS = (
     "latitude",
     "longitude",
 )
+
+# Stage 3 values carried next to the raw values until H1 compares them.
+S3_CHECK_COLUMNS = (
+    "s3_created_date",
+    "s3_closed_date",
+    "s3_latitude",
+    "s3_longitude",
+)
+
+# H1: largest allowed Stage 3 vs raw coordinate difference (degrees).
+COORD_TOLERANCE_DEG = 1e-6
+
+# Label values treated as missing for borough and precinct (A4).
+MISSING_LABELS = ("", "unspecified")
+
+WGS84_CRS = "EPSG:4326"
+
+HASH_BLOCK_BYTES = 2 ** 20
 
 DIAGNOSTICS_SECTIONS = (
     "provenance",
@@ -814,6 +834,112 @@ def _record(checks, result):
         print(f"    - {example}")
 
 
+def _to_seconds(values):
+    """datetime64 values (any resolution) -> int64 seconds since 1970 (A3)."""
+
+    values = pd.Series(values)
+
+    if values.isna().any():
+        raise ValueError("cannot convert missing timestamps to seconds")
+
+    return values.astype("datetime64[s]").astype("int64").to_numpy()
+
+
+@functools.lru_cache(maxsize=None)
+def _transformer(source_crs, target_crs):
+    return Transformer.from_crs(source_crs, target_crs, always_xy=True)
+
+
+def _project(lon, lat, crs):
+    """WGS84 lon/lat -> projected x/y in metres."""
+
+    x, y = _transformer(WGS84_CRS, crs).transform(
+        np.asarray(lon, dtype=np.float64),
+        np.asarray(lat, dtype=np.float64),
+    )
+
+    return np.asarray(x), np.asarray(y)
+
+
+def _normalise_label(values):
+    """Strip labels and turn empty or 'Unspecified' into missing (A4)."""
+
+    values = values.astype("string").str.strip()
+
+    return values.mask(values.str.casefold().isin(MISSING_LABELS))
+
+
+def _file_fingerprint(path):
+    path = Path(path)
+    digest = hashlib.sha256()
+
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(HASH_BLOCK_BYTES), b""):
+            digest.update(block)
+
+    stat = path.stat()
+
+    return {
+        "path": path.as_posix(),
+        "size_bytes": stat.st_size,
+        "modified_utc": datetime.fromtimestamp(
+            stat.st_mtime, tz=timezone.utc
+        ).isoformat(timespec="seconds"),
+        "sha256": digest.hexdigest(),
+    }
+
+
+def _git_state():
+    def run_git(*args):
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        ).stdout.strip()
+
+    try:
+        return {
+            "sha": run_git("rev-parse", "HEAD"),
+            "branch": run_git("rev-parse", "--abbrev-ref", "HEAD"),
+            "dirty": bool(run_git("status", "--porcelain")),
+        }
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"Warning: git state unavailable ({error})")
+        return {"sha": "unknown", "branch": "unknown", "dirty": None}
+
+
+def _package_versions():
+    versions = {
+        "python": platform.python_version(),
+    }
+
+    for name in PACKAGE_NAMES:
+        try:
+            versions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            versions[name] = "not installed"
+
+    return versions
+
+
+def _collect_provenance():
+    return {
+        "run_started_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"
+        ),
+        "platform": platform.platform(),
+        "git": _git_state(),
+        "packages": _package_versions(),
+        "inputs": {
+            "raw_complaints": _file_fingerprint(RAW_COMPLAINTS_FILE),
+            "treatments": _file_fingerprint(TREATMENT_FILE),
+            "crime": _file_fingerprint(CRIME_FILE),
+        },
+    }
+
+
 def _build_parser():
     parser = argparse.ArgumentParser(
         description=(
@@ -1159,6 +1285,396 @@ def parse_args(argv=None, checks=None):
     return params
 
 
+def load_raw_complaints(params):
+    """
+    Step 1: read the raw 311 file and keep geocoded complaints inside the
+    NYC bounding box, sorted by unique_key.
+
+    Returns the complaint table and a summary with the raw counts and
+    the darkness coverage (A6: min/max created_date over all raw rows).
+    """
+
+    raw = pd.read_csv(
+        RAW_COMPLAINTS_FILE,
+        usecols=list(RAW_COMPLAINT_COLUMNS),
+        low_memory=False,
+    )
+
+    n_raw = len(raw)
+    n_duplicate_keys = int(raw["unique_key"].duplicated().sum())
+
+    raw["created_date"] = pd.to_datetime(
+        raw["created_date"], format="ISO8601", errors="coerce"
+    )
+    raw["closed_date"] = pd.to_datetime(
+        raw["closed_date"], format="ISO8601", errors="coerce"
+    )
+
+    has_created = raw["created_date"].notna()
+    dark_min_s, dark_max_s = _to_seconds(
+        [raw.loc[has_created, "created_date"].min(),
+         raw.loc[has_created, "created_date"].max()]
+    )
+
+    has_coordinates = raw["latitude"].notna() & raw["longitude"].notna()
+
+    lat_min, lat_max, lon_min, lon_max = params.nyc_bbox
+    in_bbox = (
+        has_coordinates
+        & raw["latitude"].between(lat_min, lat_max)
+        & raw["longitude"].between(lon_min, lon_max)
+    )
+
+    complaints = (
+        raw.loc[in_bbox]
+        .sort_values("unique_key", kind="mergesort")
+        .reset_index(drop=True)
+    )
+    del raw
+
+    n_unparseable_created = int(complaints["created_date"].isna().sum())
+
+    complaints["status"] = complaints["status"].astype("string")
+    complaints["borough"] = _normalise_label(complaints["borough"])
+    complaints["police_precinct"] = _normalise_label(
+        complaints["police_precinct"]
+    )
+
+    x_m, y_m = _project(
+        complaints["longitude"], complaints["latitude"], params.projected_crs
+    )
+    complaints["x_m"] = x_m
+    complaints["y_m"] = y_m
+
+    summary = {
+        "n_raw_complaints": n_raw,
+        "n_with_coordinates": int(has_coordinates.sum()),
+        "n_in_bbox": int(in_bbox.sum()),
+        "n_duplicate_unique_keys": n_duplicate_keys,
+        "n_unparseable_created": n_unparseable_created,
+        "n_missing_closed": int(complaints["closed_date"].isna().sum()),
+        "n_missing_borough": int(complaints["borough"].isna().sum()),
+        "n_missing_precinct": int(complaints["police_precinct"].isna().sum()),
+        "dark_min_s": int(dark_min_s),
+        "dark_max_s": int(dark_max_s),
+    }
+
+    print(
+        f"Raw complaints: {n_raw:,} -> with coordinates "
+        f"{summary['n_with_coordinates']:,} -> inside bbox "
+        f"{summary['n_in_bbox']:,}"
+    )
+
+    return complaints, summary
+
+
+def load_treatments(params, complaints):
+    """
+    Step 2: read the Stage 3 treatments and join them to the raw
+    complaints on unique_key. Returns the joined table and the number
+    of Stage 3 rows read (for H1).
+
+    The Stage 3 values are kept as s3_* columns for H1. created_date and
+    closed_date are the treatment times, moved back by
+    placebo_shift_days (C4); the *_original columns keep the real times.
+    The real complaint in `complaints` is never shifted.
+    """
+
+    s3 = (
+        pd.read_parquet(TREATMENT_FILE, columns=list(TREATMENT_COLUMNS))
+        .rename(
+            columns={
+                "unique_key": "treatment_key",
+                "created_date": "s3_created_date",
+                "closed_date": "s3_closed_date",
+                "latitude": "s3_latitude",
+                "longitude": "s3_longitude",
+            }
+        )
+        .sort_values("treatment_key", kind="mergesort")
+        .reset_index(drop=True)
+    )
+
+    raw_side = complaints[
+        [
+            "unique_key",
+            "created_date",
+            "closed_date",
+            "latitude",
+            "longitude",
+            "x_m",
+            "y_m",
+            "borough",
+            "police_precinct",
+        ]
+    ].rename(
+        columns={
+            "unique_key": "treatment_key",
+            "created_date": "created_date_original",
+            "closed_date": "closed_date_original",
+        }
+    )
+    raw_side["complaint_idx"] = np.arange(len(raw_side), dtype=np.int64)
+
+    treatments_all = s3.merge(raw_side, on="treatment_key", how="left")
+
+    shift = pd.Timedelta(days=params.placebo_shift_days)
+    treatments_all["created_date"] = (
+        treatments_all["created_date_original"] - shift
+    )
+    treatments_all["closed_date"] = (
+        treatments_all["closed_date_original"] - shift
+    )
+
+    print(
+        f"Stage 3 treatments: {len(s3):,} "
+        f"(placebo shift {params.placebo_shift_days} days)"
+    )
+
+    return treatments_all, len(s3)
+
+
+def load_crime(params, raw_summary):
+    """
+    Step 3: read crime times and coordinates (not the WKB geometry),
+    project them, and build the coverage record (A6).
+
+    Crime latitude/longitude are kept for the H3 cell index built later.
+    Rows with missing values are kept so H1 can report them; their t_s
+    is 0 and they are excluded from the coverage bounds.
+    """
+
+    crime = pd.read_parquet(CRIME_FILE, columns=list(CRIME_COLUMNS))
+
+    valid = (
+        crime["crime_datetime"].notna()
+        & crime["latitude"].notna()
+        & crime["longitude"].notna()
+    )
+
+    t_s = np.zeros(len(crime), dtype=np.int64)
+    t_s[valid.to_numpy()] = _to_seconds(crime.loc[valid, "crime_datetime"])
+    crime["t_s"] = t_s
+
+    x_m, y_m = _project(
+        crime["longitude"], crime["latitude"], params.projected_crs
+    )
+    crime["x_m"] = x_m
+    crime["y_m"] = y_m
+
+    crime = crime.drop(columns=["crime_datetime"])
+
+    valid_t = t_s[valid.to_numpy()]
+    coverage = Coverage(
+        crime_min_s=int(valid_t.min()),
+        crime_max_s=int(valid_t.max()),
+        dark_min_s=raw_summary["dark_min_s"],
+        dark_max_s=raw_summary["dark_max_s"],
+    )
+
+    crime_summary = {
+        "n_crime": len(crime),
+        "n_crime_invalid": int((~valid).sum()),
+    }
+
+    print(f"Crimes: {len(crime):,}")
+
+    return crime, coverage, crime_summary
+
+
+# ---------------------------------------------------------
+# Hard checks
+# ---------------------------------------------------------
+
+def _keys(frame, mask, limit=10):
+    return frame.loc[mask, "treatment_key"].head(limit).astype(str).tolist()
+
+
+def _check_h1(raw_summary, treatments_all, n_s3_rows, crime_summary):
+    """H1: input integrity of the raw 311 file, Stage 3 and crime."""
+
+    start = time.perf_counter()
+    problems = []
+
+    def add(count, message, examples=()):
+        if count:
+            problems.append((count, message, list(examples)))
+
+    add(
+        raw_summary["n_duplicate_unique_keys"],
+        "duplicate unique_key values in the raw 311 file",
+    )
+    add(
+        raw_summary["n_unparseable_created"],
+        "geocoded raw complaints with an unparseable created_date",
+    )
+
+    duplicated = treatments_all["treatment_key"].duplicated(keep=False)
+    add(
+        int(duplicated.sum()),
+        "duplicate treatment keys after the join",
+        _keys(treatments_all, duplicated),
+    )
+    add(
+        abs(len(treatments_all) - n_s3_rows),
+        f"joined rows ({len(treatments_all)}) differ from Stage 3 rows "
+        f"({n_s3_rows})",
+    )
+
+    missing = treatments_all["complaint_idx"].isna()
+    add(
+        int(missing.sum()),
+        "Stage 3 keys not found among geocoded raw complaints",
+        _keys(treatments_all, missing),
+    )
+
+    found = ~missing
+
+    for s3_column, raw_column in (
+        ("s3_created_date", "created_date_original"),
+        ("s3_closed_date", "closed_date_original"),
+    ):
+        differs = found & ~(
+            treatments_all[s3_column] == treatments_all[raw_column]
+        ).fillna(False)
+        add(
+            int(differs.sum()),
+            f"{s3_column} differs from the raw value",
+            _keys(treatments_all, differs),
+        )
+
+    for s3_column, raw_column in (
+        ("s3_latitude", "latitude"),
+        ("s3_longitude", "longitude"),
+    ):
+        gap = (treatments_all[s3_column] - treatments_all[raw_column]).abs()
+        differs = found & ~(gap <= COORD_TOLERANCE_DEG).fillna(False)
+        add(
+            int(differs.sum()),
+            f"{s3_column} differs from the raw value by more than "
+            f"{COORD_TOLERANCE_DEG:g} degrees",
+            _keys(treatments_all, differs),
+        )
+
+    add(
+        crime_summary["n_crime_invalid"],
+        "crime rows with a missing time or coordinate",
+    )
+
+    examples = []
+    for count, message, keys in problems:
+        suffix = f" (e.g. {', '.join(keys)})" if keys else ""
+        examples.append(f"{count:,} {message}{suffix}")
+
+    return CheckResult(
+        check_id="H1",
+        passed=not problems,
+        n_violations=sum(count for count, _, _ in problems),
+        examples=examples[:10],
+        seconds=time.perf_counter() - start,
+    )
+
+
+def _check_h16_inputs(params, treatments_all, complaints):
+    """
+    H16 (after step 2): placebo dates equal the real dates minus the
+    shift, and the real complaints keep their real dates (C4).
+    """
+
+    start = time.perf_counter()
+
+    if params.placebo_shift_days == 0:
+        return CheckResult(
+            check_id="H16",
+            passed=True,
+            n_violations=0,
+            examples=["not applicable (placebo_shift_days = 0)"],
+            seconds=time.perf_counter() - start,
+        )
+
+    shift = pd.Timedelta(days=params.placebo_shift_days)
+    found = treatments_all["complaint_idx"].notna()
+    rows = treatments_all.loc[found]
+
+    created_wrong = rows["created_date"] != rows["created_date_original"] - shift
+    closed_wrong = rows["closed_date"] != rows["closed_date_original"] - shift
+
+    real_created = complaints["created_date"].to_numpy()[
+        rows["complaint_idx"].astype("int64").to_numpy()
+    ]
+    real_wrong = rows["created_date_original"].to_numpy() != real_created
+
+    problems = []
+    for mask, message in (
+        (created_wrong.to_numpy(), "shifted created_date is wrong"),
+        (closed_wrong.to_numpy(), "shifted closed_date is wrong"),
+        (real_wrong, "real complaint created_date was changed"),
+    ):
+        count = int(mask.sum())
+        if count:
+            keys = rows.loc[mask, "treatment_key"].head(10).astype(str)
+            problems.append(f"{count:,} {message} (e.g. {', '.join(keys)})")
+
+    return CheckResult(
+        check_id="H16",
+        passed=not problems,
+        n_violations=int(
+            created_wrong.sum() + closed_wrong.sum() + real_wrong.sum()
+        ),
+        examples=problems,
+        seconds=time.perf_counter() - start,
+    )
+
+
+def run_hard_checks(params, stage, checks, **tables):
+    """
+    Step 17: run the hard checks for one pipeline stage, record them and
+    raise HardCheckError if any failed.
+
+    Stages implemented so far: "inputs" (H1, H16 after step 2).
+    """
+
+    if stage == "inputs":
+        results = [
+            _check_h1(
+                tables["raw_summary"],
+                tables["treatments_all"],
+                tables["n_s3_rows"],
+                tables["crime_summary"],
+            ),
+            _check_h16_inputs(
+                params, tables["treatments_all"], tables["complaints"]
+            ),
+        ]
+    else:
+        raise ValueError(f"unknown hard-check stage {stage!r}")
+
+    for result in results:
+        _record(checks, result)
+
+    failed = [result.check_id for result in results if not result.passed]
+
+    if failed:
+        raise HardCheckError(
+            f"hard check(s) failed at stage '{stage}': {', '.join(failed)}"
+        )
+
+
+def _finalise_treatments(treatments_all):
+    """Drop the Stage 3 comparison columns once H1 has passed."""
+
+    treatments_all = treatments_all.drop(columns=list(S3_CHECK_COLUMNS))
+    treatments_all["complaint_idx"] = treatments_all["complaint_idx"].astype(
+        "int64"
+    )
+
+    return treatments_all
+
+
+def _format_seconds(seconds):
+    return pd.Timestamp(int(seconds), unit="s").isoformat()
+
+
 def _print_run_header(params):
     print("========================================")
     print("Stage 7: control matching (Issue 4)")
@@ -1177,6 +1693,16 @@ def _print_run_header(params):
         print(f"  {key}: {text}")
 
 
+def _stop(error):
+    # The violations were already printed by _record.
+    sys.stdout.flush()
+    print(
+        f"\nStage 7 stopped: {str(error).splitlines()[0]}",
+        file=sys.stderr,
+    )
+    return EXIT_HARD_CHECK_FAILED
+
+
 def main(argv=None):
     runtime = {}
     checks = {}
@@ -1185,17 +1711,67 @@ def main(argv=None):
         with StageTimer("parse_args", runtime):
             params = parse_args(argv, checks)
     except HardCheckError as error:
-        # The violations were already printed by _record.
-        sys.stdout.flush()
-        print(
-            f"\nStage 7 stopped: {str(error).splitlines()[0]}",
-            file=sys.stderr,
-        )
-        return EXIT_HARD_CHECK_FAILED
+        return _stop(error)
 
     _print_run_header(params)
 
-    # Steps 1-20 are added in later commits; Commit 12 returns
+    print("\n--- Provenance")
+    with StageTimer("provenance", runtime):
+        provenance = _collect_provenance()
+
+    git = provenance["git"]
+    print(f"git {git['sha'][:12]} on {git['branch']} (dirty: {git['dirty']})")
+    for name, info in provenance["inputs"].items():
+        print(
+            f"{name}: {info['path']} {info['size_bytes']:,} bytes "
+            f"sha256 {info['sha256'][:16]}..."
+        )
+
+    print("\n--- Step 1: raw complaints")
+    with StageTimer("load_raw_complaints", runtime):
+        complaints, raw_summary = load_raw_complaints(params)
+
+    print("\n--- Step 2: treatments")
+    with StageTimer("load_treatments", runtime):
+        treatments_all, n_s3_rows = load_treatments(params, complaints)
+
+    print("\n--- Step 3: crime")
+    with StageTimer("load_crime", runtime):
+        crime, coverage, crime_summary = load_crime(params, raw_summary)
+
+    print(
+        f"Crime coverage: {_format_seconds(coverage.crime_min_s)} -> "
+        f"{_format_seconds(coverage.crime_max_s)}"
+    )
+    print(
+        f"Darkness coverage: {_format_seconds(coverage.dark_min_s)} -> "
+        f"{_format_seconds(coverage.dark_max_s)}"
+    )
+
+    print("\n--- Hard checks: inputs")
+    try:
+        with StageTimer("checks_inputs", runtime):
+            run_hard_checks(
+                params,
+                "inputs",
+                checks,
+                raw_summary=raw_summary,
+                treatments_all=treatments_all,
+                n_s3_rows=n_s3_rows,
+                crime_summary=crime_summary,
+                complaints=complaints,
+            )
+    except HardCheckError as error:
+        return _stop(error)
+
+    treatments_all = _finalise_treatments(treatments_all)
+
+    print(
+        f"\nLoaded: {len(complaints):,} complaints, "
+        f"{len(treatments_all):,} treatments, {len(crime):,} crimes"
+    )
+
+    # Steps 4-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
