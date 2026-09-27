@@ -93,6 +93,8 @@ import numpy as np
 import pandas as pd
 import psutil
 from pyproj import CRS, Transformer
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
 
@@ -1800,6 +1802,196 @@ def build_sites(params, complaints):
     return sites, complaints, universe
 
 
+def build_episodes(params, complaints, sites):
+    """
+    Step 6: merge complaints into darkness episodes.
+
+    Two non-artifact complaints are linked when their points are within
+    episode_merge_radius_m (A8) and their darkness intervals overlap
+    (A2, closed). Episodes are the connected components of the links.
+    Artifact-site complaints are left out of the linking graph and form
+    single-complaint episodes (A7).
+
+    The first complaint of an episode has the smallest
+    (created_date, unique_key). Episodes are numbered in the order of
+    their first complaint. Built from the real complaint dates (C4).
+
+    Returns the episode table, the complaints with episode_id and
+    is_first_of_episode, the sites with n_episodes, all 25 m links (for
+    H4) and a summary.
+    """
+
+    n = len(complaints)
+    xy = complaints[["x_m", "y_m"]].to_numpy()
+    start_s = complaints["dark_start_s"].to_numpy()
+    end_s = complaints["dark_end_s"].to_numpy()
+    created_s = _to_seconds(complaints["created_date"])
+    unique_key = complaints["unique_key"].to_numpy()
+
+    non_artifact = ~sites["is_artifact"].to_numpy()[
+        complaints["site_idx"].to_numpy()
+    ]
+    linkable = np.flatnonzero(non_artifact)
+
+    local_pairs = cKDTree(xy[linkable]).query_pairs(
+        r=params.episode_merge_radius_m, output_type="ndarray"
+    )
+
+    if len(local_pairs) > MAX_EPISODE_LINKS:
+        raise HardCheckError(
+            f"{len(local_pairs):,} complaint links within "
+            f"{params.episode_merge_radius_m:g} m exceed MAX_EPISODE_LINKS "
+            f"({MAX_EPISODE_LINKS:,})"
+        )
+
+    episode_links = linkable[local_pairs]
+    a, b = episode_links[:, 0], episode_links[:, 1]
+    overlapping = (start_s[a] <= end_s[b]) & (start_s[b] <= end_s[a])
+    edges = episode_links[overlapping]
+
+    graph = coo_matrix(
+        (np.ones(len(edges), dtype=np.int8), (edges[:, 0], edges[:, 1])),
+        shape=(n, n),
+    )
+    n_episodes, component = connected_components(graph, directed=False)
+
+    # First complaint per component: smallest (created, unique_key).
+    order = np.lexsort((unique_key, created_s, component))
+    is_group_start = np.ones(n, dtype=bool)
+    is_group_start[1:] = component[order][1:] != component[order][:-1]
+    first_idx = order[is_group_start]
+
+    # Number episodes by their first complaint's (created, unique_key).
+    episode_rank = np.lexsort((unique_key[first_idx], created_s[first_idx]))
+    component_to_episode = np.empty(n_episodes, dtype=np.int64)
+    component_to_episode[component[first_idx[episode_rank]]] = np.arange(
+        n_episodes, dtype=np.int64
+    )
+
+    episode_id = component_to_episode[component]
+    is_first = np.zeros(n, dtype=bool)
+    is_first[first_idx] = True
+
+    complaints["episode_id"] = episode_id
+    complaints["is_first_of_episode"] = is_first
+
+    grouped = pd.DataFrame(
+        {
+            "episode_id": episode_id,
+            "start_s": start_s,
+            "end_s": end_s,
+            "x_m": xy[:, 0],
+            "y_m": xy[:, 1],
+        }
+    ).groupby("episode_id", sort=True)
+
+    bounds = grouped.agg(
+        start_s=("start_s", "min"),
+        end_s=("end_s", "max"),
+        n_complaints=("start_s", "size"),
+        x_min=("x_m", "min"),
+        x_max=("x_m", "max"),
+        y_min=("y_m", "min"),
+        y_max=("y_m", "max"),
+    )
+
+    first_by_episode = first_idx[episode_rank]
+
+    episodes = pd.DataFrame(
+        {
+            "episode_id": np.arange(n_episodes, dtype=np.int64),
+            "first_unique_key": unique_key[first_by_episode],
+            "start_s": bounds["start_s"].to_numpy(dtype=np.int64),
+            "end_s": bounds["end_s"].to_numpy(dtype=np.int64),
+            "n_complaints": bounds["n_complaints"].to_numpy(dtype=np.int32),
+            # Bounding-box diagonal: an upper bound on the largest
+            # distance between two complaints of the episode.
+            "span_m": np.hypot(
+                bounds["x_max"] - bounds["x_min"],
+                bounds["y_max"] - bounds["y_min"],
+            ).to_numpy(),
+        }
+    )
+    episodes["span_days"] = (episodes["end_s"] - episodes["start_s"]) / 86400
+
+    n_episodes_per_site = (
+        pd.Series(episode_id)
+        .groupby(complaints["site_idx"].to_numpy())
+        .nunique()
+        .reindex(np.arange(len(sites)), fill_value=0)
+        .to_numpy(dtype=np.int32)
+    )
+    sites.insert(
+        sites.columns.get_loc("n_complaints_imputed") + 1,
+        "n_episodes",
+        n_episodes_per_site,
+    )
+
+    percentiles = (50, 90, 99, 100)
+
+    def pct(values):
+        return {
+            f"p{q}": float(np.percentile(values, q)) for q in percentiles
+        }
+
+    long_span = episodes["span_m"] > 100
+    long_time = episodes["span_days"] > 365
+    chained = episodes[long_span | long_time]
+
+    summary = {
+        "n_episodes": int(n_episodes),
+        "n_links_25m": int(len(episode_links)),
+        "n_links_overlapping": int(len(edges)),
+        "n_multi_complaint_episodes": int((episodes["n_complaints"] > 1).sum()),
+        "episode_size_percentiles": pct(episodes["n_complaints"]),
+        "episode_span_days_percentiles": pct(episodes["span_days"]),
+        "episode_max_footprint_m": float(episodes["span_m"].max()),
+        "d5_episodes_over_100m": int(long_span.sum()),
+        "d5_episodes_over_365d": int(long_time.sum()),
+        "d5_top10": chained.sort_values(
+            ["span_m", "episode_id"], ascending=[False, True]
+        )
+        .head(10)[["episode_id", "first_unique_key", "n_complaints",
+                   "span_m", "span_days"]]
+        .to_dict("records"),
+    }
+
+    print(
+        f"Episodes: {n_episodes:,} from {n:,} complaints; links within "
+        f"{params.episode_merge_radius_m:g} m: {len(episode_links):,}, "
+        f"of which overlapping in time: {len(edges):,}; "
+        f"{summary['n_multi_complaint_episodes']:,} episodes have more "
+        f"than one complaint"
+    )
+    print(
+        "Episode size percentiles: "
+        + ", ".join(
+            f"{k} {v:g}" for k, v in summary["episode_size_percentiles"].items()
+        )
+    )
+    print(
+        "Episode span (days) percentiles: "
+        + ", ".join(
+            f"{k} {v:.1f}"
+            for k, v in summary["episode_span_days_percentiles"].items()
+        )
+    )
+    print(
+        f"D5 chaining: {summary['d5_episodes_over_100m']} episodes span "
+        f"> 100 m, {summary['d5_episodes_over_365d']} span > 365 days; "
+        f"largest footprint {summary['episode_max_footprint_m']:.1f} m"
+    )
+    if len(chained):
+        print("Top D5 episodes by footprint:")
+        print(
+            pd.DataFrame(summary["d5_top10"]).to_string(
+                index=False, float_format=lambda v: f"{v:.1f}"
+            )
+        )
+
+    return episodes, complaints, sites, episode_links, summary
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -2042,6 +2234,192 @@ def _check_h17(treatments_all, complaints):
     )
 
 
+def _check_h3(complaints, episodes, sites):
+    """
+    H3: episodes partition the complaints, and each episode's first
+    complaint has the smallest (created_date, unique_key). Recomputed
+    with pandas sorting on the datetime column.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    def add(count, message):
+        nonlocal violations
+        if count:
+            violations += int(count)
+            problems.append(f"{int(count):,} {message}")
+
+    n_episodes = len(episodes)
+    episode_id = complaints["episode_id"]
+
+    add(
+        int(
+            episode_id.isna().sum()
+            + ((episode_id < 0) | (episode_id >= n_episodes)).sum()
+        ),
+        "complaints without a valid episode_id",
+    )
+    add(
+        int((episodes["episode_id"].to_numpy() != np.arange(n_episodes)).sum()),
+        "episodes whose episode_id is not their row position",
+    )
+
+    counted = episode_id.value_counts().reindex(
+        np.arange(n_episodes), fill_value=0
+    )
+    add(
+        int((counted.to_numpy() == 0).sum()),
+        "episodes with no complaints",
+    )
+    add(
+        int((episodes["n_complaints"].to_numpy() != counted.to_numpy()).sum()),
+        "episodes with a wrong n_complaints",
+    )
+
+    ordered = complaints.sort_values(
+        ["episode_id", "created_date", "unique_key"], kind="mergesort"
+    )
+    expected_first = ~ordered["episode_id"].duplicated()
+    expected_flag = pd.Series(False, index=complaints.index)
+    expected_flag[ordered.index[expected_first.to_numpy()]] = True
+
+    add(
+        int(
+            (
+                complaints["is_first_of_episode"].to_numpy()
+                != expected_flag.to_numpy()
+            ).sum()
+        ),
+        "complaints whose is_first_of_episode differs from the smallest "
+        "(created_date, unique_key) in their episode",
+    )
+
+    first_keys = ordered.loc[expected_first.to_numpy(), ["episode_id", "unique_key"]]
+    first_keys = first_keys.set_index("episode_id")["unique_key"].reindex(
+        np.arange(n_episodes)
+    )
+    add(
+        int(
+            (episodes["first_unique_key"].to_numpy() != first_keys.to_numpy()).sum()
+        ),
+        "episodes whose first_unique_key is wrong",
+    )
+
+    # Episodes must be numbered by their first complaint.
+    firsts = ordered.loc[expected_first.to_numpy()].sort_values(
+        ["created_date", "unique_key"], kind="mergesort"
+    )
+    add(
+        int(
+            (firsts["episode_id"].to_numpy() != np.arange(len(firsts))).sum()
+        ),
+        "episodes not numbered in first-complaint order",
+    )
+
+    grouped = complaints.groupby("episode_id")
+    add(
+        int(
+            (
+                episodes["start_s"].to_numpy()
+                != grouped["dark_start_s"].min().reindex(np.arange(n_episodes)).to_numpy()
+            ).sum()
+            + (
+                episodes["end_s"].to_numpy()
+                != grouped["dark_end_s"].max().reindex(np.arange(n_episodes)).to_numpy()
+            ).sum()
+        ),
+        "episode start_s/end_s values that differ from their complaints",
+    )
+
+    # A7: artifact-site complaints are single-complaint episodes.
+    artifact = sites["is_artifact"].to_numpy()[complaints["site_idx"].to_numpy()]
+    artifact_sizes = counted.to_numpy()[episode_id.to_numpy()[artifact]]
+    add(
+        int((artifact_sizes != 1).sum()),
+        "artifact-site complaints in an episode with other complaints",
+    )
+
+    expected_per_site = (
+        complaints.groupby("site_idx")["episode_id"]
+        .nunique()
+        .reindex(np.arange(len(sites)), fill_value=0)
+    )
+    add(
+        int((sites["n_episodes"].to_numpy() != expected_per_site.to_numpy()).sum()),
+        "sites with a wrong n_episodes",
+    )
+
+    return CheckResult(
+        check_id="H3",
+        passed=not problems,
+        n_violations=violations,
+        examples=problems[:10],
+        seconds=time.perf_counter() - start,
+    )
+
+
+def _check_h4(params, complaints, sites, episode_links):
+    """
+    H4: episodes are complete. For every pair of non-artifact complaints
+    within episode_merge_radius_m (the full list, rebuilt with a new
+    KD-tree), complaints in different episodes must not have
+    overlapping darkness intervals.
+    """
+
+    start = time.perf_counter()
+    problems = []
+
+    non_artifact = np.flatnonzero(
+        ~sites["is_artifact"].to_numpy()[complaints["site_idx"].to_numpy()]
+    )
+    xy = complaints[["x_m", "y_m"]].to_numpy()[non_artifact]
+
+    pairs = non_artifact[
+        cKDTree(xy).query_pairs(
+            r=params.episode_merge_radius_m, output_type="ndarray"
+        )
+    ]
+
+    if len(pairs) != len(episode_links):
+        problems.append(
+            f"rebuilt pair count {len(pairs):,} differs from the "
+            f"episode links {len(episode_links):,}"
+        )
+
+    a, b = pairs[:, 0], pairs[:, 1]
+    start_s = complaints["dark_start_s"].to_numpy()
+    end_s = complaints["dark_end_s"].to_numpy()
+    episode_id = complaints["episode_id"].to_numpy()
+
+    split = (
+        (episode_id[a] != episode_id[b])
+        & (start_s[a] <= end_s[b])
+        & (start_s[b] <= end_s[a])
+    )
+    count = int(split.sum())
+
+    if count:
+        keys = complaints["unique_key"].to_numpy()
+        examples = [
+            f"{keys[i]}/{keys[j]}" for i, j in pairs[split][:10]
+        ]
+        problems.append(
+            f"{count:,} overlapping complaint pairs within "
+            f"{params.episode_merge_radius_m:g} m are in different "
+            f"episodes (e.g. {', '.join(examples)})"
+        )
+
+    return CheckResult(
+        check_id="H4",
+        passed=not problems,
+        n_violations=count + int(len(pairs) != len(episode_links)),
+        examples=problems,
+        seconds=time.perf_counter() - start,
+    )
+
+
 def _check_h18(params, complaints, sites):
     """
     H18: site and artifact integrity. Rebuilds the site assignment with
@@ -2178,7 +2556,8 @@ def run_hard_checks(params, stage, checks, **tables):
     raise HardCheckError if any failed.
 
     Stages implemented so far: "inputs" (H1, H16 after step 2),
-    "darkness" (H2, H17 after step 4) and "sites" (H18 after step 5).
+    "darkness" (H2, H17 after step 4), "sites" (H18 after step 5) and
+    "episodes" (H3, H4 after step 6).
     """
 
     if stage == "inputs":
@@ -2201,6 +2580,16 @@ def run_hard_checks(params, stage, checks, **tables):
     elif stage == "sites":
         results = [
             _check_h18(params, tables["complaints"], tables["sites"]),
+        ]
+    elif stage == "episodes":
+        results = [
+            _check_h3(tables["complaints"], tables["episodes"], tables["sites"]),
+            _check_h4(
+                params,
+                tables["complaints"],
+                tables["sites"],
+                tables["episode_links"],
+            ),
         ]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
@@ -2363,7 +2752,32 @@ def main(argv=None):
     except HardCheckError as error:
         return _stop(error)
 
-    # Steps 6-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 6: episodes")
+    with StageTimer("build_episodes", runtime):
+        episodes, complaints, sites, episode_links, episode_summary = (
+            build_episodes(params, complaints, sites)
+        )
+
+    print("\n--- Hard checks: episodes")
+    try:
+        with StageTimer("checks_episodes", runtime):
+            run_hard_checks(
+                params,
+                "episodes",
+                checks,
+                complaints=complaints,
+                episodes=episodes,
+                sites=sites,
+                episode_links=episode_links,
+            )
+    except HardCheckError as error:
+        return _stop(error)
+
+    # The 25 m links are only needed for H4.
+    del episode_links
+    gc.collect()
+
+    # Steps 7-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
