@@ -37,13 +37,22 @@ A6  Darkness coverage runs from the earliest to the latest raw
 A7  Artifact-site complaints form single-complaint episodes and still
     count as darkness.
 A8  S-3 and S-4 distances are measured to each complaint's point, not
-    to episode centres.
+    to episode centres (A13 formula).
 A9  Prior episodes: an episode counts if its start falls in B and at
     least one of its complaints is within 250 m.
 A10 Res-9 density: crimes during B inside the unit's res-9 cell,
     divided by the cell area in km^2.
-A11 The S8 pre-window [c - 14 d, c] includes both ends; B is half-open.
-A12 Distances follow Stage 8: <= 100 m direct, (100, 250] m ring.
+A11 The S8 pre-window [c - 14 d, c] includes both ends; B is half-open
+    (evaluated as in A13).
+A12 Distances follow Stage 8: <= 100 m direct, (100, 250] m ring,
+    using the A13 formula.
+A13 Index times are whole-second int64 timestamps. A half-open window
+    [a, b) is evaluated as the closed lookup [a, b - 1]; a query with
+    a > b is an empty window (clean / count 0). Radius membership is
+    decided only by the explicit float64 formula sqrt(dx**2 + dy**2) <= r
+    in EPSG:32118 metres. KD-tree radius queries only generate candidates
+    and use a positive tolerance (KD_QUERY_TOLERANCE_M = 1e-6 m); final
+    inclusion is decided by the explicit formula.
 
 H9 (approved interpretation; implemented in a later commit)
 --
@@ -77,6 +86,7 @@ import functools
 import gc
 import hashlib
 import importlib.metadata
+import itertools
 import json
 import math
 import os
@@ -204,6 +214,23 @@ RULE_QUERY_CHUNK = 20_000
 # Composite sorted keys: group index * 2**34 + seconds.
 KEY_TIME_BITS = 34
 KEY_MAX_GROUP = 2 ** 17
+KEY_TIME_LIMIT = 2 ** KEY_TIME_BITS
+
+# A13: KD-tree radius queries use radius + this tolerance to generate
+# candidates; the explicit distance formula decides inclusion.
+KD_QUERY_TOLERANCE_M = 1e-6
+
+# M4 (informational): distance band around each radius that is logged.
+BOUNDARY_DIAGNOSTIC_M = 0.001
+
+# A10: H3 resolution of the crime density cell index.
+DENSITY_H3_RESOLUTION = 9
+
+if KEY_MAX_GROUP * KEY_TIME_LIMIT > 2 ** 62:
+    raise ValueError(
+        "index guard [key overflow risk]: KEY_MAX_GROUP * 2**KEY_TIME_BITS "
+        "must stay below 2**62 for int64 composite keys"
+    )
 
 # Exit codes (2 is raised by argparse for usage errors).
 EXIT_COMPLETED = 0
@@ -251,11 +278,18 @@ CONVENTIONS = {
           "with src/data/clean_streetlights.py.",
     "A6": "Darkness coverage is min/max raw created_date; crime coverage is min/max crime_datetime.",
     "A7": "Artifact-site complaints form single-complaint episodes and still count as darkness.",
-    "A8": "S-3 and S-4 distances are measured to each complaint's point.",
+    "A8": "S-3 and S-4 distances are measured to each complaint's point (A13 formula).",
     "A9": "Prior episodes: episode start in B and at least one complaint within 250 m.",
     "A10": "Res-9 density: crimes during B in the unit's res-9 cell divided by cell area (km^2).",
-    "A11": "S8 pre-window [c-14d, c] includes both ends; B is half-open.",
-    "A12": "Distances follow Stage 8: <= 100 m direct, (100, 250] m ring.",
+    "A11": "S8 pre-window [c-14d, c] includes both ends; B is half-open (evaluated as in A13).",
+    "A12": "Distances follow Stage 8: <= 100 m direct, (100, 250] m ring, using the A13 formula.",
+    "A13": "Index times are whole-second int64 timestamps. A half-open window [a, b) "
+           "is evaluated as the closed lookup [a, b - 1]. A query with a > b is an "
+           "empty window: clean / count 0. Radius membership is decided only by the "
+           "explicit float64 formula sqrt(dx**2 + dy**2) <= r in EPSG:32118 metres. "
+           "KD-tree radius queries only generate candidates and use a positive "
+           "tolerance (KD_QUERY_TOLERANCE_M = 1e-6 m); final inclusion is decided "
+           "by the explicit formula.",
 }
 
 
@@ -894,6 +928,272 @@ def _h3_cells(lat, lon, resolution):
         ],
         dtype=object,
     )
+
+
+def _distance(center_x, center_y, x, y):
+    """Explicit A13 distance in metres (float64), same formula as Stage 8."""
+
+    return np.sqrt(
+        (np.asarray(x, dtype=np.float64) - center_x) ** 2
+        + (np.asarray(y, dtype=np.float64) - center_y) ** 2
+    )
+
+
+def _index_guard(condition, category, message):
+    """Build-time index guard (M1). category names the violation type."""
+
+    if not condition:
+        raise HardCheckError(f"index guard [{category}]: {message}")
+
+
+def _composite_key(group_idx, t_s):
+    """group * 2**KEY_TIME_BITS + t as int64 (A13 whole-second times)."""
+
+    group_idx = np.asarray(group_idx).astype(np.int64)
+    t_s = np.asarray(t_s).astype(np.int64)
+
+    _index_guard(
+        group_idx.size == 0
+        or (group_idx.min() >= 0 and group_idx.max() < KEY_MAX_GROUP),
+        "invalid group id",
+        f"group ids must be in [0, {KEY_MAX_GROUP})",
+    )
+    _index_guard(
+        t_s.size == 0 or (t_s.min() >= 0 and t_s.max() < KEY_TIME_LIMIT),
+        "invalid time range",
+        f"times must be in [0, 2**{KEY_TIME_BITS}) seconds",
+    )
+
+    return group_idx * KEY_TIME_LIMIT + t_s
+
+
+def _build_sorted_index(group_idx, t_s, n_groups, end_s=None):
+    """
+    Sort (group, time) entries into composite keys.
+
+    Returns (key, runmax_end, offsets). offsets has n_groups + 1 entries,
+    so every group (including empty ones) has a segment. When end_s is
+    given, entries are sorted stably by (key, end) (M3) and runmax_end is
+    the running maximum of end within each group; otherwise it is None.
+    """
+
+    group_idx = np.asarray(group_idx).astype(np.int64)
+    key = _composite_key(group_idx, t_s)
+
+    if end_s is None:
+        order = np.argsort(key, kind="stable")
+        runmax_end = None
+    else:
+        end_s = np.asarray(end_s).astype(np.int64)
+        _index_guard(
+            end_s.size == 0
+            or (end_s.min() >= 0 and end_s.max() < KEY_TIME_LIMIT),
+            "invalid time range",
+            f"interval ends must be in [0, 2**{KEY_TIME_BITS}) seconds",
+        )
+        order = np.lexsort((end_s, key))
+        # Groups are increasing and every end is below KEY_TIME_LIMIT, so
+        # a global running maximum of group * LIMIT + end equals the
+        # per-group running maximum plus group * LIMIT.
+        shifted = group_idx[order] * KEY_TIME_LIMIT + end_s[order]
+        runmax_end = (
+            np.maximum.accumulate(shifted) - group_idx[order] * KEY_TIME_LIMIT
+        )
+
+    key = key[order]
+
+    _index_guard(
+        bool(np.all(key[1:] >= key[:-1])),
+        "invalid time range",
+        "composite keys are not sorted",
+    )
+
+    offsets = np.zeros(n_groups + 1, dtype=np.int64)
+    offsets[1:] = np.cumsum(
+        np.bincount(group_idx, minlength=n_groups)[:n_groups]
+    )
+
+    return key, runmax_end, offsets
+
+
+def _query_window(start_s, end_s, shape):
+    """Broadcast and validate query window bounds (A13)."""
+
+    start_s = np.broadcast_to(np.asarray(start_s), shape).astype(np.int64)
+    end_s = np.broadcast_to(np.asarray(end_s), shape).astype(np.int64)
+
+    for name, values in (("start", start_s), ("end", end_s)):
+        if values.size and (values.min() < 0 or values.max() >= KEY_TIME_LIMIT):
+            raise ValueError(
+                f"[malformed query window] window {name} must be in "
+                f"[0, 2**{KEY_TIME_BITS}) seconds"
+            )
+
+    return start_s, end_s
+
+
+def _dirty_mask(idx, site_idx, win_start_s, win_end_s):
+    """
+    For each site, whether any stored darkness interval overlaps the
+    closed window [win_start_s, win_end_s] (A2): start <= win_end_s and
+    end >= win_start_s.
+
+    Stored intervals: every complaint within exclusion_radius_m of the
+    site under the A13 formula, including artifact-site complaints (A7)
+    and treatment complaints, with their real dates (C4).
+
+    Callers pass half-open windows [a, b) as [a, b - 1] (A13).
+
+    site_idx: integer array (cast to int64), values in [0, n_sites),
+    otherwise ValueError. win_start_s / win_end_s: int64 seconds, scalars
+    or arrays broadcastable to site_idx, values in [0, 2**34), otherwise
+    ValueError. Returns a bool array shaped like site_idx: False for a
+    site with an empty segment (ineligible site) and False where
+    win_start_s > win_end_s (empty window). Pure and deterministic;
+    O(m log N) for m queried sites.
+    """
+
+    site_idx = np.asarray(site_idx).astype(np.int64)
+    n_sites = len(idx.dirty_offsets) - 1
+
+    if site_idx.size and (site_idx.min() < 0 or site_idx.max() >= n_sites):
+        raise ValueError(
+            f"[invalid group id] site_idx must be in [0, {n_sites})"
+        )
+
+    win_start_s, win_end_s = _query_window(
+        win_start_s, win_end_s, site_idx.shape
+    )
+
+    position = np.searchsorted(
+        idx.dirty_key, site_idx * KEY_TIME_LIMIT + win_end_s, side="right"
+    )
+    has_entries = position > idx.dirty_offsets[site_idx]
+
+    runmax = np.zeros(site_idx.shape, dtype=np.int64)
+    runmax[has_entries] = idx.dirty_runmax_end[position[has_entries] - 1]
+
+    return has_entries & (runmax >= win_start_s) & (win_start_s <= win_end_s)
+
+
+def _count_in_window(key, group_idx, start_s, end_s, end_inclusive):
+    """
+    Number of index entries in each group whose time t satisfies
+    start_s <= t < end_s, or start_s <= t <= end_s when end_inclusive is
+    True. The start is always inclusive.
+
+    key: sorted int64 composite keys (group * 2**34 + t), e.g.
+    crime_direct_key, crime_ring_key or crime_cell_key; radius membership
+    was decided at build time with the A13 formula. group_idx: integer
+    array (cast to int64), values in [0, 2**17) or -1. -1 means "no
+    group" (e.g. a unit whose res-9 cell has no crimes) and returns 0;
+    any other value is a ValueError. start_s / end_s: int64 seconds,
+    scalars or arrays broadcastable to group_idx, values in [0, 2**34),
+    otherwise ValueError. end_inclusive: False for B and other half-open
+    windows; True for the S8 pre-window (A11).
+
+    Returns int64 counts shaped like group_idx; 0 for an empty window
+    (start_s > end_s, or start_s == end_s with end_inclusive False).
+    Pure and deterministic; O(m log N).
+    """
+
+    group_idx = np.asarray(group_idx).astype(np.int64)
+
+    valid = group_idx >= 0
+    if group_idx.size and (
+        (group_idx < -1).any() or group_idx.max() >= KEY_MAX_GROUP
+    ):
+        raise ValueError(
+            f"[invalid group id] group_idx must be in [0, {KEY_MAX_GROUP}) "
+            f"or -1"
+        )
+
+    start_s, end_s = _query_window(start_s, end_s, group_idx.shape)
+
+    group = np.where(valid, group_idx, 0)
+    low = np.searchsorted(key, group * KEY_TIME_LIMIT + start_s, side="left")
+    high = np.searchsorted(
+        key,
+        group * KEY_TIME_LIMIT + end_s,
+        side="right" if end_inclusive else "left",
+    )
+
+    counts = np.maximum(high - low, 0)
+
+    return np.where(valid, counts, 0).astype(np.int64)
+
+
+def _ball_query_flat(tree, block, query_radius):
+    """Flatten one chunked KD-tree ball query: (owner, point, distance)."""
+
+    lists = tree.query_ball_point(block, r=query_radius)
+
+    lengths = np.fromiter(
+        (len(item) for item in lists), dtype=np.int64, count=len(lists)
+    )
+    points = np.fromiter(
+        itertools.chain.from_iterable(lists),
+        dtype=np.int64,
+        count=int(lengths.sum()),
+    )
+    owner = np.repeat(np.arange(len(block), dtype=np.int64), lengths)
+
+    distance = _distance(
+        block[owner, 0], block[owner, 1],
+        tree.data[points, 0], tree.data[points, 1],
+    )
+
+    return owner, points, distance
+
+
+def _ball_candidates(tree, centers, radius, chunk):
+    """
+    Points within radius of each center (A13): the KD-tree query only
+    generates candidates (radius + KD_QUERY_TOLERANCE_M); inclusion is
+    decided by the explicit formula. Processed in chunks of centers.
+
+    Yields (center positions, point indices, distances) per chunk.
+    """
+
+    for begin in range(0, len(centers), chunk):
+        block = centers[begin:begin + chunk]
+        owner, points, distance = _ball_query_flat(
+            tree, block, radius + KD_QUERY_TOLERANCE_M
+        )
+        keep = distance <= radius
+
+        yield begin + owner[keep], points[keep], distance[keep]
+
+
+def _boundary_count(tree, centers, radius, chunk):
+    """
+    Informational (M4): candidates with |distance - radius| <= 1 mm,
+    decided by the explicit formula. Never used for membership.
+    """
+
+    total = 0
+
+    for begin in range(0, len(centers), chunk):
+        block = centers[begin:begin + chunk]
+        _, _, distance = _ball_query_flat(
+            tree, block, radius + BOUNDARY_DIAGNOSTIC_M
+        )
+        total += int((np.abs(distance - radius) <= BOUNDARY_DIAGNOSTIC_M).sum())
+
+    return total
+
+
+def _entry_distribution(group_idx, groups):
+    """Per-group entry counts over the given groups (M4)."""
+
+    counts = np.bincount(group_idx, minlength=int(groups.max()) + 1)[groups]
+
+    return {
+        "p50": float(np.percentile(counts, 50)),
+        "p99": float(np.percentile(counts, 99)),
+        "max": int(counts.max()),
+        "n_groups_without_entries": int((counts == 0).sum()),
+    }
 
 
 def _normalise_label(values):
@@ -1992,6 +2292,208 @@ def build_episodes(params, complaints, sites):
     return episodes, complaints, sites, episode_links, summary
 
 
+def build_spatial_indexes(params, complaints, sites, crime):
+    """
+    Step 7: KD-trees and the sorted lookup indexes (A13).
+
+    7a dirty index: for every eligible control site, each complaint
+       within exclusion_radius_m (explicit formula) with its darkness
+       interval, including artifact-site complaints (A7) and real dates
+       (C4). Sorted stably by (site, start, end) with a per-site running
+       maximum of the end. dirty_offsets covers all sites; ineligible
+       sites have empty segments.
+    7b crime indexes: for every eligible control site, crime times at
+       <= 100 m (direct) and (100, 250] m (ring), explicit formula (A12).
+    Cell index: crime times per H3 res-9 cell (A10), cells ranked in
+       ascending cell-id order.
+
+    Returns the SpatialIndexes and a summary (entry counts, radii used,
+    per-site distributions, boundary counts within 1 mm, memory).
+    """
+
+    n_sites = len(sites)
+
+    complaint_xy = complaints[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+    site_xy = sites[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+    crime_xy = crime[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+
+    complaint_tree = cKDTree(complaint_xy)
+    site_tree = cKDTree(site_xy)
+    crime_tree = cKDTree(crime_xy)
+
+    eligible = np.flatnonzero(sites["eligible_control"].to_numpy())
+    eligible_xy = site_xy[eligible]
+
+    # 7a: dirty index.
+    radius = params.exclusion_radius_m
+    dark_start = complaints["dark_start_s"].to_numpy()
+    dark_end = complaints["dark_end_s"].to_numpy()
+
+    groups, starts, ends = [], [], []
+    for owner, points, _ in _ball_candidates(
+        complaint_tree, eligible_xy, radius, SITE_QUERY_CHUNK
+    ):
+        groups.append(eligible[owner])
+        starts.append(dark_start[points])
+        ends.append(dark_end[points])
+
+    dirty_groups = np.concatenate(groups)
+    dirty_key, dirty_runmax_end, dirty_offsets = _build_sorted_index(
+        dirty_groups, np.concatenate(starts), n_sites, np.concatenate(ends)
+    )
+    del groups, starts, ends
+
+    # 7b: crime indexes.
+    crime_t = crime["t_s"].to_numpy()
+
+    direct_groups, direct_times, ring_groups, ring_times = [], [], [], []
+    for owner, points, distance in _ball_candidates(
+        crime_tree, eligible_xy, params.outcome_radius_m, SITE_QUERY_CHUNK
+    ):
+        direct = distance <= params.direct_radius_m
+        direct_groups.append(eligible[owner[direct]])
+        direct_times.append(crime_t[points[direct]])
+        ring_groups.append(eligible[owner[~direct]])
+        ring_times.append(crime_t[points[~direct]])
+
+    direct_group_idx = np.concatenate(direct_groups)
+    ring_group_idx = np.concatenate(ring_groups)
+    crime_direct_key, _, _ = _build_sorted_index(
+        direct_group_idx, np.concatenate(direct_times), n_sites
+    )
+    crime_ring_key, _, _ = _build_sorted_index(
+        ring_group_idx, np.concatenate(ring_times), n_sites
+    )
+    del direct_groups, direct_times, ring_groups, ring_times
+
+    # Cell index (A10).
+    cell_ids = np.array(
+        [
+            h3.str_to_int(cell)
+            for cell in _h3_cells(
+                crime["latitude"].to_numpy(),
+                crime["longitude"].to_numpy(),
+                DENSITY_H3_RESOLUTION,
+            )
+        ],
+        dtype=np.uint64,
+    )
+    unique_cells, cell_rank = np.unique(cell_ids, return_inverse=True)
+    crime_cell_key, _, _ = _build_sorted_index(
+        cell_rank, crime_t, len(unique_cells)
+    )
+    crime_cell_rank = {
+        int(cell): rank for rank, cell in enumerate(unique_cells.tolist())
+    }
+
+    indexes = SpatialIndexes(
+        complaint_tree=complaint_tree,
+        site_tree=site_tree,
+        crime_tree=crime_tree,
+        dirty_key=dirty_key,
+        dirty_runmax_end=dirty_runmax_end,
+        dirty_offsets=dirty_offsets,
+        crime_direct_key=crime_direct_key,
+        crime_ring_key=crime_ring_key,
+        crime_cell_key=crime_cell_key,
+        crime_cell_rank=crime_cell_rank,
+    )
+
+    def megabytes(*arrays):
+        return round(sum(array.nbytes for array in arrays) / 2**20, 1)
+
+    # Smallest and largest stored time, without concatenating the keys.
+    key_arrays = (dirty_key, crime_direct_key, crime_ring_key, crime_cell_key)
+    key_time_min = min(
+        int((array % KEY_TIME_LIMIT).min()) for array in key_arrays if len(array)
+    )
+    key_time_max = max(
+        int((array % KEY_TIME_LIMIT).max()) for array in key_arrays if len(array)
+    )
+
+    summary = {
+        "n_eligible_sites": int(len(eligible)),
+        "dirty": {
+            "radius_m": float(radius),
+            "n_entries": int(len(dirty_key)),
+            "per_site": _entry_distribution(dirty_groups, eligible),
+            "n_within_1mm_of_radius": _boundary_count(
+                complaint_tree, eligible_xy, radius, SITE_QUERY_CHUNK
+            ),
+            "memory_mb": megabytes(dirty_key, dirty_runmax_end, dirty_offsets),
+        },
+        "crime_direct": {
+            "radius_m": float(params.direct_radius_m),
+            "n_entries": int(len(crime_direct_key)),
+            "per_site": _entry_distribution(direct_group_idx, eligible),
+            "memory_mb": megabytes(crime_direct_key),
+        },
+        "crime_ring": {
+            "inner_radius_m": float(params.direct_radius_m),
+            "outer_radius_m": float(params.outcome_radius_m),
+            "n_entries": int(len(crime_ring_key)),
+            "per_site": _entry_distribution(ring_group_idx, eligible),
+            "memory_mb": megabytes(crime_ring_key),
+        },
+        "crime_within_1mm_of_direct_radius": _boundary_count(
+            crime_tree, eligible_xy, params.direct_radius_m, SITE_QUERY_CHUNK
+        ),
+        "crime_within_1mm_of_outcome_radius": _boundary_count(
+            crime_tree, eligible_xy, params.outcome_radius_m, SITE_QUERY_CHUNK
+        ),
+        "crime_cell": {
+            "h3_resolution": DENSITY_H3_RESOLUTION,
+            "n_cells": int(len(unique_cells)),
+            "n_entries": int(len(crime_cell_key)),
+            "memory_mb": megabytes(crime_cell_key),
+        },
+        "key_time_min_s": key_time_min,
+        "key_time_max_s": key_time_max,
+    }
+    del dirty_groups, direct_group_idx, ring_group_idx
+
+    print(
+        f"KD-trees: {len(complaint_xy):,} complaints, {n_sites:,} sites, "
+        f"{len(crime_xy):,} crimes; indexes over "
+        f"{summary['n_eligible_sites']:,} eligible control sites"
+    )
+    for name in ("dirty", "crime_direct", "crime_ring"):
+        entry = summary[name]
+        radius_text = (
+            f"{entry['radius_m']:g} m"
+            if "radius_m" in entry
+            else f"({entry['inner_radius_m']:g}, {entry['outer_radius_m']:g}] m"
+        )
+        per_site = entry["per_site"]
+        print(
+            f"  {name:<12} radius {radius_text:<14} entries "
+            f"{entry['n_entries']:>11,}  per site p50 {per_site['p50']:g}, "
+            f"p99 {per_site['p99']:g}, max {per_site['max']:,}, "
+            f"empty {per_site['n_groups_without_entries']:,}  "
+            f"{entry['memory_mb']:.1f} MB"
+        )
+    print(
+        f"  crime_cell   res {DENSITY_H3_RESOLUTION}, "
+        f"{summary['crime_cell']['n_cells']:,} cells, "
+        f"{summary['crime_cell']['n_entries']:,} entries, "
+        f"{summary['crime_cell']['memory_mb']:.1f} MB"
+    )
+    print(
+        "  within 1 mm of a boundary (informational): "
+        f"complaints at {radius:g} m: {summary['dirty']['n_within_1mm_of_radius']}, "
+        f"crimes at {params.direct_radius_m:g} m: "
+        f"{summary['crime_within_1mm_of_direct_radius']}, "
+        f"crimes at {params.outcome_radius_m:g} m: "
+        f"{summary['crime_within_1mm_of_outcome_radius']}"
+    )
+    print(
+        f"  key times: {_format_seconds(summary['key_time_min_s'])} -> "
+        f"{_format_seconds(summary['key_time_max_s'])}"
+    )
+
+    return indexes, summary
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -2777,7 +3279,17 @@ def main(argv=None):
     del episode_links
     gc.collect()
 
-    # Steps 7-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 7: spatial indexes")
+    with StageTimer("build_spatial_indexes", runtime):
+        indexes, index_summary = build_spatial_indexes(
+            params, complaints, sites, crime
+        )
+
+    # Crime latitude/longitude were only needed for the H3 cells; H11
+    # rereads the crime file independently.
+    crime = crime.drop(columns=["latitude", "longitude"])
+
+    # Steps 8-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
