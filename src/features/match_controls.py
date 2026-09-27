@@ -44,10 +44,24 @@ A10 Res-9 density: crimes during B inside the unit's res-9 cell,
     divided by the cell area in km^2.
 A11 The S8 pre-window [c - 14 d, c] includes both ends; B is half-open.
 A12 Distances follow Stage 8: <= 100 m direct, (100, 250] m ring.
+
+H9 (approved interpretation; implemented in a later commit)
+--
+Intervals are closed W windows per site. A control interval must not
+overlap another control use of the same site, nor the W of any eligible
+treatment at that site. Treatment-treatment overlap at a site is allowed
+and reported. H9 rebuilds the intervals from the pairs and eligible
+treatments instead of trusting ReuseRegistry.
+
+Exit codes
+----------
+0 Stage 7 completed. 1 H0 or hard-check failure. 2 argparse usage
+error. 3 Stage 7 incomplete on this branch (no outputs produced).
 """
 
 import argparse
 import dataclasses
+import math
 import gc
 import hashlib
 import importlib.metadata
@@ -97,42 +111,41 @@ NYC_BBOX = (40.49, 40.92, -74.26, -73.69)
 
 H3_RESOLUTIONS = (7, 9, 10)
 
-# Stage 8 outcome definitions. Stage 7 must use the same values.
+# ---------------------------------------------------------
+# Cross-stage contracts (locked; must match other stages)
+# ---------------------------------------------------------
+
+# Stage 8 outcome definitions.
 DIRECT_RADIUS_M = 100.0
 OUTCOME_RADIUS_M = 250.0
 S8_PRE_WINDOW_DAYS = 14
 
+# Stage 3 valid-closure rule (src/data/clean_streetlights.py).
+VALID_MIN_DURATION_H = 0.5
+VALID_MAX_DURATION_H = 8760.0
+
+# Stage 8 post-window length.
+POST_WINDOW_DAYS = 14
+
+# Stage 10 event window (days -35 to +35). Also sets the W start, the
+# S-4 pre-window length and the end of the baseline window B.
+EVENT_WINDOW_DAYS = 35
+
 
 # ---------------------------------------------------------
-# Parameter defaults (approved registry)
+# Fixed methodology values (locked; no sensitivity values)
 # ---------------------------------------------------------
 
 SITE_ROUND_M = 1
 EPISODE_MERGE_RADIUS_M = 25.0
 ARTIFACT_QUANTILE = 0.999
 
-# Stage 3 valid-closure rule (keep in sync with clean_streetlights.py).
-VALID_MIN_DURATION_H = 0.5
-VALID_MAX_DURATION_H = 8760.0
-
-REPORT_LAG_DAYS = 7
-IMPUTED_DURATION_HOURS = 160.0
-
-EXCLUSION_RADIUS_M = 350.0
+# Fixed at 2 x OUTCOME_RADIUS_M so outcome zones never overlap (C5).
 MATCH_BAND_MIN_M = 500.0
-MATCH_BAND_MAX_M = 1500.0
 TREATMENT_CLEAN_RADIUS_M = 100.0
 PRIOR_EPISODE_RADIUS_M = 250.0
 
-EVENT_WINDOW_DAYS = 35
-POST_WINDOW_DAYS = 14
 BASELINE_DAYS = 365
-
-CALIPER_SD = 0.5
-REUSE_POLICY = "non_overlapping"
-CONTROL_SELECTION = "full_window"
-MATCH_SEED = 42
-PLACEBO_SHIFT_DAYS = 0
 
 RECHECK_SAMPLE_N = 2000
 RECHECK_SEED = 20260927
@@ -140,6 +153,23 @@ RECHECK_SEED = 20260927
 SMD_MAX = 0.1
 VR_MIN = 0.5
 VR_MAX = 2.0
+
+
+# ---------------------------------------------------------
+# D19 sensitivity parameters (command-line defaults)
+# ---------------------------------------------------------
+
+REPORT_LAG_DAYS = 7
+IMPUTED_DURATION_HOURS = 160.0
+
+EXCLUSION_RADIUS_M = 350.0
+MATCH_BAND_MAX_M = 1500.0
+
+CALIPER_SD = 0.5
+REUSE_POLICY = "non_overlapping"
+CONTROL_SELECTION = "full_window"
+MATCH_SEED = 42
+PLACEBO_SHIFT_DAYS = 0
 
 # Exclusion radii allowed below DIRECT + OUTCOME radius (D19 sensitivity).
 EXCLUSION_RADIUS_SENSITIVITY_VALUES = (250.0,)
@@ -158,6 +188,12 @@ RULE_QUERY_CHUNK = 20_000
 # Composite sorted keys: group index * 2**34 + seconds.
 KEY_TIME_BITS = 34
 KEY_MAX_GROUP = 2 ** 17
+
+# Exit codes (2 is raised by argparse for usage errors).
+EXIT_COMPLETED = 0
+EXIT_HARD_CHECK_FAILED = 1
+EXIT_USAGE_ERROR = 2
+EXIT_INCOMPLETE = 3
 
 
 # ---------------------------------------------------------
@@ -482,6 +518,76 @@ RUN_CONTROL_FIELDS = (
     "check_determinism",
 )
 
+# The only methodology fields with a command-line option (D19).
+SENSITIVITY_FIELDS = (
+    "exclusion_radius_m",
+    "match_band_max_m",
+    "caliper_sd",
+    "reuse_policy",
+    "report_lag_days",
+    "imputed_duration_hours",
+    "control_selection",
+    "match_seed",
+    "placebo_shift_days",
+)
+
+# Cross-stage contracts: field -> (required value, stage it must match).
+# Written to diagnostics.parameters.locked.
+LOCKED_PARAMETERS = {
+    "valid_min_duration_h": (VALID_MIN_DURATION_H, "Stage 3"),
+    "valid_max_duration_h": (VALID_MAX_DURATION_H, "Stage 3"),
+    "post_window_days": (POST_WINDOW_DAYS, "Stage 8"),
+    "event_window_days": (EVENT_WINDOW_DAYS, "Stage 10"),
+    "direct_radius_m": (DIRECT_RADIUS_M, "Stage 8"),
+    "outcome_radius_m": (OUTCOME_RADIUS_M, "Stage 8"),
+    "s8_pre_window_days": (S8_PRE_WINDOW_DAYS, "Stage 8"),
+}
+
+# Fixed methodology values with no sensitivity runs: field -> value.
+FIXED_PARAMETERS = {
+    "projected_crs": PROJECTED_CRS,
+    "nyc_bbox": NYC_BBOX,
+    "h3_resolutions": H3_RESOLUTIONS,
+    "site_round_m": SITE_ROUND_M,
+    "episode_merge_radius_m": EPISODE_MERGE_RADIUS_M,
+    "artifact_quantile": ARTIFACT_QUANTILE,
+    "match_band_min_m": MATCH_BAND_MIN_M,
+    "treatment_clean_radius_m": TREATMENT_CLEAN_RADIUS_M,
+    "prior_episode_radius_m": PRIOR_EPISODE_RADIUS_M,
+    "baseline_days": BASELINE_DAYS,
+    "recheck_sample_n": RECHECK_SAMPLE_N,
+    "recheck_seed": RECHECK_SEED,
+    "smd_max": SMD_MAX,
+    "vr_range": (VR_MIN, VR_MAX),
+}
+
+
+def locked_parameters_metadata():
+    """Structure for diagnostics.parameters.locked."""
+
+    return {
+        name: {"value": value, "must_match": stage}
+        for name, (value, stage) in LOCKED_PARAMETERS.items()
+    }
+
+
+# Every Params field must be in exactly one group, so a new field can't
+# silently skip H0.
+_FIELD_GROUPS = (
+    tuple(LOCKED_PARAMETERS),
+    tuple(FIXED_PARAMETERS),
+    SENSITIVITY_FIELDS,
+    RUN_CONTROL_FIELDS,
+)
+
+if sorted(name for group in _FIELD_GROUPS for name in group) != sorted(
+    field.name for field in dataclasses.fields(Params)
+):
+    raise ValueError(
+        "Params fields must each belong to exactly one of LOCKED_PARAMETERS, "
+        "FIXED_PARAMETERS, SENSITIVITY_FIELDS or RUN_CONTROL_FIELDS"
+    )
+
 
 @dataclass
 class Coverage:
@@ -586,6 +692,10 @@ class ReuseRegistry:
     Pre-registered windows are the W of every eligible treatment at its
     own site (C3). Assigned windows are control uses. Overlap is closed
     on both ends (A2).
+
+    H9 must not use this class to verify itself: it rebuilds the
+    intervals from the pairs and eligible treatments (see the module
+    docstring).
     """
 
     def __init__(self, policy):
@@ -708,24 +818,13 @@ def _build_parser():
     parser = argparse.ArgumentParser(
         description=(
             "Stage 7: match each eligible treatment outage to a clean "
-            "control site (Issue 4 design)."
+            "control site (Issue 4 design). Only the D19 sensitivity "
+            "parameters can be changed; all other values are locked."
         ),
+        allow_abbrev=False,
     )
 
-    darkness = parser.add_argument_group("darkness and episodes")
-    darkness.add_argument("--site-round-m", type=int, default=SITE_ROUND_M)
-    darkness.add_argument(
-        "--episode-merge-radius-m", type=float, default=EPISODE_MERGE_RADIUS_M
-    )
-    darkness.add_argument(
-        "--artifact-quantile", type=float, default=ARTIFACT_QUANTILE
-    )
-    darkness.add_argument(
-        "--valid-min-duration-h", type=float, default=VALID_MIN_DURATION_H
-    )
-    darkness.add_argument(
-        "--valid-max-duration-h", type=float, default=VALID_MAX_DURATION_H
-    )
+    darkness = parser.add_argument_group("darkness (D19 sensitivity)")
     darkness.add_argument(
         "--report-lag-days", type=int, default=REPORT_LAG_DAYS
     )
@@ -733,35 +832,15 @@ def _build_parser():
         "--imputed-duration-hours", type=float, default=IMPUTED_DURATION_HOURS
     )
 
-    spatial = parser.add_argument_group("spatial rules (metres)")
+    spatial = parser.add_argument_group("spatial rules in metres (D19 sensitivity)")
     spatial.add_argument(
         "--exclusion-radius-m", type=float, default=EXCLUSION_RADIUS_M
     )
     spatial.add_argument(
-        "--match-band-min-m", type=float, default=MATCH_BAND_MIN_M
-    )
-    spatial.add_argument(
         "--match-band-max-m", type=float, default=MATCH_BAND_MAX_M
     )
-    spatial.add_argument(
-        "--treatment-clean-radius-m",
-        type=float,
-        default=TREATMENT_CLEAN_RADIUS_M,
-    )
-    spatial.add_argument(
-        "--prior-episode-radius-m", type=float, default=PRIOR_EPISODE_RADIUS_M
-    )
 
-    temporal = parser.add_argument_group("windows (days)")
-    temporal.add_argument(
-        "--event-window-days", type=int, default=EVENT_WINDOW_DAYS
-    )
-    temporal.add_argument(
-        "--post-window-days", type=int, default=POST_WINDOW_DAYS
-    )
-    temporal.add_argument("--baseline-days", type=int, default=BASELINE_DAYS)
-
-    matching = parser.add_argument_group("matching")
+    matching = parser.add_argument_group("matching (D19 sensitivity)")
     matching.add_argument("--caliper-sd", type=float, default=CALIPER_SD)
     matching.add_argument(
         "--reuse-policy", choices=REUSE_POLICY_CHOICES, default=REUSE_POLICY
@@ -781,15 +860,6 @@ def _build_parser():
         default=PLACEBO_SHIFT_DAYS,
         help="move treatment dates back by this many days (D18 placebo)",
     )
-
-    validation = parser.add_argument_group("validation")
-    validation.add_argument(
-        "--recheck-sample-n", type=int, default=RECHECK_SAMPLE_N
-    )
-    validation.add_argument("--recheck-seed", type=int, default=RECHECK_SEED)
-    validation.add_argument("--smd-max", type=float, default=SMD_MAX)
-    validation.add_argument("--vr-min", type=float, default=VR_MIN)
-    validation.add_argument("--vr-max", type=float, default=VR_MAX)
 
     run = parser.add_argument_group("run control")
     run.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
@@ -812,34 +882,34 @@ def _params_from_namespace(namespace):
     return Params(
         projected_crs=PROJECTED_CRS,
         nyc_bbox=NYC_BBOX,
-        site_round_m=namespace.site_round_m,
-        episode_merge_radius_m=namespace.episode_merge_radius_m,
-        artifact_quantile=namespace.artifact_quantile,
-        valid_min_duration_h=namespace.valid_min_duration_h,
-        valid_max_duration_h=namespace.valid_max_duration_h,
+        site_round_m=SITE_ROUND_M,
+        episode_merge_radius_m=EPISODE_MERGE_RADIUS_M,
+        artifact_quantile=ARTIFACT_QUANTILE,
+        valid_min_duration_h=VALID_MIN_DURATION_H,
+        valid_max_duration_h=VALID_MAX_DURATION_H,
         report_lag_days=namespace.report_lag_days,
         imputed_duration_hours=namespace.imputed_duration_hours,
         direct_radius_m=DIRECT_RADIUS_M,
         outcome_radius_m=OUTCOME_RADIUS_M,
         exclusion_radius_m=namespace.exclusion_radius_m,
-        match_band_min_m=namespace.match_band_min_m,
+        match_band_min_m=MATCH_BAND_MIN_M,
         match_band_max_m=namespace.match_band_max_m,
-        treatment_clean_radius_m=namespace.treatment_clean_radius_m,
-        event_window_days=namespace.event_window_days,
-        post_window_days=namespace.post_window_days,
-        baseline_days=namespace.baseline_days,
+        treatment_clean_radius_m=TREATMENT_CLEAN_RADIUS_M,
+        event_window_days=EVENT_WINDOW_DAYS,
+        post_window_days=POST_WINDOW_DAYS,
+        baseline_days=BASELINE_DAYS,
         s8_pre_window_days=S8_PRE_WINDOW_DAYS,
-        prior_episode_radius_m=namespace.prior_episode_radius_m,
+        prior_episode_radius_m=PRIOR_EPISODE_RADIUS_M,
         h3_resolutions=H3_RESOLUTIONS,
         caliper_sd=namespace.caliper_sd,
         reuse_policy=namespace.reuse_policy,
         control_selection=namespace.control_selection,
         match_seed=namespace.match_seed,
         placebo_shift_days=namespace.placebo_shift_days,
-        recheck_sample_n=namespace.recheck_sample_n,
-        recheck_seed=namespace.recheck_seed,
-        smd_max=namespace.smd_max,
-        vr_range=(namespace.vr_min, namespace.vr_max),
+        recheck_sample_n=RECHECK_SAMPLE_N,
+        recheck_seed=RECHECK_SEED,
+        smd_max=SMD_MAX,
+        vr_range=(VR_MIN, VR_MAX),
         out_dir=namespace.out_dir,
         skip_recheck=namespace.skip_recheck,
         check_determinism=namespace.check_determinism,
@@ -863,23 +933,61 @@ def _is_default_out_dir(out_dir):
     return Path(out_dir).resolve() == DEFAULT_OUT_DIR.resolve()
 
 
-def _validate_params(params, defaults):
-    """H0: return a list of violations (empty when the parameters are valid)."""
+def _is_float(value):
+    return isinstance(value, float) and not isinstance(value, bool)
+
+
+def _non_finite_violations(params):
+    """Float parameters (including tuple members) that are NaN or infinite."""
 
     violations = []
 
-    # Units and fixed Stage 8 definitions.
+    for field in dataclasses.fields(Params):
+        value = getattr(params, field.name)
+
+        if _is_float(value):
+            if not math.isfinite(value):
+                violations.append(
+                    f"{field.name} must be finite (got {value})"
+                )
+
+        elif isinstance(value, tuple):
+            for position, item in enumerate(value):
+                if _is_float(item) and not math.isfinite(item):
+                    violations.append(
+                        f"{field.name}[{position}] must be finite "
+                        f"(got {item})"
+                    )
+
+    return violations
+
+
+def _validate_params(params, defaults):
+    """H0: return a list of violations (empty when the parameters are valid)."""
+
+    # Non-finite values make every later comparison False, so report
+    # them first.
+    violations = _non_finite_violations(params)
+
+    # Cross-stage contracts.
+    for name, (value, stage) in LOCKED_PARAMETERS.items():
+        if getattr(params, name) != value:
+            violations.append(
+                f"{name} must equal the {stage} value ({value:g}); "
+                f"got {getattr(params, name)}"
+            )
+
+    # Fixed methodology values.
+    for name, value in FIXED_PARAMETERS.items():
+        if getattr(params, name) != value:
+            violations.append(
+                f"{name} is a fixed methodology value and must equal "
+                f"{value!r}; got {getattr(params, name)!r}"
+            )
+
+    # Units and structural settings.
     if CRS(params.projected_crs).axis_info[0].unit_name != "metre":
         violations.append(f"{params.projected_crs} must use metre units")
-
-    if params.direct_radius_m != DIRECT_RADIUS_M:
-        violations.append("direct_radius_m must equal the Stage 8 value (100)")
-
-    if params.outcome_radius_m != OUTCOME_RADIUS_M:
-        violations.append("outcome_radius_m must equal the Stage 8 value (250)")
-
-    if params.s8_pre_window_days != S8_PRE_WINDOW_DAYS:
-        violations.append("s8_pre_window_days must equal the Stage 8 value (14)")
 
     lat_min, lat_max, lon_min, lon_max = params.nyc_bbox
     if not (lat_min < lat_max and lon_min < lon_max):
@@ -984,8 +1092,19 @@ def _validate_params(params, defaults):
     if not 0 < vr_min < vr_max:
         violations.append("need 0 < vr_min < vr_max")
 
-    # Canonical output protection.
+    # Only D19 sensitivity parameters may differ from their defaults.
     changed = _non_default_fields(params, defaults)
+
+    not_sensitivity = [
+        name for name in changed if name not in SENSITIVITY_FIELDS
+    ]
+    if not_sensitivity:
+        violations.append(
+            "only D19 sensitivity parameters may differ from their "
+            f"defaults; also changed: {', '.join(not_sensitivity)}"
+        )
+
+    # Canonical output protection.
     default_dir = _is_default_out_dir(params.out_dir)
 
     if changed and default_dir:
@@ -1049,6 +1168,10 @@ def _print_run_header(params):
     for field in dataclasses.fields(Params):
         print(f"  {field.name}: {getattr(params, field.name)}")
 
+    print("\nLocked cross-stage parameters:")
+    for name, entry in locked_parameters_metadata().items():
+        print(f"  {name} = {entry['value']:g} (must match {entry['must_match']})")
+
     print("\nConventions:")
     for key, text in CONVENTIONS.items():
         print(f"  {key}: {text}")
@@ -1068,17 +1191,19 @@ def main(argv=None):
             f"\nStage 7 stopped: {str(error).splitlines()[0]}",
             file=sys.stderr,
         )
-        return 1
+        return EXIT_HARD_CHECK_FAILED
 
     _print_run_header(params)
 
+    # Steps 1-20 are added in later commits; Commit 12 returns
+    # EXIT_COMPLETED once all outputs are written.
+    sys.stdout.flush()
     print(
-        "\nCommit 1 scope ends here: steps 1-20 (loading, sites, "
-        "episodes, indexes, matching, checks, outputs) are not yet "
-        "implemented. No files were read or written."
+        "\nStage 7 incomplete on this branch; no outputs were produced.",
+        file=sys.stderr,
     )
 
-    return 0
+    return EXIT_INCOMPLETE
 
 
 if __name__ == "__main__":
