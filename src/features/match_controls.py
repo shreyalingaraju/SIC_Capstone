@@ -47,8 +47,9 @@ A11 The S8 pre-window [c - 14 d, c] includes both ends; B is half-open
 A12 Distances follow Stage 8: <= 100 m direct, (100, 250] m ring,
     using the A13 formula.
 A13 Index times are whole-second int64 timestamps. A half-open window
-    [a, b) is evaluated as the closed lookup [a, b - 1]; a query with
-    a > b is an empty window (clean / count 0). Radius membership is
+    [a, b) is evaluated as the closed lookup [a, b - 1]; a left-open
+    window (a, b] is evaluated as the closed lookup [a + 1, b]; a query
+    with a > b is an empty window (clean / count 0). Radius membership is
     decided only by the explicit float64 formula sqrt(dx**2 + dy**2) <= r
     in EPSG:32118 metres. KD-tree radius queries only generate candidates
     and use a positive tolerance (KD_QUERY_TOLERANCE_M = 1e-6 m); final
@@ -216,6 +217,8 @@ KEY_TIME_BITS = 34
 KEY_MAX_GROUP = 2 ** 17
 KEY_TIME_LIMIT = 2 ** KEY_TIME_BITS
 
+SECONDS_PER_DAY = 86400
+
 # A13: KD-tree radius queries use radius + this tolerance to generate
 # candidates; the explicit distance formula decides inclusion.
 KD_QUERY_TOLERANCE_M = 1e-6
@@ -284,7 +287,8 @@ CONVENTIONS = {
     "A11": "S8 pre-window [c-14d, c] includes both ends; B is half-open (evaluated as in A13).",
     "A12": "Distances follow Stage 8: <= 100 m direct, (100, 250] m ring, using the A13 formula.",
     "A13": "Index times are whole-second int64 timestamps. A half-open window [a, b) "
-           "is evaluated as the closed lookup [a, b - 1]. A query with a > b is an "
+           "is evaluated as the closed lookup [a, b - 1]; a left-open window (a, b] "
+           "is evaluated as the closed lookup [a + 1, b]. A query with a > b is an "
            "empty window: clean / count 0. Radius membership is decided only by the "
            "explicit float64 formula sqrt(dx**2 + dy**2) <= r in EPSG:32118 metres. "
            "KD-tree radius queries only generate candidates and use a positive "
@@ -901,6 +905,14 @@ def _to_seconds(values):
     )
 
     return seconds.astype("int64").to_numpy()
+
+
+def _from_seconds(values):
+    """int64 seconds since 1970 -> datetime64[us] (inverse of _to_seconds)."""
+
+    return pd.Series(
+        pd.to_datetime(np.asarray(values, dtype=np.int64), unit="s")
+    ).astype("datetime64[us]")
 
 
 @functools.lru_cache(maxsize=None)
@@ -2516,6 +2528,246 @@ def build_spatial_indexes(params, complaints, sites, crime):
     return indexes, summary
 
 
+def compute_windows(params, treatments_all):
+    """
+    Step 8: treatment windows in int64 seconds (A3, A13), from the
+    treatment dates (placebo-shifted when placebo_shift_days > 0, C4).
+
+    W  = [c - event_window, max(closed + post_window, c + event_window)]
+         closed (A2).
+    B  = [c - event_window - baseline_days, c - event_window), half-open
+         (A11), i.e. the baseline ends where W starts.
+    S8 pre-window = [c - s8_pre_window_days, c], closed (A11); balance
+         only.
+    """
+
+    event = params.event_window_days * SECONDS_PER_DAY
+    post = params.post_window_days * SECONDS_PER_DAY
+    baseline = params.baseline_days * SECONDS_PER_DAY
+    s8_pre = params.s8_pre_window_days * SECONDS_PER_DAY
+
+    c_s = _to_seconds(treatments_all["created_date"])
+    closed_s = _to_seconds(treatments_all["closed_date"])
+
+    treatments_all["created_s"] = c_s
+    treatments_all["closed_s"] = closed_s
+    treatments_all["w_start_s"] = c_s - event
+    treatments_all["w_end_s"] = np.maximum(closed_s + post, c_s + event)
+    treatments_all["b_start_s"] = c_s - event - baseline
+    treatments_all["b_end_s"] = c_s - event
+    treatments_all["s8_pre_start_s"] = c_s - s8_pre
+    treatments_all["s8_pre_end_s"] = c_s
+
+    for column, seconds in (
+        ("window_start", "w_start_s"),
+        ("window_end", "w_end_s"),
+        ("baseline_start", "b_start_s"),
+        ("baseline_end", "b_end_s"),
+    ):
+        treatments_all[column] = _from_seconds(treatments_all[seconds])
+
+    return treatments_all
+
+
+def _s4_dirty(params, treatments, complaints, idx):
+    """
+    S-4 clean-treatment rule (A8, A13, A2). Returns (pre_dirty,
+    post_dirty) bool arrays over the treatments.
+
+    Candidates: complaints within treatment_clean_radius_m of the
+    treatment complaint's exact point, from _ball_candidates (the KD-tree
+    only generates candidates; the explicit formula decides, A13).
+    Candidate darkness intervals [s, e] are real complaint dates.
+
+    Pre-window [c - event_window, c) -> [c - event_window, c - 1] (A13):
+        hit = s <= c - 1 and e >= c - event_window        (A2 closed)
+    Post-window (closed, W_end] -> [closed + 1, W_end] (A13):
+        hit = s <= W_end and e >= closed + 1              (A2 closed)
+
+    Exemptions, canonical run (C2): pre ignores complaints of the
+    treatment's own episode; post ignores only the treatment complaint.
+
+    Exemptions, placebo run (placebo_shift_days > 0), C4:
+    - Post: no complaint is exempt. C4 makes the real treatment
+      complaint ordinary darkness, and C2's only post exemption is that
+      complaint, so nothing is left to exempt. (In canonical runs the
+      exemption never matters: H17 makes the treatment's darkness end
+      exactly at closed, outside (closed, W_end].)
+    - Pre: no episode is exempt. This is an implementation choice
+      consistent with C4/C2 (the exemption exists for duplicates of the
+      treated outage, and the placebo event is not that outage). It is
+      output-equivalent to keeping the episode exemption whenever
+      placebo_shift_days > report_lag_days (approved: 90 > 7): rule 6
+      makes every treatment reaching S-4 the first complaint of its real
+      episode, so every other member starts at or after c_real - lag,
+      while the placebo pre-window ends at c_real - shift - 1 s. The raw
+      pre flag computed here can differ between the two variants only
+      for treatments that are not first of their episode; rule 6 has
+      already removed those, so reason codes are identical.
+    """
+
+    placebo = params.placebo_shift_days > 0
+    event = params.event_window_days * SECONDS_PER_DAY
+
+    centers = treatments[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+    c_s = treatments["created_s"].to_numpy()
+    closed_s = treatments["closed_s"].to_numpy()
+    w_end_s = treatments["w_end_s"].to_numpy()
+    own_episode = treatments["episode_id"].to_numpy()
+    own_complaint = treatments["complaint_idx"].to_numpy()
+
+    dark_start = complaints["dark_start_s"].to_numpy()
+    dark_end = complaints["dark_end_s"].to_numpy()
+    episode_id = complaints["episode_id"].to_numpy()
+
+    pre_dirty = np.zeros(len(treatments), dtype=bool)
+    post_dirty = np.zeros(len(treatments), dtype=bool)
+
+    for owner, points, _ in _ball_candidates(
+        idx.complaint_tree,
+        centers,
+        params.treatment_clean_radius_m,
+        RULE_QUERY_CHUNK,
+    ):
+        s = dark_start[points]
+        e = dark_end[points]
+
+        pre_a = c_s[owner] - event
+        pre_b = c_s[owner] - 1
+        pre_hit = (s <= pre_b) & (e >= pre_a) & (pre_a <= pre_b)
+
+        post_a = closed_s[owner] + 1
+        post_b = w_end_s[owner]
+        post_hit = (s <= post_b) & (e >= post_a) & (post_a <= post_b)
+
+        if not placebo:
+            pre_hit &= episode_id[points] != own_episode[owner]
+            post_hit &= points != own_complaint[owner]
+
+        pre_dirty[owner[pre_hit]] = True
+        post_dirty[owner[post_hit]] = True
+
+    return pre_dirty, post_dirty
+
+
+def apply_treatment_rules(params, treatments_all, complaints, sites, idx,
+                          coverage):
+    """
+    Step 9: treatment eligibility rules in the approved order; each
+    treatment gets only the first rule it fails (reason_code /
+    reason_step, missing when eligible).
+
+    Borough and precinct are the site's modal values, as for controls.
+    First-of-episode is judged on the real episode (C4). Coverage uses
+    closed W and half-open B (A11, A13).
+
+    Returns (treatments_all, treatments_eligible, rejected_rules,
+    attrition).
+    """
+
+    lag = params.report_lag_days * SECONDS_PER_DAY
+    complaint_idx = treatments_all["complaint_idx"].to_numpy()
+    site_idx = complaints["site_idx"].to_numpy()[complaint_idx]
+
+    treatments_all["site_idx"] = site_idx
+    treatments_all["episode_id"] = complaints["episode_id"].to_numpy()[
+        complaint_idx
+    ]
+    treatments_all["is_first_of_episode"] = complaints[
+        "is_first_of_episode"
+    ].to_numpy()[complaint_idx]
+
+    # Site modal labels replace the complaint's own labels.
+    treatments_all = treatments_all.drop(columns=["borough", "police_precinct"])
+    treatments_all["treatment_borough"] = (
+        sites["borough"].iloc[site_idx].reset_index(drop=True)
+    )
+    treatments_all["treatment_police_precinct"] = (
+        sites["police_precinct"].iloc[site_idx].reset_index(drop=True)
+    )
+
+    w_start = treatments_all["w_start_s"].to_numpy()
+    w_end = treatments_all["w_end_s"].to_numpy()
+    b_start = treatments_all["b_start_s"].to_numpy()
+    b_end = treatments_all["b_end_s"].to_numpy()
+
+    pre_dirty, post_dirty = _s4_dirty(params, treatments_all, complaints, idx)
+
+    rule_masks = [
+        (w_start < coverage.crime_min_s) | (w_end > coverage.crime_max_s),
+        (w_start - lag < coverage.dark_min_s)
+        | (w_end + lag > coverage.dark_max_s),
+        (b_start < coverage.crime_min_s) | (b_end - 1 > coverage.crime_max_s),
+        sites["is_artifact"].to_numpy()[site_idx],
+        treatments_all["treatment_borough"].isna().to_numpy(),
+        ~treatments_all["is_first_of_episode"].to_numpy(),
+        pre_dirty,
+        post_dirty,
+    ]
+    rule_codes = [code for code, step in REASON_CODES if step <= 8]
+
+    step = np.zeros(len(treatments_all), dtype=np.int8)
+    for number in range(len(rule_masks), 0, -1):
+        step[rule_masks[number - 1]] = number
+
+    treatments_all["reason_step"] = pd.Series(step, dtype="Int8").mask(
+        step == 0
+    )
+    treatments_all["reason_code"] = (
+        pd.Series(np.array(rule_codes, dtype=object)[np.maximum(step, 1) - 1])
+        .mask(step == 0)
+        .astype("string")
+    )
+
+    attrition = [
+        {
+            "step": 0,
+            "rule": "Stage 3 valid closures (H17)",
+            "remaining": len(treatments_all),
+            "dropped": 0,
+        }
+    ]
+    for number, code in enumerate(rule_codes, start=1):
+        dropped = int((step == number).sum())
+        attrition.append(
+            {
+                "step": number,
+                "rule": code,
+                "remaining": attrition[-1]["remaining"] - dropped,
+                "dropped": dropped,
+            }
+        )
+
+    eligible = step == 0
+    treatments_eligible = treatments_all.loc[eligible].reset_index(drop=True)
+    rejected_rules = treatments_all.loc[~eligible].reset_index(drop=True)
+
+    # Internal accounting guard (does not replace H13).
+    if not (
+        attrition[-1]["remaining"] == len(treatments_eligible)
+        and len(treatments_eligible) + len(rejected_rules)
+        == len(treatments_all)
+        and set(np.unique(step).tolist()) <= set(range(len(rule_codes) + 1))
+    ):
+        raise HardCheckError(
+            "treatment attrition guard: the attrition table does not "
+            "telescope or a reason step is outside 1-8"
+        )
+
+    print(
+        f"Treatment rules (placebo shift {params.placebo_shift_days} d): "
+        f"{len(treatments_eligible):,} of {len(treatments_all):,} eligible"
+    )
+    print(
+        pd.DataFrame(attrition).to_string(
+            index=False, formatters={"remaining": "{:,}".format,
+                                     "dropped": "{:,}".format}
+        )
+    )
+
+    return treatments_all, treatments_eligible, rejected_rules, attrition
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -3321,7 +3573,22 @@ def main(argv=None):
     # rereads the crime file independently.
     crime = crime.drop(columns=["latitude", "longitude"])
 
-    # Steps 8-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 8: treatment windows")
+    with StageTimer("compute_windows", runtime):
+        treatments_all = compute_windows(params, treatments_all)
+
+    print("\n--- Step 9: treatment rules")
+    with StageTimer("apply_treatment_rules", runtime):
+        (
+            treatments_all,
+            treatments_eligible,
+            rejected_rules,
+            attrition,
+        ) = apply_treatment_rules(
+            params, treatments_all, complaints, sites, indexes, coverage
+        )
+
+    # Steps 10-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
