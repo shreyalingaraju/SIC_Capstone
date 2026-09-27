@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from pyproj import CRS
 from scipy.spatial import cKDTree
 
 
@@ -65,8 +66,12 @@ outages["closed_date"] = pd.to_datetime(
     errors="coerce"
 )
 
-# Use the projected CRS used for metre-based spatial calculations.
-TARGET_CRS = "EPSG:2263"
+# Projected CRS for metre-based spatial calculations:
+# NAD83 / New York Long Island in metres (EPSG:2263 is US feet).
+TARGET_CRS = "EPSG:32118"
+
+if CRS(TARGET_CRS).axis_info[0].unit_name != "metre":
+    raise ValueError(f"{TARGET_CRS} must use metre units")
 
 crime = crime.to_crs(TARGET_CRS)
 outages = outages.to_crs(TARGET_CRS)
@@ -161,6 +166,33 @@ pairs["post_end"] = (
 crime_valid = crime.dropna(
     subset=["crime_datetime", "geometry"]
 ).copy()
+
+
+# ============================================================
+# Keep pairs whose windows are fully covered by crime data
+#
+# Windows extending beyond the available crime records would
+# otherwise be counted as zero crime.
+# ============================================================
+
+coverage_start = crime_valid["crime_datetime"].min()
+coverage_end = crime_valid["crime_datetime"].max()
+
+covered = (
+    (pairs["pre_start"] >= coverage_start)
+    & (pairs["post_end"] <= coverage_end)
+)
+
+print(
+    f"Crime coverage: {coverage_start} to {coverage_end}"
+)
+
+print(
+    "Pairs dropped for incomplete crime coverage:",
+    int((~covered).sum())
+)
+
+pairs = pairs[covered].copy()
 
 crime_coords = np.column_stack(
     [
@@ -503,15 +535,19 @@ print(
     .head(10)
 )
 
+# Each pair contributes one treatment and one control row
+# for each of the three periods.
+n_pairs = len(pairs)
+
 assert panel["treatment"].value_counts().to_dict() == {
-    1: 138372,
-    0: 138372,
+    1: 3 * n_pairs,
+    0: 3 * n_pairs,
 }
 
 assert panel["period"].value_counts().to_dict() == {
-    "pre": 92248,
-    "during": 92248,
-    "post": 92248,
+    "pre": 2 * n_pairs,
+    "during": 2 * n_pairs,
+    "post": 2 * n_pairs,
 }
 
 assert panel["baseline_crime_intensity"].isna().sum() == 0

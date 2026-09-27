@@ -3,9 +3,9 @@ LightSafe Stage 9 - Difference-in-Differences Regression Results
 
 Dataset
 -------
-Rows: 276,744
-Unique pairs: 46,124
-Unique locations: 46,124
+Rows: 601,392
+Unique pairs: 100,232
+Unique locations: 103,159
 Cluster variable: location_key
 
 ================================================================================
@@ -13,28 +13,28 @@ BASIC DiD OLS - 0-100m
 ================================================================================
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:             crime_100m   R-squared:                       0.169
-Model:                            OLS   Adj. R-squared:                  0.168
-Method:                 Least Squares   F-statistic:                     12.60
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):           3.00e-10
-Time:                        11:19:42   Log-Likelihood:             1.7227e+05
-No. Observations:              276744   AIC:                        -3.445e+05
-Df Residuals:                  276739   BIC:                        -3.445e+05
+Dep. Variable:             crime_100m   R-squared:                       0.133
+Model:                            OLS   Adj. R-squared:                  0.133
+Method:                 Least Squares   F-statistic:                     372.1
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):          1.03e-318
+Time:                        00:35:02   Log-Likelihood:            -1.2009e+06
+No. Observations:              601392   AIC:                         2.402e+06
+Df Residuals:                  601387   BIC:                         2.402e+06
 Df Model:                           4                                         
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                    0.0026      0.001      4.695      0.000       0.001       0.004
-treatment                   -0.0007      0.000     -2.056      0.040      -0.001   -3.06e-05
-post                         0.0009      0.001      1.211      0.226      -0.001       0.002
-treatment_x_post             0.0001      0.001      0.162      0.871      -0.002       0.002
-baseline_crime_intensity     0.5792      0.096      6.057      0.000       0.392       0.767
+Intercept                    0.0858      0.007     11.779      0.000       0.072       0.100
+treatment                   -0.0053      0.001     -3.787      0.000      -0.008      -0.003
+post                         0.1165      0.006     18.356      0.000       0.104       0.129
+treatment_x_post            -0.0106      0.008     -1.287      0.198      -0.027       0.006
+baseline_crime_intensity     0.7635      0.021     36.804      0.000       0.723       0.804
 ==============================================================================
-Omnibus:                  1294016.228   Durbin-Watson:                   1.829
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):   36352457514131.094
-Skew:                         170.500   Prob(JB):                         0.00
-Kurtosis:                   56149.850   Cond. No.                         14.0
+Omnibus:                  1625893.520   Durbin-Watson:                   1.408
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):     140423943782.765
+Skew:                          32.947   Prob(JB):                         0.00
+Kurtosis:                    2369.350   Cond. No.                         8.82
 ==============================================================================
 
 Notes:
@@ -45,28 +45,28 @@ BASIC DiD OLS - 100-250m
 ================================================================================
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:             crime_250m   R-squared:                       0.002
-Model:                            OLS   Adj. R-squared:                  0.002
-Method:                 Least Squares   F-statistic:                     8.450
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):           8.24e-07
-Time:                        11:19:42   Log-Likelihood:            -1.6019e+05
-No. Observations:              276744   AIC:                         3.204e+05
-Df Residuals:                  276739   BIC:                         3.205e+05
+Dep. Variable:             crime_250m   R-squared:                       0.026
+Model:                            OLS   Adj. R-squared:                  0.026
+Method:                 Least Squares   F-statistic:                     508.3
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):               0.00
+Time:                        00:35:02   Log-Likelihood:            -2.0210e+06
+No. Observations:              601392   AIC:                         4.042e+06
+Df Residuals:                  601387   BIC:                         4.042e+06
 Df Model:                           4                                         
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                    0.0223      0.001     14.887      0.000       0.019       0.025
-treatment                    0.0009      0.002      0.507      0.612      -0.003       0.004
-post                         0.0061      0.004      1.732      0.083      -0.001       0.013
-treatment_x_post            -0.0013      0.004     -0.341      0.733      -0.009       0.006
-baseline_crime_intensity     0.1732      0.037      4.705      0.000       0.101       0.245
+Intercept                    1.4131      0.021     67.509      0.000       1.372       1.454
+treatment                    0.0111      0.017      0.633      0.527      -0.023       0.045
+post                         0.5788      0.023     25.623      0.000       0.535       0.623
+treatment_x_post            -0.0038      0.029     -0.131      0.896      -0.061       0.053
+baseline_crime_intensity     1.2101      0.043     28.014      0.000       1.125       1.295
 ==============================================================================
-Omnibus:                  1052566.178   Durbin-Watson:                   1.652
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):    1555427734988.135
-Skew:                          87.370   Prob(JB):                         0.00
-Kurtosis:                   11615.942   Cond. No.                         14.0
+Omnibus:                  1215055.433   Durbin-Watson:                   1.066
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):       6968273735.589
+Skew:                          16.537   Prob(JB):                         0.00
+Kurtosis:                     529.300   Cond. No.                         8.82
 ==============================================================================
 
 Notes:
@@ -77,30 +77,30 @@ SEPARATE DURING/POST DiD - 0-100m
 ================================================================================
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:             crime_100m   R-squared:                       0.169
-Model:                            OLS   Adj. R-squared:                  0.169
-Method:                 Least Squares   F-statistic:                     9.154
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):           4.87e-10
-Time:                        11:19:42   Log-Likelihood:             1.7228e+05
-No. Observations:              276744   AIC:                        -3.445e+05
-Df Residuals:                  276737   BIC:                        -3.445e+05
+Dep. Variable:             crime_100m   R-squared:                       0.136
+Model:                            OLS   Adj. R-squared:                  0.136
+Method:                 Least Squares   F-statistic:                     267.4
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):               0.00
+Time:                        00:35:02   Log-Likelihood:            -1.2001e+06
+No. Observations:              601392   AIC:                         2.400e+06
+Df Residuals:                  601385   BIC:                         2.400e+06
 Df Model:                           6                                         
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                    0.0026      0.001      4.695      0.000       0.001       0.004
-treatment                   -0.0007      0.000     -2.056      0.040      -0.001   -3.06e-05
-during                       0.0027      0.001      2.410      0.016       0.001       0.005
-post_period                 -0.0010      0.001     -1.560      0.119      -0.002       0.000
-treatment_x_during          -0.0010      0.001     -0.807      0.420      -0.004       0.001
-treatment_x_post_period      0.0013      0.001      1.655      0.098      -0.000       0.003
-baseline_crime_intensity     0.5792      0.096      6.057      0.000       0.392       0.767
+Intercept                    0.0858      0.007     11.779      0.000       0.072       0.100
+treatment                   -0.0053      0.001     -3.787      0.000      -0.008      -0.003
+during                       0.2337      0.012     19.822      0.000       0.211       0.257
+post_period                 -0.0008      0.003     -0.252      0.801      -0.007       0.005
+treatment_x_during          -0.0191      0.015     -1.257      0.209      -0.049       0.011
+treatment_x_post_period     -0.0021      0.004     -0.492      0.623      -0.011       0.006
+baseline_crime_intensity     0.7635      0.021     36.804      0.000       0.723       0.804
 ==============================================================================
-Omnibus:                  1294002.470   Durbin-Watson:                   1.829
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):   36351216375107.172
-Skew:                         170.493   Prob(JB):                         0.00
-Kurtosis:                   56148.891   Cond. No.                         12.6
+Omnibus:                  1625420.273   Durbin-Watson:                   1.408
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):     140950873792.877
+Skew:                          32.918   Prob(JB):                         0.00
+Kurtosis:                    2373.791   Cond. No.                         10.4
 ==============================================================================
 
 Notes:
@@ -111,30 +111,30 @@ SEPARATE DURING/POST DiD - 100-250m
 ================================================================================
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:             crime_250m   R-squared:                       0.002
-Model:                            OLS   Adj. R-squared:                  0.002
-Method:                 Least Squares   F-statistic:                     10.12
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):           3.27e-11
-Time:                        11:19:42   Log-Likelihood:            -1.6017e+05
-No. Observations:              276744   AIC:                         3.204e+05
-Df Residuals:                  276737   BIC:                         3.204e+05
+Dep. Variable:             crime_250m   R-squared:                       0.031
+Model:                            OLS   Adj. R-squared:                  0.031
+Method:                 Least Squares   F-statistic:                     362.9
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):               0.00
+Time:                        00:35:02   Log-Likelihood:            -2.0196e+06
+No. Observations:              601392   AIC:                         4.039e+06
+Df Residuals:                  601385   BIC:                         4.039e+06
 Df Model:                           6                                         
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                    0.0223      0.001     14.887      0.000       0.019       0.025
-treatment                    0.0009      0.002      0.507      0.612      -0.003       0.004
-during                       0.0131      0.006      2.146      0.032       0.001       0.025
-post_period                 -0.0009      0.001     -0.658      0.511      -0.004       0.002
-treatment_x_during          -0.0015      0.007     -0.225      0.822      -0.015       0.012
-treatment_x_post_period     -0.0011      0.002     -0.642      0.521      -0.005       0.002
-baseline_crime_intensity     0.1732      0.037      4.705      0.000       0.101       0.245
+Intercept                    1.4131      0.021     67.509      0.000       1.372       1.454
+treatment                    0.0111      0.017      0.633      0.527      -0.023       0.045
+during                       1.1687      0.044     26.698      0.000       1.083       1.254
+post_period                 -0.0111      0.008     -1.323      0.186      -0.027       0.005
+treatment_x_during          -0.0070      0.056     -0.125      0.900      -0.117       0.103
+treatment_x_post_period     -0.0006      0.011     -0.054      0.957      -0.022       0.021
+baseline_crime_intensity     1.2101      0.043     28.014      0.000       1.125       1.295
 ==============================================================================
-Omnibus:                  1052519.313   Durbin-Watson:                   1.652
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):    1555038531521.836
-Skew:                          87.358   Prob(JB):                         0.00
-Kurtosis:                   11614.489   Cond. No.                         12.6
+Omnibus:                  1212003.658   Durbin-Watson:                   1.064
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):       6954958654.488
+Skew:                          16.436   Prob(JB):                         0.00
+Kurtosis:                     528.808   Cond. No.                         10.4
 ==============================================================================
 
 Notes:
@@ -147,24 +147,24 @@ LOCATION/TIME FIXED-EFFECTS DiD - 0-100m
 ==============================================================================
 Dep. Variable:             crime_100m   R-squared:                       0.000
 Model:                            OLS   Adj. R-squared:                  0.000
-Method:                 Least Squares   F-statistic:                     1.857
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):              0.156
-Time:                        11:19:42   Log-Likelihood:             1.7873e+05
-No. Observations:              276744   AIC:                        -3.574e+05
-Df Residuals:                  276741   BIC:                        -3.574e+05
+Method:                 Least Squares   F-statistic:                     28.58
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):           3.89e-13
+Time:                        00:35:02   Log-Likelihood:            -1.1318e+06
+No. Observations:              601392   AIC:                         2.264e+06
+Df Residuals:                  601389   BIC:                         2.264e+06
 Df Model:                           2                                         
 Covariance Type:              cluster                                         
 ===========================================================================================
                               coef    std err          z      P>|z|      [0.025      0.975]
 -------------------------------------------------------------------------------------------
-const                    1.406e-17    2.8e-19     50.214      0.000    1.35e-17    1.46e-17
-treatment_x_during         -0.0019      0.001     -1.414      0.157      -0.005       0.001
-treatment_x_post_period     0.0005      0.001      0.726      0.468      -0.001       0.002
+const                   -6.776e-19   3.72e-18     -0.182      0.855   -7.97e-18    6.61e-18
+treatment_x_during         -0.0514      0.015     -3.487      0.000      -0.080      -0.023
+treatment_x_post_period    -0.0344      0.005     -7.003      0.000      -0.044      -0.025
 ==============================================================================
-Omnibus:                  1235195.209   Durbin-Watson:                   1.925
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):   25077083048705.379
-Skew:                         145.465   Prob(JB):                         0.00
-Kurtosis:                   46636.345   Cond. No.                         4.43
+Omnibus:                  1427638.883   Durbin-Watson:                   1.731
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):      73849129454.638
+Skew:                          23.464   Prob(JB):                         0.00
+Kurtosis:                    1719.079   Cond. No.                         4.71
 ==============================================================================
 
 Notes:
@@ -176,25 +176,25 @@ LOCATION/TIME FIXED-EFFECTS DiD - 100-250m
                             OLS Regression Results                            
 ==============================================================================
 Dep. Variable:             crime_250m   R-squared:                       0.000
-Model:                            OLS   Adj. R-squared:                 -0.000
-Method:                 Least Squares   F-statistic:                   0.01268
-Date:                Wed, 23 Sep 2026   Prob (F-statistic):              0.987
-Time:                        11:19:42   Log-Likelihood:            -1.2062e+05
-No. Observations:              276744   AIC:                         2.413e+05
-Df Residuals:                  276741   BIC:                         2.413e+05
+Model:                            OLS   Adj. R-squared:                  0.000
+Method:                 Least Squares   F-statistic:                     70.02
+Date:                Sun, 27 Sep 2026   Prob (F-statistic):           4.10e-31
+Time:                        00:35:02   Log-Likelihood:            -1.9205e+06
+No. Observations:              601392   AIC:                         3.841e+06
+Df Residuals:                  601389   BIC:                         3.841e+06
 Df Model:                           2                                         
 Covariance Type:              cluster                                         
 ===========================================================================================
                               coef    std err          z      P>|z|      [0.025      0.975]
 -------------------------------------------------------------------------------------------
-const                   -6.768e-17   1.36e-18    -49.587      0.000   -7.04e-17    -6.5e-17
-treatment_x_during         -0.0006      0.006     -0.100      0.920      -0.012       0.011
-treatment_x_post_period    -0.0002      0.002     -0.124      0.901      -0.004       0.003
+const                   -9.714e-17   1.39e-17     -6.978      0.000   -1.24e-16   -6.99e-17
+treatment_x_during         -0.1862      0.055     -3.411      0.001      -0.293      -0.079
+treatment_x_post_period    -0.1798      0.016    -11.445      0.000      -0.211      -0.149
 ==============================================================================
-Omnibus:                   992519.192   Durbin-Watson:                   1.838
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):    1298054336401.755
-Skew:                          72.723   Prob(JB):                         0.00
-Kurtosis:                   10611.944   Cond. No.                         4.43
+Omnibus:                  1112582.675   Durbin-Watson:                   1.596
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):       6132577303.364
+Skew:                          13.415   Prob(JB):                         0.00
+Kurtosis:                     496.979   Cond. No.                         4.71
 ==============================================================================
 
 Notes:
@@ -205,25 +205,25 @@ POISSON DiD - 0-100m
 ================================================================================
                  Generalized Linear Model Regression Results                  
 ==============================================================================
-Dep. Variable:             crime_100m   No. Observations:               276744
-Model:                            GLM   Df Residuals:                   276737
+Dep. Variable:             crime_100m   No. Observations:               601392
+Model:                            GLM   Df Residuals:                   601385
 Model Family:                 Poisson   Df Model:                            6
 Link Function:                    Log   Scale:                          1.0000
-Method:                          IRLS   Log-Likelihood:                -9317.9
-Date:                Wed, 23 Sep 2026   Deviance:                       16031.
-Time:                        11:19:42   Pearson chi2:                 3.63e+05
-No. Iterations:                    12   Pseudo R-squ. (CS):           0.009054
+Method:                          IRLS   Log-Likelihood:            -6.2276e+05
+Date:                Sun, 27 Sep 2026   Deviance:                   9.5639e+05
+Time:                        00:35:02   Pearson chi2:                 2.75e+06
+No. Iterations:                    20   Pseudo R-squ. (CS):             0.1783
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                   -5.2742      0.096    -55.133      0.000      -5.462      -5.087
-treatment                   -0.1845      0.126     -1.466      0.143      -0.431       0.062
-during                       0.3666      0.130      2.830      0.005       0.113       0.621
-post_period                 -0.1710      0.107     -1.596      0.111      -0.381       0.039
-treatment_x_during          -0.0552      0.177     -0.312      0.755      -0.401       0.291
-treatment_x_post_period      0.2495      0.154      1.624      0.104      -0.052       0.551
-baseline_crime_intensity     0.8609      0.042     20.466      0.000       0.778       0.943
+Intercept                   -1.0927      0.019    -57.622      0.000      -1.130      -1.056
+treatment                   -0.1024      0.017     -6.195      0.000      -0.135      -0.070
+during                       0.4973      0.019     25.923      0.000       0.460       0.535
+post_period                 -0.0022      0.009     -0.252      0.801      -0.019       0.015
+treatment_x_during          -0.0086      0.026     -0.326      0.744      -0.060       0.043
+treatment_x_post_period     -0.0064      0.012     -0.522      0.602      -0.030       0.018
+baseline_crime_intensity     0.1613      0.017      9.426      0.000       0.128       0.195
 ============================================================================================
 
 ================================================================================
@@ -231,25 +231,25 @@ POISSON DiD - 100-250m
 ================================================================================
                  Generalized Linear Model Regression Results                  
 ==============================================================================
-Dep. Variable:             crime_250m   No. Observations:               276744
-Model:                            GLM   Df Residuals:                   276737
+Dep. Variable:             crime_250m   No. Observations:               601392
+Model:                            GLM   Df Residuals:                   601385
 Model Family:                 Poisson   Df Model:                            6
 Link Function:                    Log   Scale:                          1.0000
-Method:                          IRLS   Log-Likelihood:                -38995.
-Date:                Wed, 23 Sep 2026   Deviance:                       67926.
-Time:                        11:19:42   Pearson chi2:                 1.56e+06
-No. Iterations:                    16   Pseudo R-squ. (CS):           0.002895
+Method:                          IRLS   Log-Likelihood:            -2.1813e+06
+Date:                Sun, 27 Sep 2026   Deviance:                   3.4526e+06
+Time:                        00:35:03   Pearson chi2:                 9.56e+06
+No. Iterations:                    17   Pseudo R-squ. (CS):             0.2798
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                   -3.7704      0.065    -57.731      0.000      -3.898      -3.642
-treatment                    0.0338      0.076      0.445      0.657      -0.115       0.183
-during                       0.4461      0.171      2.614      0.009       0.112       0.780
-post_period                 -0.0407      0.062     -0.655      0.512      -0.162       0.081
-treatment_x_during          -0.0512      0.190     -0.270      0.787      -0.423       0.321
-treatment_x_post_period     -0.0500      0.078     -0.637      0.524      -0.204       0.104
-baseline_crime_intensity     0.5531      0.059      9.449      0.000       0.438       0.668
+Intercept                    0.5579      0.014     40.784      0.000       0.531       0.585
+treatment                   -0.0137      0.011     -1.244      0.214      -0.035       0.008
+during                       0.4892      0.014     35.268      0.000       0.462       0.516
+post_period                 -0.0060      0.005     -1.322      0.186      -0.015       0.003
+treatment_x_during           0.0010      0.018      0.055      0.956      -0.035       0.037
+treatment_x_post_period     -0.0004      0.006     -0.063      0.949      -0.012       0.011
+baseline_crime_intensity     0.1309      0.015      8.514      0.000       0.101       0.161
 ============================================================================================
 
 ================================================================================
@@ -257,25 +257,25 @@ NEGATIVE BINOMIAL DiD - 0-100m
 ================================================================================
                  Generalized Linear Model Regression Results                  
 ==============================================================================
-Dep. Variable:             crime_100m   No. Observations:               276744
-Model:                            GLM   Df Residuals:                   276737
+Dep. Variable:             crime_100m   No. Observations:               601392
+Model:                            GLM   Df Residuals:                   601385
 Model Family:        NegativeBinomial   Df Model:                            6
 Link Function:                    Log   Scale:                          1.0000
-Method:                          IRLS   Log-Likelihood:                -7819.1
-Date:                Wed, 23 Sep 2026   Deviance:                       11966.
-Time:                        11:19:42   Pearson chi2:                 3.49e+05
-No. Iterations:                    77   Pseudo R-squ. (CS):            0.01592
+Method:                          IRLS   Log-Likelihood:            -4.4028e+05
+Date:                Sun, 27 Sep 2026   Deviance:                   4.6273e+05
+Time:                        00:35:03   Pearson chi2:                 1.46e+06
+No. Iterations:                    47   Pseudo R-squ. (CS):             0.2398
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                   -5.7092      0.096    -59.367      0.000      -5.898      -5.521
-treatment                   -0.2199      0.109     -2.023      0.043      -0.433      -0.007
-during                       0.5693      0.111      5.127      0.000       0.352       0.787
-post_period                  0.0749      0.127      0.591      0.555      -0.174       0.323
-treatment_x_during           0.0642      0.162      0.397      0.692      -0.253       0.381
-treatment_x_post_period      0.3028      0.163      1.856      0.063      -0.017       0.623
-baseline_crime_intensity     3.3584      0.372      9.038      0.000       2.630       4.087
+Intercept                   -1.8454      0.011   -164.792      0.000      -1.867      -1.823
+treatment                   -0.0350      0.008     -4.489      0.000      -0.050      -0.020
+during                       0.7959      0.016     49.388      0.000       0.764       0.827
+post_period                  0.2880      0.010     30.060      0.000       0.269       0.307
+treatment_x_during          -0.0240      0.022     -1.096      0.273      -0.067       0.019
+treatment_x_post_period     -0.0126      0.013     -0.991      0.321      -0.038       0.012
+baseline_crime_intensity     0.7963      0.009     88.505      0.000       0.779       0.814
 ============================================================================================
 
 ================================================================================
@@ -283,23 +283,23 @@ NEGATIVE BINOMIAL DiD - 100-250m
 ================================================================================
                  Generalized Linear Model Regression Results                  
 ==============================================================================
-Dep. Variable:             crime_250m   No. Observations:               276744
-Model:                            GLM   Df Residuals:                   276737
+Dep. Variable:             crime_250m   No. Observations:               601392
+Model:                            GLM   Df Residuals:                   601385
 Model Family:        NegativeBinomial   Df Model:                            6
 Link Function:                    Log   Scale:                          1.0000
-Method:                          IRLS   Log-Likelihood:                -34334.
-Date:                Wed, 23 Sep 2026   Deviance:                       54312.
-Time:                        11:19:42   Pearson chi2:                 1.52e+06
-No. Iterations:                    44   Pseudo R-squ. (CS):           0.003889
+Method:                          IRLS   Log-Likelihood:            -1.1604e+06
+Date:                Sun, 27 Sep 2026   Deviance:                   9.5655e+05
+Time:                        00:35:03   Pearson chi2:                 2.53e+06
+No. Iterations:                    14   Pseudo R-squ. (CS):             0.1282
 Covariance Type:              cluster                                         
 ============================================================================================
                                coef    std err          z      P>|z|      [0.025      0.975]
 --------------------------------------------------------------------------------------------
-Intercept                   -3.7921      0.065    -58.139      0.000      -3.920      -3.664
-treatment                    0.0398      0.076      0.526      0.599      -0.109       0.188
-during                       0.4530      0.172      2.635      0.008       0.116       0.790
-post_period                 -0.0414      0.063     -0.659      0.510      -0.164       0.082
-treatment_x_during          -0.0561      0.191     -0.293      0.769      -0.431       0.318
-treatment_x_post_period     -0.0497      0.079     -0.629      0.530      -0.205       0.105
-baseline_crime_intensity     1.4197      0.294      4.835      0.000       0.844       1.995
+Intercept                    0.4062      0.010     40.380      0.000       0.386       0.426
+treatment                    0.0010      0.010      0.106      0.916      -0.018       0.020
+during                       0.4856      0.013     37.456      0.000       0.460       0.511
+post_period                 -0.0015      0.005     -0.306      0.759      -0.011       0.008
+treatment_x_during           0.0059      0.017      0.341      0.733      -0.028       0.040
+treatment_x_post_period     -0.0005      0.006     -0.082      0.935      -0.013       0.012
+baseline_crime_intensity     0.3918      0.006     63.634      0.000       0.380       0.404
 ============================================================================================

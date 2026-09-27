@@ -21,12 +21,15 @@ defusedxml==0.7.1
 executing==2.2.1
 fastjsonschema==2.22.2
 fonttools==4.65.0
+formulaic==1.2.2
 fqdn==1.5.1
 geopandas==1.1.4
 h11==0.16.0
+h3==4.5.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.20
+interface-meta==2.0.1
 ipykernel==7.3.0
 ipython==9.17.1
 ipython_pygments_lexers==1.1.1
@@ -70,6 +73,7 @@ packaging==26.3
 pandas==3.0.6
 pandocfilters==1.5.1
 parso==0.8.7
+patsy==1.0.3
 pillow==12.3.0
 platformdirs==4.11.10
 prometheus_client==0.26.0
@@ -100,6 +104,7 @@ shapely==2.1.2
 six==1.17.0
 soupsieve==2.9.2
 stack-data==0.6.3
+statsmodels==0.15.0
 terminado==0.18.1
 threadpoolctl==3.7.0
 tinycss2==1.5.1
@@ -115,5 +120,6 @@ webcolors==25.10.0
 webencodings==0.6.1
 websocket-client==1.9.2
 widgetsnbextension==4.0.16
+wrapt==2.5.0rc1
 requests
 pyarrow

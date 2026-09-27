@@ -3,6 +3,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import h3
+from pyproj import CRS
 
 
 # -------------------------------------------------------------------
@@ -26,11 +27,75 @@ OUTPUT_FILE = Path(
 # Spatial settings
 # -------------------------------------------------------------------
 
-PROJECTED_CRS = "EPSG:2263"
+# NAD83 / New York Long Island in metres. (EPSG:2263 is the same
+# projection in US survey feet and must not be used with the metre
+# distances below.)
+PROJECTED_CRS = "EPSG:32118"
 WGS84_CRS = "EPSG:4326"
 
+# Distances in metres
 TREATMENT_DISTANCE = 100
 DISPLACEMENT_DISTANCE = 250
+
+if CRS(PROJECTED_CRS).axis_info[0].unit_name != "metre":
+    raise ValueError(f"{PROJECTED_CRS} must use metre units")
+
+# Crimes are joined to outage zones in chunks to bound memory use.
+CRIME_CHUNK_SIZE = 50_000
+
+
+# -------------------------------------------------------------------
+# Chunked crime counting
+# -------------------------------------------------------------------
+
+def count_crimes_during_outage(crime_points, zones, count_name):
+    """
+    Count crimes that fall within each outage zone while the
+    outage was active (created_date <= crime_datetime <= closed_date).
+
+    crime_points must contain only crime_datetime and geometry, and
+    zones only created_date, closed_date and geometry. Crimes are
+    processed in chunks so the spatial join never materialises the
+    full crime x zone match table; results are identical to a single
+    join.
+    """
+
+    counts = pd.Series(
+        0,
+        index=zones.index,
+        dtype="int64",
+        name=count_name,
+    )
+
+    spatial_matches = 0
+    outage_matches = 0
+
+    for start in range(0, len(crime_points), CRIME_CHUNK_SIZE):
+
+        joined = gpd.sjoin(
+            crime_points.iloc[start:start + CRIME_CHUNK_SIZE],
+            zones,
+            how="inner",
+            predicate="within",
+        )
+
+        spatial_matches += len(joined)
+
+        joined = joined[
+            (joined["crime_datetime"] >= joined["created_date"])
+            &
+            (joined["crime_datetime"] <= joined["closed_date"])
+        ]
+
+        outage_matches += len(joined)
+
+        counts = counts.add(
+            joined.groupby("index_right").size(),
+            fill_value=0,
+        ).astype("int64")
+
+    # Series.add drops the name, which the merge in step 14 needs.
+    return counts.rename(count_name), spatial_matches, outage_matches
 
 
 # -------------------------------------------------------------------
@@ -171,20 +236,29 @@ def spatial_linking():
     )
 
     # ===============================================================
-    # 5. Convert to EPSG:2263 for meter-based distances
+    # 5. Convert to the projected CRS for metre-based distances
     # ===============================================================
 
     print(
-        "Converting data to EPSG:2263..."
+        f"Converting data to {PROJECTED_CRS}..."
     )
 
-    lights_2263 = lights_wgs84.to_crs(
+    lights_proj = lights_wgs84.to_crs(
         PROJECTED_CRS
     )
 
-    crime_2263 = crime_wgs84.to_crs(
+    # The spatial joins only need the crime timestamp and location.
+    crime_proj = crime_wgs84[
+        [
+            "crime_datetime",
+            "geometry",
+        ]
+    ].to_crs(
         PROJECTED_CRS
     )
+
+    # Release the full-width crime copies before the joins.
+    del crime, crime_wgs84
 
     # ===============================================================
     # 6. Create 0–100 m treatment zones
@@ -194,12 +268,10 @@ def spatial_linking():
         "Creating 0–100 m treatment zones..."
     )
 
-    treatment_zones = lights_2263[
+    treatment_zones = lights_proj[
         [
             "created_date",
             "closed_date",
-            "h3_res9",
-            "h3_res10",
             "geometry",
         ]
     ].copy()
@@ -218,12 +290,10 @@ def spatial_linking():
         "Creating 100–250 m displacement zones..."
     )
 
-    displacement_zones = lights_2263[
+    displacement_zones = lights_proj[
         [
             "created_date",
             "closed_date",
-            "h3_res9",
-            "h3_res10",
             "geometry",
         ]
     ].copy()
@@ -240,118 +310,62 @@ def spatial_linking():
     )
 
     # ===============================================================
-    # 8. Spatial join: crimes within 100 m
+    # 8–9. Crimes within 100 m during the outage (chunked join)
     # ===============================================================
 
     print(
         "Linking crimes within 100 m..."
     )
 
-    crime_100m = gpd.sjoin(
-        crime_2263,
-        treatment_zones,
-        how="inner",
-        predicate="within",
+    crime_counts_100m, spatial_100m, during_100m = (
+        count_crimes_during_outage(
+            crime_proj,
+            treatment_zones,
+            "crimes_during_outage_100m",
+        )
     )
 
     print(
         "100 m spatial matches:",
-        len(crime_100m),
+        spatial_100m,
     )
-
-    # ===============================================================
-    # 9. Keep only crimes occurring during outage
-    # ===============================================================
-
-    crime_100m = crime_100m[
-        (
-            crime_100m["crime_datetime"]
-            >= crime_100m["created_date"]
-        )
-        &
-        (
-            crime_100m["crime_datetime"]
-            <= crime_100m["closed_date"]
-        )
-    ].copy()
 
     print(
         "100 m matches during outage:",
-        len(crime_100m),
+        during_100m,
     )
 
     # ===============================================================
-    # 10. Spatial join: crimes within 100–250 m
+    # 10–11. Crimes within 100–250 m during the outage (chunked join)
     # ===============================================================
 
     print(
         "Linking crimes within 100–250 m..."
     )
 
-    crime_250m = gpd.sjoin(
-        crime_2263,
-        displacement_zones,
-        how="inner",
-        predicate="within",
+    crime_counts_250m, spatial_250m, during_250m = (
+        count_crimes_during_outage(
+            crime_proj,
+            displacement_zones,
+            "crimes_during_outage_250m",
+        )
     )
 
     print(
         "100–250 m spatial matches:",
-        len(crime_250m),
+        spatial_250m,
     )
-
-    # ===============================================================
-    # 11. Keep only crimes occurring during outage
-    # ===============================================================
-
-    crime_250m = crime_250m[
-        (
-            crime_250m["crime_datetime"]
-            >= crime_250m["created_date"]
-        )
-        &
-        (
-            crime_250m["crime_datetime"]
-            <= crime_250m["closed_date"]
-        )
-    ].copy()
 
     print(
         "100–250 m matches during outage:",
-        len(crime_250m),
-    )
-
-    # ===============================================================
-    # 12. Count crimes per streetlight outage — 0–100 m
-    # ===============================================================
-
-    crime_counts_100m = (
-        crime_100m
-        .groupby("index_right")
-        .size()
-        .rename(
-            "crimes_during_outage_100m"
-        )
-    )
-
-    # ===============================================================
-    # 13. Count crimes per streetlight outage — 100–250 m
-    # ===============================================================
-
-    crime_counts_250m = (
-        crime_250m
-        .groupby("index_right")
-        .size()
-        .rename(
-            "crimes_during_outage_250m"
-        )
+        during_250m,
     )
 
     # ===============================================================
     # 14. Create final linked dataset
     # ===============================================================
 
-    linked = lights_2263.copy()
+    linked = lights_proj.copy()
 
     # Preserve the original outage index so the crime counts
     # can be merged back to the correct streetlight record.

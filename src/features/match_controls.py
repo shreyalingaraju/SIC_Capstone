@@ -2,6 +2,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from pyproj import CRS
 
 
 # --------------------------------------------------------
@@ -21,10 +22,15 @@ OUTPUT_FILE = Path(
 # Spatial parameters
 # ---------------------------------------------------------
 
-PROJECTED_CRS = "EPSG:2263"
+# NAD83 / New York Long Island in metres (EPSG:2263 is US feet).
+PROJECTED_CRS = "EPSG:32118"
 
+# Distances in metres
 TREATMENT_DISTANCE = 100
 CONTROL_MAX_DISTANCE = 250
+
+if CRS(PROJECTED_CRS).axis_info[0].unit_name != "metre":
+    raise ValueError(f"{PROJECTED_CRS} must use metre units")
 
 
 # ---------------------------------------------------------

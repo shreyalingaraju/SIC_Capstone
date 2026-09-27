@@ -130,7 +130,7 @@ def build_event_study_data():
         event_units,
         geometry="location_geometry",
         crs=outages.crs,
-    ).to_crs(epsg=2263)
+    ).to_crs(epsg=32118)  # NAD83 / NY Long Island, metres
 
     # --------------------------------------------------------
     # Crime data
@@ -145,7 +145,7 @@ def build_event_study_data():
         subset=["crime_datetime", "geometry"]
     ).copy()
 
-    crime_es = crime_es.to_crs(epsg=2263)
+    crime_es = crime_es.to_crs(epsg=32118)  # metres
 
     # Keep crime timestamps as a NumPy datetime array for faster
     # repeated event-window counting.
@@ -620,7 +620,7 @@ def build_event_study_data():
         event_units,
         geometry="location_geometry",
         crs=outages.crs,
-    ).to_crs(epsg=2263)
+    ).to_crs(epsg=32118)  # NAD83 / NY Long Island, metres
 
     # --------------------------------------------------------
     # Crime data
@@ -635,7 +635,7 @@ def build_event_study_data():
         subset=["crime_datetime", "geometry"]
     ).copy()
 
-    crime_es = crime_es.to_crs(epsg=2263)
+    crime_es = crime_es.to_crs(epsg=32118)  # metres
 
     # Keep crime timestamps as a NumPy datetime array for faster
     # repeated event-window counting.
