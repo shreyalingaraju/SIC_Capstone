@@ -2768,6 +2768,114 @@ def apply_treatment_rules(params, treatments_all, complaints, sites, idx,
     return treatments_all, treatments_eligible, rejected_rules, attrition
 
 
+def compute_treatment_baselines(params, treatments_eligible, idx, crime):
+    """
+    Step 10: each eligible treatment's night crimes during B, counted
+    around the treatment complaint's exact point (A8).
+
+    Radius membership (A12, A13; explicit formula d = sqrt(dx**2 + dy**2),
+    KD-tree candidates from _ball_candidates at outcome_radius_m):
+        base_100m: d <= 100               (direct)
+        base_250m: 100 < d <= 250         (ring only, NOT cumulative <= 250)
+    The two bands are disjoint and together cover 0-250 m, matching the
+    Stage 8 direct/displacement split.
+
+    Time membership: B = [b_start, b_end) is half-open (A11), evaluated
+    as the closed lookup [b_start, b_end - 1] (A13):
+        b_start <= t <= b_end - 1
+    clean_crime.parquet is already restricted to the approved night-time
+    offenses and is used as-is, as in Stage 8. In placebo runs B is the
+    shifted baseline (C4); crimes are real.
+    """
+
+    n = len(treatments_eligible)
+    centers = treatments_eligible[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+    b_start = treatments_eligible["b_start_s"].to_numpy()
+    b_last = treatments_eligible["b_end_s"].to_numpy() - 1
+    crime_t = crime["t_s"].to_numpy()
+
+    base_100 = np.zeros(n, dtype=np.int64)
+    base_250 = np.zeros(n, dtype=np.int64)
+
+    for owner, points, distance in _ball_candidates(
+        idx.crime_tree, centers, params.outcome_radius_m, TREATMENT_QUERY_CHUNK
+    ):
+        t = crime_t[points]
+        in_b = (
+            (t >= b_start[owner])
+            & (t <= b_last[owner])
+            & (b_start[owner] <= b_last[owner])
+        )
+        direct = distance <= params.direct_radius_m
+
+        base_100 += np.bincount(owner[in_b & direct], minlength=n)
+        base_250 += np.bincount(owner[in_b & ~direct], minlength=n)
+
+    treatments_eligible["base_100m"] = base_100.astype(np.int32)
+    treatments_eligible["base_250m"] = base_250.astype(np.int32)
+
+    def describe(values):
+        return {
+            "mean": float(values.mean()) if len(values) else float("nan"),
+            "median": float(np.median(values)) if len(values) else float("nan"),
+            "p90": float(np.percentile(values, 90)) if len(values) else float("nan"),
+            "max": int(values.max()) if len(values) else 0,
+            "share_zero": float((values == 0).mean()) if len(values) else float("nan"),
+        }
+
+    summary = {
+        "n_treatments": n,
+        "base_100m": describe(base_100),
+        "base_250m": describe(base_250),
+    }
+
+    for name in ("base_100m", "base_250m"):
+        entry = summary[name]
+        print(
+            f"{name}: mean {entry['mean']:.3f}, median {entry['median']:g}, "
+            f"p90 {entry['p90']:g}, max {entry['max']:,}, "
+            f"zero share {entry['share_zero']:.3f}  (n = {n:,})"
+        )
+
+    return treatments_eligible, summary
+
+
+def standardise(params, treatments_eligible):
+    """
+    Step 11: matching-variable scales.
+
+    log_base = log1p(count); sd = sample standard deviation (ddof = 1)
+    of log_base across the eligible treatments of this run (placebo runs
+    use their own eligible population, D18).
+
+    z = log1p(count) / sd, with no centring. Every downstream use (the
+    caliper test and the standardized Euclidean match distance) depends
+    only on differences between units, so subtracting a common mean
+    would cancel exactly; it is deliberately omitted.
+    """
+
+    log_100 = np.log1p(treatments_eligible["base_100m"].to_numpy(np.float64))
+    log_250 = np.log1p(treatments_eligible["base_250m"].to_numpy(np.float64))
+
+    n = len(treatments_eligible)
+    sd_100 = float(np.std(log_100, ddof=1)) if n > 1 else float("nan")
+    sd_250 = float(np.std(log_250, ddof=1)) if n > 1 else float("nan")
+
+    treatments_eligible["log_base_100m"] = log_100
+    treatments_eligible["log_base_250m"] = log_250
+    treatments_eligible["z100"] = log_100 / sd_100
+    treatments_eligible["z250"] = log_250 / sd_250
+
+    scales = Scales(sd_100=sd_100, sd_250=sd_250, n_treatments=n)
+
+    print(
+        f"Scales (sample SD of log1p, n = {n:,}): "
+        f"sd_100 = {sd_100:.6f}, sd_250 = {sd_250:.6f}"
+    )
+
+    return treatments_eligible, scales
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -2857,6 +2965,28 @@ def _check_h1(raw_summary, treatments_all, n_s3_rows, crime_summary):
         passed=not problems,
         n_violations=sum(count for count, _, _ in problems),
         examples=examples[:10],
+        seconds=time.perf_counter() - start,
+    )
+
+
+def _check_h15(scales):
+    """H15: both SDs are finite and > 0, and there is at least 1 eligible treatment."""
+
+    start = time.perf_counter()
+    problems = []
+
+    if scales.n_treatments < 1:
+        problems.append("no eligible treatments")
+
+    for name, value in (("sd_100", scales.sd_100), ("sd_250", scales.sd_250)):
+        if not (math.isfinite(value) and value > 0):
+            problems.append(f"{name} must be finite and > 0 (got {value})")
+
+    return CheckResult(
+        check_id="H15",
+        passed=not problems,
+        n_violations=len(problems),
+        examples=problems,
         seconds=time.perf_counter() - start,
     )
 
@@ -3342,8 +3472,8 @@ def run_hard_checks(params, stage, checks, **tables):
     raise HardCheckError if any failed.
 
     Stages implemented so far: "inputs" (H1, H16 after step 2),
-    "darkness" (H2, H17 after step 4), "sites" (H18 after step 5) and
-    "episodes" (H3, H4 after step 6).
+    "darkness" (H2, H17 after step 4), "sites" (H18 after step 5),
+    "episodes" (H3, H4 after step 6) and "scales" (H15 after step 11).
     """
 
     if stage == "inputs":
@@ -3377,6 +3507,8 @@ def run_hard_checks(params, stage, checks, **tables):
                 tables["episode_links"],
             ),
         ]
+    elif stage == "scales":
+        results = [_check_h15(tables["scales"])]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
 
@@ -3588,7 +3720,24 @@ def main(argv=None):
             params, treatments_all, complaints, sites, indexes, coverage
         )
 
-    # Steps 10-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 10: treatment baselines")
+    with StageTimer("compute_treatment_baselines", runtime):
+        treatments_eligible, baseline_summary = compute_treatment_baselines(
+            params, treatments_eligible, indexes, crime
+        )
+
+    print("\n--- Step 11: standardisation")
+    with StageTimer("standardise", runtime):
+        treatments_eligible, scales = standardise(params, treatments_eligible)
+
+    print("\n--- Hard checks: scales")
+    try:
+        with StageTimer("checks_scales", runtime):
+            run_hard_checks(params, "scales", checks, scales=scales)
+    except HardCheckError as error:
+        return _stop(error)
+
+    # Steps 12-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
