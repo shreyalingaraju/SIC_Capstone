@@ -55,8 +55,9 @@ treatments instead of trusting ReuseRegistry.
 
 Exit codes
 ----------
-0 Stage 7 completed. 1 H0 or hard-check failure. 2 argparse usage
-error. 3 Stage 7 incomplete on this branch (no outputs produced).
+0 Stage 7 completed. 1 H0 failure, hard-check failure, or unhandled
+exception (check stderr for a traceback). 2 argparse usage error.
+3 Stage 7 incomplete on this branch (no outputs produced).
 """
 
 import argparse
@@ -903,7 +904,10 @@ def _git_state():
         return {
             "sha": run_git("rev-parse", "HEAD"),
             "branch": run_git("rev-parse", "--abbrev-ref", "HEAD"),
-            "dirty": bool(run_git("status", "--porcelain")),
+            # Untracked files (e.g. robustness outputs) do not count.
+            "dirty": bool(
+                run_git("status", "--porcelain", "--untracked-files=no")
+            ),
         }
     except (OSError, subprocess.SubprocessError) as error:
         print(f"Warning: git state unavailable ({error})")
