@@ -53,6 +53,11 @@ treatment at that site. Treatment-treatment overlap at a site is allowed
 and reported. H9 rebuilds the intervals from the pairs and eligible
 treatments instead of trusting ReuseRegistry.
 
+H17 (Stage 3 -> Stage 7 valid-closure contract)
+---
+Every Stage 3 treatment's complaint must be a valid closure under the
+Stage 3 rule (is_imputed is False). Runs after step 4.
+
 Exit codes
 ----------
 0 Stage 7 completed. 1 H0 failure, hard-check failure, or unhandled
@@ -224,7 +229,7 @@ REASON_CODES = (
 
 REASON_STEP = dict(REASON_CODES)
 
-HARD_CHECK_IDS = tuple(f"H{i}" for i in range(17))
+HARD_CHECK_IDS = tuple(f"H{i}" for i in range(18))
 
 CONVENTIONS = {
     "A1": "311 and NYPD timestamps are naive NYC local time; the repeated DST hour is ignored.",
@@ -1486,6 +1491,112 @@ def load_crime(params, raw_summary):
     return crime, coverage, crime_summary
 
 
+def build_darkness_intervals(params, complaints, coverage):
+    """
+    Step 4: add a darkness interval to every complaint.
+
+    A closure is valid when closed_date exists and the duration is
+    within [valid_min_duration_h, valid_max_duration_h] (the Stage 3
+    rule, A5). Valid: [created - lag, closed]. Otherwise the closure is
+    imputed: [created - lag, created + imputed_duration_hours].
+
+    Intervals always use the real complaint dates, never placebo-shifted
+    treatment dates (C4). Coverage was completed in step 3 and is
+    returned unchanged.
+    """
+
+    created_s = _to_seconds(complaints["created_date"])
+
+    has_closed = complaints["closed_date"].notna().to_numpy()
+    closed_s = np.zeros(len(complaints), dtype=np.int64)
+    closed_s[has_closed] = _to_seconds(
+        complaints.loc[has_closed, "closed_date"]
+    )
+
+    duration_h = np.full(len(complaints), np.nan)
+    duration_h[has_closed] = (
+        closed_s[has_closed] - created_s[has_closed]
+    ) / 3600
+
+    valid = (
+        has_closed
+        & (duration_h >= params.valid_min_duration_h)
+        & (duration_h <= params.valid_max_duration_h)
+    )
+
+    lag_s = params.report_lag_days * 86400
+    imputed_s = int(round(params.imputed_duration_hours * 3600))
+
+    complaints["dark_start_s"] = created_s - lag_s
+    complaints["dark_end_s"] = np.where(valid, closed_s, created_s + imputed_s)
+    complaints["is_imputed"] = ~valid
+
+    # Why each imputed closure is invalid (mutually exclusive).
+    reason = np.full(len(complaints), "valid", dtype=object)
+    reason[~has_closed] = "missing_closed"
+    reason[has_closed & (duration_h < 0)] = "closed_before_created"
+    reason[
+        has_closed
+        & (duration_h >= 0)
+        & (duration_h < params.valid_min_duration_h)
+    ] = "too_short"
+    reason[has_closed & (duration_h > params.valid_max_duration_h)] = (
+        "too_long"
+    )
+
+    year = complaints["created_date"].dt.year.to_numpy()
+    by_year = (
+        pd.crosstab(year, reason)
+        .reindex(
+            columns=[
+                "valid",
+                "missing_closed",
+                "closed_before_created",
+                "too_short",
+                "too_long",
+            ],
+            fill_value=0,
+        )
+    )
+    by_year.columns.name = None
+    by_year["total"] = by_year.sum(axis=1)
+    by_year["imputed"] = by_year["total"] - by_year["valid"]
+
+    darkness_summary = {
+        "n_imputed": int((~valid).sum()),
+        "n_valid_closure": int(valid.sum()),
+        "imputed_by_year": {
+            int(y): int(n) for y, n in by_year["imputed"].items()
+        },
+        "imputed_reasons": {
+            name: int((reason == name).sum())
+            for name in (
+                "missing_closed",
+                "closed_before_created",
+                "too_short",
+                "too_long",
+            )
+        },
+    }
+
+    print(
+        f"Darkness intervals: {len(complaints):,} complaints, "
+        f"{darkness_summary['n_valid_closure']:,} valid closures, "
+        f"{darkness_summary['n_imputed']:,} imputed "
+        f"({imputed_s / 3600:g} h, lag {params.report_lag_days} d)"
+    )
+
+    table = by_year[
+        ["total", "imputed", "too_short", "closed_before_created",
+         "missing_closed", "too_long"]
+    ].copy()
+    table["imputed_share"] = (table["imputed"] / table["total"]).round(3)
+    table.index.name = "created_year"
+    print(table.to_string())
+
+    return complaints, coverage, darkness_summary
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -1630,12 +1741,111 @@ def _check_h16_inputs(params, treatments_all, complaints):
     )
 
 
+def _check_h2(params, complaints):
+    """
+    H2: darkness intervals are valid. Recomputes the rule with pandas
+    Timedelta arithmetic, independently of the int64-second path in
+    build_darkness_intervals.
+    """
+
+    start = time.perf_counter()
+
+    created = complaints["created_date"]
+    closed = complaints["closed_date"]
+    duration = closed - created
+
+    expected_valid = (
+        closed.notna()
+        & (duration >= pd.Timedelta(hours=params.valid_min_duration_h))
+        & (duration <= pd.Timedelta(hours=params.valid_max_duration_h))
+    ).to_numpy()
+
+    expected_start = created - pd.Timedelta(days=params.report_lag_days)
+    expected_end = created + pd.Timedelta(hours=params.imputed_duration_hours)
+    expected_end = expected_end.where(~expected_valid, closed)
+
+    expected_start_s = expected_start.astype("datetime64[s]").astype("int64")
+    expected_end_s = expected_end.astype("datetime64[s]").astype("int64")
+
+    keys = complaints["unique_key"]
+
+    problems = []
+    violations = 0
+
+    for mask, message in (
+        (
+            complaints["dark_start_s"].to_numpy()
+            >= complaints["dark_end_s"].to_numpy(),
+            "darkness interval does not start before it ends",
+        ),
+        (
+            complaints["is_imputed"].to_numpy() == expected_valid,
+            "is_imputed does not match the valid-closure rule",
+        ),
+        (
+            complaints["dark_start_s"].to_numpy()
+            != expected_start_s.to_numpy(),
+            "dark_start_s is not created - report lag",
+        ),
+        (
+            complaints["dark_end_s"].to_numpy() != expected_end_s.to_numpy(),
+            "dark_end_s is not closed_date (valid) or created + imputed "
+            "duration (imputed)",
+        ),
+    ):
+        count = int(mask.sum())
+        if count:
+            violations += count
+            examples = keys[mask].head(10).astype(str)
+            problems.append(f"{count:,} {message} (e.g. {', '.join(examples)})")
+
+    return CheckResult(
+        check_id="H2",
+        passed=not problems,
+        n_violations=violations,
+        examples=problems,
+        seconds=time.perf_counter() - start,
+    )
+
+
+def _check_h17(treatments_all, complaints):
+    """
+    H17: Stage 3 -> Stage 7 valid-closure contract. Every Stage 3
+    treatment's complaint must be a valid closure under the Stage 3 rule
+    (is_imputed is False).
+    """
+
+    start = time.perf_counter()
+
+    imputed = complaints["is_imputed"].to_numpy()[
+        treatments_all["complaint_idx"].to_numpy()
+    ]
+    count = int(imputed.sum())
+
+    examples = []
+    if count:
+        keys = treatments_all.loc[imputed, "treatment_key"].head(10).astype(str)
+        examples.append(
+            f"{count:,} Stage 3 treatments are not valid closures under the "
+            f"Stage 7 rule (e.g. {', '.join(keys)})"
+        )
+
+    return CheckResult(
+        check_id="H17",
+        passed=count == 0,
+        n_violations=count,
+        examples=examples,
+        seconds=time.perf_counter() - start,
+    )
+
+
 def run_hard_checks(params, stage, checks, **tables):
     """
     Step 17: run the hard checks for one pipeline stage, record them and
     raise HardCheckError if any failed.
 
-    Stages implemented so far: "inputs" (H1, H16 after step 2).
+    Stages implemented so far: "inputs" (H1, H16 after step 2) and
+    "darkness" (H2, H17 after step 4).
     """
 
     if stage == "inputs":
@@ -1649,6 +1859,11 @@ def run_hard_checks(params, stage, checks, **tables):
             _check_h16_inputs(
                 params, tables["treatments_all"], tables["complaints"]
             ),
+        ]
+    elif stage == "darkness":
+        results = [
+            _check_h2(params, tables["complaints"]),
+            _check_h17(tables["treatments_all"], tables["complaints"]),
         ]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
@@ -1775,7 +1990,26 @@ def main(argv=None):
         f"{len(treatments_all):,} treatments, {len(crime):,} crimes"
     )
 
-    # Steps 4-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 4: darkness intervals")
+    with StageTimer("build_darkness_intervals", runtime):
+        complaints, coverage, darkness_summary = build_darkness_intervals(
+            params, complaints, coverage
+        )
+
+    print("\n--- Hard checks: darkness")
+    try:
+        with StageTimer("checks_darkness", runtime):
+            run_hard_checks(
+                params,
+                "darkness",
+                checks,
+                complaints=complaints,
+                treatments_all=treatments_all,
+            )
+    except HardCheckError as error:
+        return _stop(error)
+
+    # Steps 5-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
