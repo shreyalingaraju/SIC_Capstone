@@ -58,6 +58,12 @@ H17 (Stage 3 -> Stage 7 valid-closure contract)
 Every Stage 3 treatment's complaint must be a valid closure under the
 Stage 3 rule (is_imputed is False). Runs after step 4.
 
+H18 (site and artifact integrity)
+---
+Rebuilds the site assignment, per-site counts and the artifact
+threshold independently and checks is_artifact (ties at T are not
+artifacts) and eligible_control. Runs after step 5.
+
 Exit codes
 ----------
 0 Stage 7 completed. 1 H0 failure, hard-check failure, or unhandled
@@ -229,7 +235,7 @@ REASON_CODES = (
 
 REASON_STEP = dict(REASON_CODES)
 
-HARD_CHECK_IDS = tuple(f"H{i}" for i in range(18))
+HARD_CHECK_IDS = tuple(f"H{i}" for i in range(19))
 
 CONVENTIONS = {
     "A1": "311 and NYPD timestamps are naive NYC local time; the repeated DST hour is ignored.",
@@ -865,6 +871,27 @@ def _project(lon, lat, crs):
     )
 
     return np.asarray(x), np.asarray(y)
+
+
+def _unproject(x, y, crs):
+    """Projected x/y in metres -> WGS84 lon/lat."""
+
+    lon, lat = _transformer(crs, WGS84_CRS).transform(
+        np.asarray(x, dtype=np.float64),
+        np.asarray(y, dtype=np.float64),
+    )
+
+    return np.asarray(lon), np.asarray(lat)
+
+
+def _h3_cells(lat, lon, resolution):
+    return np.array(
+        [
+            h3.latlng_to_cell(float(a), float(b), resolution)
+            for a, b in zip(lat, lon)
+        ],
+        dtype=object,
+    )
 
 
 def _normalise_label(values):
@@ -1597,6 +1624,182 @@ def build_darkness_intervals(params, complaints, coverage):
     return complaints, coverage, darkness_summary
 
 
+def _modal_label(site_idx, labels, n_sites):
+    """
+    Most common non-missing label per site, ties broken alphabetically;
+    pd.NA when a site has no label (A4). Also returns the number of
+    sites with more than one distinct label.
+    """
+
+    frame = pd.DataFrame(
+        {"site_idx": site_idx, "label": labels.astype("string")}
+    )
+    frame = frame[frame["label"].notna()]
+
+    counts = (
+        frame.groupby(["site_idx", "label"], observed=True)
+        .size()
+        .rename("n")
+        .reset_index()
+        .sort_values(
+            ["site_idx", "n", "label"],
+            ascending=[True, False, True],
+            kind="mergesort",
+        )
+    )
+
+    n_conflicts = int((counts.groupby("site_idx").size() > 1).sum())
+
+    modal = counts.drop_duplicates("site_idx", keep="first")
+
+    result = pd.Series(pd.NA, index=np.arange(n_sites), dtype="string")
+    result.iloc[modal["site_idx"].to_numpy()] = modal["label"].to_numpy()
+
+    return result.reset_index(drop=True), n_conflicts
+
+
+def build_sites(params, complaints):
+    """
+    Step 5: one site per distinct complaint location, rounded to
+    site_round_m in the projected CRS (np.rint, half to even).
+
+    site_id is E{x}_N{y} in whole metres; sites are numbered in sorted
+    site_id order and complaints get site_idx. Site latitude/longitude
+    are converted back from the rounded coordinates. Artifact rule
+    (approved): T = quantile(n_complaints, artifact_quantile, "higher");
+    a site is an artifact when n_complaints > T, so ties at T are not.
+
+    first_created/last_created use the real complaint dates (C4).
+    n_episodes, n_times_treatment and n_times_control are added in later
+    steps.
+    """
+
+    step = params.site_round_m
+
+    x_m = (np.rint(complaints["x_m"].to_numpy() / step) * step).astype(np.int64)
+    y_m = (np.rint(complaints["y_m"].to_numpy() / step) * step).astype(np.int64)
+
+    complaint_site_id = np.char.add(
+        np.char.add("E", x_m.astype(str)),
+        np.char.add("_N", y_m.astype(str)),
+    )
+
+    site_ids, first_row, site_idx = np.unique(
+        complaint_site_id, return_index=True, return_inverse=True
+    )
+    n_sites = len(site_ids)
+
+    if n_sites >= KEY_MAX_GROUP:
+        raise HardCheckError(
+            f"{n_sites} sites exceed the composite-key limit {KEY_MAX_GROUP}"
+        )
+
+    complaints["site_idx"] = site_idx.astype(np.int32)
+
+    sites = pd.DataFrame(
+        {
+            "site_id": pd.array(site_ids, dtype="string"),
+            "site_idx": np.arange(n_sites, dtype=np.int32),
+            "x_m": x_m[first_row],
+            "y_m": y_m[first_row],
+        }
+    )
+
+    longitude, latitude = _unproject(
+        sites["x_m"].to_numpy(dtype=np.float64),
+        sites["y_m"].to_numpy(dtype=np.float64),
+        params.projected_crs,
+    )
+    sites["latitude"] = latitude
+    sites["longitude"] = longitude
+
+    sites["borough"], n_borough_conflicts = _modal_label(
+        site_idx, complaints["borough"], n_sites
+    )
+    sites["police_precinct"], n_precinct_conflicts = _modal_label(
+        site_idx, complaints["police_precinct"], n_sites
+    )
+
+    for resolution in params.h3_resolutions:
+        sites[f"h3_res{resolution}"] = pd.array(
+            _h3_cells(latitude, longitude, resolution), dtype="string"
+        )
+
+    imputed = complaints["is_imputed"].to_numpy()
+
+    sites["n_complaints"] = np.bincount(site_idx, minlength=n_sites).astype(
+        np.int32
+    )
+    sites["n_complaints_valid_closure"] = np.bincount(
+        site_idx, weights=~imputed, minlength=n_sites
+    ).astype(np.int32)
+    sites["n_complaints_imputed"] = np.bincount(
+        site_idx, weights=imputed, minlength=n_sites
+    ).astype(np.int32)
+
+    created = complaints.groupby("site_idx", sort=True)["created_date"]
+    sites["first_created"] = created.min().to_numpy()
+    sites["last_created"] = created.max().to_numpy()
+
+    counts = sites["n_complaints"].to_numpy()
+    threshold = int(
+        np.quantile(counts, params.artifact_quantile, method="higher")
+    )
+
+    sites["is_artifact"] = counts > threshold
+    sites["eligible_control"] = (
+        ~sites["is_artifact"] & sites["borough"].notna()
+    ).astype(bool)
+
+    artifact = sites["is_artifact"].to_numpy()
+
+    universe = {
+        "n_sites": n_sites,
+        "artifact_quantile_method": "higher",
+        "artifact_threshold": threshold,
+        "artifact_threshold_is_maximum": bool(threshold == counts.max()),
+        "n_artifact_sites": int(artifact.sum()),
+        "n_artifact_complaints": int(counts[artifact].sum()),
+        "n_sites_at_threshold": int((counts == threshold).sum()),
+        "n_sites_without_borough": int(sites["borough"].isna().sum()),
+        "n_eligible_control_sites": int(sites["eligible_control"].sum()),
+        "n_sites_borough_conflict": n_borough_conflicts,
+        "n_sites_precinct_conflict": n_precinct_conflicts,
+    }
+
+    print(
+        f"Sites: {n_sites:,} from {len(complaints):,} complaints "
+        f"(max {int(counts.max())} complaints at one site)"
+    )
+    print(
+        f"Artifact threshold T = {threshold} "
+        f"(quantile {params.artifact_quantile}, 'higher'; "
+        f"maximum: {universe['artifact_threshold_is_maximum']}); "
+        f"{universe['n_artifact_sites']} artifact sites with "
+        f"{universe['n_artifact_complaints']:,} complaints; "
+        f"{universe['n_sites_at_threshold']} sites at T are not artifacts"
+    )
+    print(
+        f"Eligible control sites: {universe['n_eligible_control_sites']:,}; "
+        f"without borough: {universe['n_sites_without_borough']}; "
+        f"label conflicts: borough {n_borough_conflicts}, "
+        f"precinct {n_precinct_conflicts}"
+    )
+
+    top = sites.sort_values(
+        ["n_complaints", "site_id"], ascending=[False, True], kind="mergesort"
+    ).head(10)
+    print("Top 10 sites by complaint count:")
+    print(
+        top[
+            ["site_id", "n_complaints", "latitude", "longitude", "borough",
+             "is_artifact"]
+        ].to_string(index=False)
+    )
+
+    return sites, complaints, universe
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -1839,13 +2042,143 @@ def _check_h17(treatments_all, complaints):
     )
 
 
+def _check_h18(params, complaints, sites):
+    """
+    H18: site and artifact integrity. Rebuilds the site assignment with
+    pandas (round + groupby) and the threshold by explicit sorting,
+    independently of the numpy path in build_sites.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    def add(count, message):
+        nonlocal violations
+        if count:
+            violations += int(count)
+            problems.append(f"{int(count):,} {message}")
+
+    n_sites = len(sites)
+    site_idx = complaints["site_idx"]
+
+    # 1. Every complaint maps to exactly one site.
+    add(
+        int(site_idx.isna().sum() + ((site_idx < 0) | (site_idx >= n_sites)).sum()),
+        "complaints without a valid site_idx",
+    )
+    add(
+        int((sites["site_idx"].to_numpy() != np.arange(n_sites)).sum()),
+        "sites whose site_idx is not their row position",
+    )
+    add(
+        int(not sites["site_id"].is_monotonic_increasing)
+        + int(sites["site_id"].duplicated().sum()),
+        "site_id ordering or uniqueness problems (not strictly increasing)",
+    )
+
+    step = params.site_round_m
+    rounded = pd.DataFrame(
+        {
+            "x": ((complaints["x_m"] / step).round() * step).astype("int64"),
+            "y": ((complaints["y_m"] / step).round() * step).astype("int64"),
+        }
+    )
+    assigned = sites.iloc[site_idx.to_numpy()]
+    add(
+        int(
+            (
+                (assigned["x_m"].to_numpy() != rounded["x"].to_numpy())
+                | (assigned["y_m"].to_numpy() != rounded["y"].to_numpy())
+            ).sum()
+        ),
+        "complaints assigned to a site with different rounded coordinates",
+    )
+    add(
+        abs(len(rounded.drop_duplicates()) - n_sites),
+        "difference between distinct rounded locations and sites",
+    )
+    expected_ids = (
+        "E" + sites["x_m"].astype(str) + "_N" + sites["y_m"].astype(str)
+    )
+    add(
+        int((sites["site_id"].astype(str) != expected_ids).sum()),
+        "site_id values not equal to E{x}_N{y}",
+    )
+
+    # 2. Per-site complaint counts.
+    grouped = complaints.groupby("site_idx")["is_imputed"]
+    counted = grouped.size().reindex(np.arange(n_sites), fill_value=0)
+    imputed = grouped.sum().reindex(np.arange(n_sites), fill_value=0)
+    add(
+        int((sites["n_complaints"].to_numpy() != counted.to_numpy()).sum()),
+        "sites with a wrong n_complaints",
+    )
+    add(
+        int((sites["n_complaints_imputed"].to_numpy() != imputed.to_numpy()).sum()),
+        "sites with a wrong n_complaints_imputed",
+    )
+    add(
+        int(
+            (
+                sites["n_complaints_valid_closure"].to_numpy()
+                != (counted - imputed).to_numpy()
+            ).sum()
+        ),
+        "sites with a wrong n_complaints_valid_closure",
+    )
+
+    # 3. Threshold with 'higher' semantics: 0-based index
+    #    ceil((n - 1) * q) of the sorted counts.
+    ordered = sorted(int(n) for n in counted.to_numpy())
+    index = math.ceil((len(ordered) - 1) * params.artifact_quantile)
+    threshold = ordered[index]
+
+    counts = sites["n_complaints"].to_numpy()
+    expected_artifact = counts > threshold
+
+    # 4. is_artifact == (n_complaints > T).
+    add(
+        int((sites["is_artifact"].to_numpy() != expected_artifact).sum()),
+        f"sites whose is_artifact differs from n_complaints > T (T = {threshold})",
+    )
+
+    # 5. Ties at T are not artifacts.
+    add(
+        int((sites["is_artifact"].to_numpy() & (counts == threshold)).sum()),
+        f"sites at T = {threshold} flagged as artifacts",
+    )
+
+    # 6. eligible_control == (not is_artifact and borough present).
+    expected_eligible = ~expected_artifact & sites["borough"].notna().to_numpy()
+    add(
+        int((sites["eligible_control"].to_numpy() != expected_eligible).sum()),
+        "sites whose eligible_control differs from (not artifact and "
+        "borough present)",
+    )
+
+    ceil_rule = ordered[math.ceil(params.artifact_quantile * len(ordered)) - 1]
+    note = (
+        f"T = {threshold} at sorted index {index}; ceil(q*n)-th smallest "
+        f"= {ceil_rule} ({'agrees' if ceil_rule == threshold else 'differs'})"
+    )
+
+    return CheckResult(
+        check_id="H18",
+        passed=not problems,
+        n_violations=violations,
+        examples=(problems or [note])[:10],
+        seconds=time.perf_counter() - start,
+    )
+
+
 def run_hard_checks(params, stage, checks, **tables):
     """
     Step 17: run the hard checks for one pipeline stage, record them and
     raise HardCheckError if any failed.
 
-    Stages implemented so far: "inputs" (H1, H16 after step 2) and
-    "darkness" (H2, H17 after step 4).
+    Stages implemented so far: "inputs" (H1, H16 after step 2),
+    "darkness" (H2, H17 after step 4) and "sites" (H18 after step 5).
     """
 
     if stage == "inputs":
@@ -1864,6 +2197,10 @@ def run_hard_checks(params, stage, checks, **tables):
         results = [
             _check_h2(params, tables["complaints"]),
             _check_h17(tables["treatments_all"], tables["complaints"]),
+        ]
+    elif stage == "sites":
+        results = [
+            _check_h18(params, tables["complaints"], tables["sites"]),
         ]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
@@ -2009,7 +2346,24 @@ def main(argv=None):
     except HardCheckError as error:
         return _stop(error)
 
-    # Steps 5-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 5: sites")
+    with StageTimer("build_sites", runtime):
+        sites, complaints, sites_universe = build_sites(params, complaints)
+
+    print("\n--- Hard checks: sites")
+    try:
+        with StageTimer("checks_sites", runtime):
+            run_hard_checks(
+                params,
+                "sites",
+                checks,
+                complaints=complaints,
+                sites=sites,
+            )
+    except HardCheckError as error:
+        return _stop(error)
+
+    # Steps 6-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
