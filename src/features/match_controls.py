@@ -890,7 +890,17 @@ def _to_seconds(values):
     if values.isna().any():
         raise ValueError("cannot convert missing timestamps to seconds")
 
-    return values.astype("datetime64[s]").astype("int64").to_numpy()
+    seconds = values.astype("datetime64[s]")
+
+    # A13: index times are whole seconds; never truncate silently.
+    _index_guard(
+        bool((seconds == values).all()),
+        "invalid time range",
+        "timestamps with a sub-second part cannot be stored as whole "
+        "seconds (A13)",
+    )
+
+    return seconds.astype("int64").to_numpy()
 
 
 @functools.lru_cache(maxsize=None)
@@ -2107,8 +2117,9 @@ def build_episodes(params, complaints, sites):
     Step 6: merge complaints into darkness episodes.
 
     Two non-artifact complaints are linked when their points are within
-    episode_merge_radius_m (A8) and their darkness intervals overlap
-    (A2, closed). Episodes are the connected components of the links.
+    episode_merge_radius_m (A8; A13 explicit formula, the KD-tree only
+    generates candidates) and their darkness intervals overlap (A2,
+    closed). Episodes are the connected components of the links.
     Artifact-site complaints are left out of the linking graph and form
     single-complaint episodes (A7).
 
@@ -2133,8 +2144,11 @@ def build_episodes(params, complaints, sites):
     ]
     linkable = np.flatnonzero(non_artifact)
 
-    local_pairs = cKDTree(xy[linkable]).query_pairs(
-        r=params.episode_merge_radius_m, output_type="ndarray"
+    # A13: the KD-tree only generates candidates; the formula decides.
+    linkable_xy = xy[linkable]
+    local_pairs = cKDTree(linkable_xy).query_pairs(
+        r=params.episode_merge_radius_m + KD_QUERY_TOLERANCE_M,
+        output_type="ndarray",
     )
 
     if len(local_pairs) > MAX_EPISODE_LINKS:
@@ -2143,6 +2157,14 @@ def build_episodes(params, complaints, sites):
             f"{params.episode_merge_radius_m:g} m exceed MAX_EPISODE_LINKS "
             f"({MAX_EPISODE_LINKS:,})"
         )
+
+    local_pairs = local_pairs[
+        _distance(
+            linkable_xy[local_pairs[:, 0], 0], linkable_xy[local_pairs[:, 0], 1],
+            linkable_xy[local_pairs[:, 1], 0], linkable_xy[local_pairs[:, 1], 1],
+        )
+        <= params.episode_merge_radius_m
+    ]
 
     episode_links = linkable[local_pairs]
     a, b = episode_links[:, 0], episode_links[:, 1]
@@ -2865,9 +2887,11 @@ def _check_h3(complaints, episodes, sites):
 def _check_h4(params, complaints, sites, episode_links):
     """
     H4: episodes are complete. For every pair of non-artifact complaints
-    within episode_merge_radius_m (the full list, rebuilt with a new
-    KD-tree), complaints in different episodes must not have
-    overlapping darkness intervals.
+    within episode_merge_radius_m (the full list, rebuilt with a fresh
+    KD-tree for candidates and the A13 formula for membership; only
+    partially independent of step 6, which uses the same scipy query),
+    complaints in different episodes must not have overlapping darkness
+    intervals.
     """
 
     start = time.perf_counter()
@@ -2878,11 +2902,19 @@ def _check_h4(params, complaints, sites, episode_links):
     )
     xy = complaints[["x_m", "y_m"]].to_numpy()[non_artifact]
 
-    pairs = non_artifact[
-        cKDTree(xy).query_pairs(
-            r=params.episode_merge_radius_m, output_type="ndarray"
+    # A13: fresh KD-tree for candidates; the explicit formula decides.
+    candidates = cKDTree(xy).query_pairs(
+        r=params.episode_merge_radius_m + KD_QUERY_TOLERANCE_M,
+        output_type="ndarray",
+    )
+    within = (
+        _distance(
+            xy[candidates[:, 0], 0], xy[candidates[:, 0], 1],
+            xy[candidates[:, 1], 0], xy[candidates[:, 1], 1],
         )
-    ]
+        <= params.episode_merge_radius_m
+    )
+    pairs = non_artifact[candidates[within]]
 
     if len(pairs) != len(episode_links):
         problems.append(
