@@ -37,6 +37,8 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 | S8-13 | Script-level code with fixed paths; overwrites `causal_panel.parquet` in place. | Functions, `main()` and argparse: `--pairs`, `--out`, `--pre-window {canonical, shifted}` (shifted = [c − 21 d, c − 7 d), D19). Atomic write (temporary file, then `os.replace`). An existing old-schema panel (no `unit_id`) is first copied to `causal_panel.pre_issue4.parquet`, sha256-verified and never overwritten. | Part 3 Step 2; Q9 |
 | S8-14 | KD query at exactly r = 250, then the explicit formula. | KD query at r + 1e-6 m generates candidates; the explicit formula decides (A13 convention). Only a point within 1e-6 m of the 250 m boundary could change. | A13 |
 
+| S8-15 | (new) | With `--pre-window shifted`, `baseline_crime_intensity` follows the shifted pre-window on every row, because it is defined as the unit's pre-window 100 m count. The during and post rows are otherwise identical to the canonical panel (checked by `stage8_validate.py`). | definition kept (M8) |
+
 **Unchanged:**
 - **Windows:** pre `[c − 14 d, c]`, during `[c, closed]`, post `[closed, closed + 14 d]`, all inclusive.
 - **Outcomes:** `crime_100m` (d ≤ 100) and `crime_250m` (100 < d ≤ 250, the ring).

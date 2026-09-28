@@ -1,0 +1,14 @@
+PASS: canonical panel builds (exit 0) - sha256 eaa0cd74b75d5f99007ff36a96a562c6fde3c02e264d61cbd25aa652c08d1e35
+PASS: pre counts == Stage 7 bal_*_pre_* for all pairs; unit columns == pair columns
+PASS: brute-force recount, 300 units x 3 periods x 2 radii - 0 mismatches
+PASS: structure: 3 rows per unit, 6 per pair, roles T/C
+PASS: pair-level clustering columns constant within pair
+PASS: baseline_crime_intensity = unit pre 100 m count
+PASS: shifted pre-window [c-21d, c-7d): pre recount, other rows unchanged, baseline follows pre - 0 mismatches
+PASS: placebo pairs build a panel - sha256 b2662e469d29b84cf8b248d6e7590cc76f8194549db8eae0924c4bc5647003bf
+PASS: legacy panel backed up once, then kept
+PASS: new-schema panel not backed up
+PASS: old-schema pairs file rejected
+
+scratch: C:\Users\shrey\AppData\Local\Temp\s8_7_p5p13b
+FAILS: none
