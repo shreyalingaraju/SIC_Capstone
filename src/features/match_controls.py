@@ -74,19 +74,39 @@ Rebuilds the site assignment, per-site counts and the artifact
 threshold independently and checks is_artifact (ties at T are not
 artifacts) and eligible_control. Runs after step 5.
 
+H10 / H11 (independent recheck, step 18)
+---------
+Rebuilt from the raw files for min(RECHECK_SAMPLE_N, n) pairs drawn with
+RECHECK_SEED from pair_id order: complaint universe, pyproj projection,
+darkness intervals, 1 m sites, artifact flags and own episodes (breadth-
+first closure), windows, S-3, S-4 and the four baseline counts. Spatial
+indexes only generate candidates at radius + 1 m; membership is the
+explicit formula with the run's radii. See independent_recheck.
+
+Outputs and failures
+--------------------
+Files are written to temporary names, schema-checked with pyarrow and
+renamed (diagnostics last). A pre-Issue-4 control_area_pairs.parquet in
+out_dir is first copied to control_area_pairs.pre_issue4.parquet (sha256
+verified; never overwritten). Every stop writes
+match_diagnostics.failed.json; a successful run removes a stale one.
+
 Exit codes
 ----------
-0 Stage 7 completed. 1 H0 failure, hard-check failure, or unhandled
-exception (check stderr for a traceback). 2 argparse usage error.
-3 Stage 7 incomplete on this branch (no outputs produced).
+0 Stage 7 completed and all files written. 1 H0 failure, hard-check
+failure, determinism failure, or unhandled exception (check stderr for a
+traceback). 2 argparse usage error. (3 was "incomplete" during the
+Issue 4 rollout and is no longer returned.)
 """
 
 import argparse
+import contextlib
 import dataclasses
 import functools
 import gc
 import hashlib
 import importlib.metadata
+import io
 import itertools
 import json
 import math
@@ -1636,11 +1656,14 @@ def parse_args(argv=None, checks=None):
         _record(checks, result)
 
     if violations:
-        raise HardCheckError(
+        error = HardCheckError(
             f"H0 parameter validation failed "
             f"({len(violations)} violations)\n  - "
             + "\n  - ".join(violations)
         )
+        # Lets the failure diagnostics use the requested out_dir.
+        error.params = params
+        raise error
 
     return params
 
@@ -3894,6 +3917,1006 @@ def compute_contamination(params, pairs, complaints, episodes, idx,
 
 
 # ---------------------------------------------------------
+# Step 18: independent recheck (H10, H11)
+# ---------------------------------------------------------
+
+# Candidate margin for the recheck's spatial index (R3): candidates are
+# generated at radius + margin; membership is the explicit formula.
+RECHECK_CANDIDATE_MARGIN_M = 1.0
+
+
+def _recheck_sample(pairs, params):
+    """min(recheck_sample_n, n) pairs, seeded, drawn from pair_id order."""
+
+    ordered = pairs.sort_values("pair_id", kind="mergesort").reset_index(drop=True)
+    size = min(params.recheck_sample_n, len(ordered))
+    rng = np.random.default_rng(params.recheck_seed)
+    rows = np.sort(rng.choice(len(ordered), size=size, replace=False))
+    return ordered.iloc[rows].reset_index(drop=True)
+
+
+def _whole_seconds(values):
+    """datetime64 -> (int64 seconds, bool mask of sub-second values)."""
+
+    values = np.asarray(values, dtype="datetime64[us]")
+    seconds = values.astype("datetime64[s]")
+    return seconds.astype(np.int64), seconds.astype("datetime64[us]") != values
+
+
+def _recheck_candidates(sindex, points_x, points_y, query_x, query_y, radius):
+    """
+    (owner, point, distance) with distance <= radius (A13 explicit
+    formula); the spatial index only generates candidates at
+    radius + RECHECK_CANDIDATE_MARGIN_M (R3).
+    """
+
+    import geopandas as gpd
+
+    if len(query_x) == 0:
+        empty = np.zeros(0, dtype=np.int64)
+        return empty, empty, np.zeros(0)
+
+    owner, point = sindex.query(
+        gpd.points_from_xy(query_x, query_y),
+        predicate="dwithin",
+        distance=radius + RECHECK_CANDIDATE_MARGIN_M,
+    )
+    owner = owner.astype(np.int64)
+    point = point.astype(np.int64)
+    distance = np.sqrt(
+        (points_x[point] - query_x[owner]) ** 2
+        + (points_y[point] - query_y[owner]) ** 2
+    )
+    keep = distance <= radius
+    return owner[keep], point[keep], distance[keep]
+
+
+def _recheck_complaints(params):
+    """
+    Raw complaint universe for H10, rebuilt from the raw CSV only (E2,
+    R2, R3): rows with latitude and longitude inside NYC_BBOX (bounds
+    inclusive), projected with pyproj (always_xy), darkness intervals,
+    1 m sites and artifact flags. Returns the table and a dict of
+    universe violations (unparseable created_date, duplicate unique_key,
+    sub-second times).
+    """
+
+    raw = pd.read_csv(
+        RAW_COMPLAINTS_FILE,
+        usecols=["unique_key", "created_date", "closed_date", "latitude",
+                 "longitude"],
+        low_memory=False,
+    )
+    lat_min, lat_max, lon_min, lon_max = params.nyc_bbox
+    keep = (
+        raw["latitude"].notna()
+        & raw["longitude"].notna()
+        & raw["latitude"].between(lat_min, lat_max)
+        & raw["longitude"].between(lon_min, lon_max)
+    )
+    raw = raw.loc[keep].reset_index(drop=True)
+
+    created = pd.to_datetime(raw["created_date"], format="ISO8601", errors="coerce")
+    closed = pd.to_datetime(raw["closed_date"], format="ISO8601", errors="coerce")
+
+    problems = {
+        "unparseable_created_date": int(created.isna().sum()),
+        "duplicate_unique_key": int(raw["unique_key"].duplicated(keep=False).sum()),
+    }
+
+    transformer = Transformer.from_crs(
+        "EPSG:4326", params.projected_crs, always_xy=True
+    )
+    x, y = transformer.transform(
+        raw["longitude"].to_numpy(dtype=np.float64),
+        raw["latitude"].to_numpy(dtype=np.float64),
+    )
+    x, y = np.asarray(x), np.asarray(y)
+
+    has_created = created.notna().to_numpy()
+    has_closed = closed.notna().to_numpy()
+    created_s = np.zeros(len(raw), dtype=np.int64)
+    closed_s = np.zeros(len(raw), dtype=np.int64)
+    created_s[has_created], sub_c = _whole_seconds(created[has_created])
+    closed_s[has_closed], sub_d = _whole_seconds(closed[has_closed])
+    problems["sub_second_complaint_time"] = int(sub_c.sum() + sub_d.sum())
+
+    both = has_created & has_closed
+    duration_h = np.full(len(raw), np.nan)
+    duration_h[both] = (closed_s[both] - created_s[both]) / 3600
+    valid = (
+        both
+        & (duration_h >= params.valid_min_duration_h)
+        & (duration_h <= params.valid_max_duration_h)
+    )
+    lag_s = params.report_lag_days * SECONDS_PER_DAY
+    imputed_s = int(round(params.imputed_duration_hours * 3600))
+
+    step = params.site_round_m
+    x_site = (np.rint(x / step) * step).astype(np.int64)
+    y_site = (np.rint(y / step) * step).astype(np.int64)
+    site_xy, site_of, counts = np.unique(
+        np.stack([x_site, y_site], axis=1), axis=0,
+        return_inverse=True, return_counts=True,
+    )
+    threshold = int(np.quantile(counts, params.artifact_quantile, method="higher"))
+    artifact_site = counts > threshold
+
+    table = pd.DataFrame({
+        "unique_key": raw["unique_key"].to_numpy(),
+        "x": x,
+        "y": y,
+        "created_s": created_s,
+        "closed_s": closed_s,
+        "has_created": has_created,
+        "has_closed": has_closed,
+        "dark_start_s": created_s - lag_s,
+        "dark_end_s": np.where(valid, closed_s, created_s + imputed_s),
+        "site": site_of.reshape(-1).astype(np.int64),
+        "is_artifact": artifact_site[site_of.reshape(-1)],
+    })
+
+    sites = {
+        (int(sx), int(sy)): index
+        for index, (sx, sy) in enumerate(site_xy.tolist())
+    }
+    universe = {
+        "n_complaints": int(len(table)),
+        "n_sites": int(len(site_xy)),
+        "artifact_threshold": threshold,
+        "n_artifact_sites": int(artifact_site.sum()),
+    }
+
+    return table, sites, artifact_site, universe, problems
+
+
+def _recheck_own_episode(start_row, table, sindex, radius):
+    """
+    R2: full transitive closure (breadth-first search, no caps) of links
+    between non-artifact complaints with d <= radius (explicit formula)
+    and overlapping darkness intervals (A2 closed).
+    """
+
+    x = table["x"].to_numpy()
+    y = table["y"].to_numpy()
+    s = table["dark_start_s"].to_numpy()
+    e = table["dark_end_s"].to_numpy()
+    linkable = ~table["is_artifact"].to_numpy() & table["has_created"].to_numpy()
+
+    members = {int(start_row)}
+    frontier = np.array([start_row], dtype=np.int64)
+
+    while len(frontier):
+        owner, point, _ = _recheck_candidates(
+            sindex, x, y, x[frontier], y[frontier], radius
+        )
+        source = frontier[owner]
+        linked = (
+            linkable[point]
+            & linkable[source]
+            & (s[point] <= e[source])
+            & (e[point] >= s[source])
+        )
+        new = set(point[linked].tolist()) - members
+        members |= new
+        frontier = np.array(sorted(new), dtype=np.int64)
+
+    return members
+
+
+def independent_recheck(params, pairs):
+    """
+    Step 18: H10 and H11, rebuilt from the raw files for a seeded sample
+    of pairs (min(recheck_sample_n, n) from pair_id order). Uses no
+    production episode ids, artifact flags, darkness intervals, sites,
+    windows or spatial indexes; production values are read only from the
+    pair columns being checked. Same libraries as production (pandas,
+    pyproj, numpy); geopandas/shapely STRtree only generates candidates
+    at radius + 1 m, membership is sqrt(dx**2 + dy**2) <= r in
+    projected_crs (A13, R3, E1).
+
+    H10, per sampled pair (one violation per pair per failed condition):
+      universe (E2): unparseable created_date or duplicate unique_key in
+        the complaint universe, sub-second times (counted once per run)
+      treatment key not in the universe; treatment coordinates rebuilt
+        with pyproj differ from treatment_x_m/y_m (exact)
+      windows rebuilt from the raw dates and placebo shift differ from the
+        pair columns (created, closed, W, B)
+      control site not rebuilt, control_x/y not whole metres of that
+        site, control_site_id text differs, or the rebuilt site is an
+        artifact; treatment site is an artifact
+      S-3 (E3): a complaint within exclusion_radius_m of the control
+        overlapping the S-3 clean window (full_window [w_start, w_end];
+        pre_only [w_start, created - 1 s]); no exemptions
+      S-4 pre (R1): complaint within treatment_clean_radius_m with
+        s <= c - 1 s and e >= c - event_window; canonical exempts the
+        rebuilt own episode, placebo exempts nothing
+      S-4 post (R1): s <= W_end and e >= closed + 1 s; canonical exempts
+        only the treatment complaint, placebo exempts nothing
+    Treatment windows use shifted dates; complaint darkness uses real
+    dates (C4).
+
+    H11: crimes (clean_crime.parquet, rows with null crime_datetime,
+    latitude or longitude dropped) with t in [b_start, b_end - 1 s],
+    d <= direct_radius_m and direct_radius_m < d <= outcome_radius_m,
+    around both units; must equal the four base columns exactly.
+
+    Returns (h10 CheckResult, h11 CheckResult, summary).
+    """
+
+    import geopandas as gpd
+
+    start = time.perf_counter()
+    sample = _recheck_sample(pairs, params)
+    n = len(sample)
+    shift_s = params.placebo_shift_days * SECONDS_PER_DAY
+    event_s = params.event_window_days * SECONDS_PER_DAY
+    post_s = params.post_window_days * SECONDS_PER_DAY
+    baseline_s = params.baseline_days * SECONDS_PER_DAY
+    placebo = params.placebo_shift_days > 0
+
+    table, site_index, artifact_site, universe, universe_problems = (
+        _recheck_complaints(params)
+    )
+    x = table["x"].to_numpy()
+    y = table["y"].to_numpy()
+    s = table["dark_start_s"].to_numpy()
+    e = table["dark_end_s"].to_numpy()
+    usable = table["has_created"].to_numpy()
+    sindex = gpd.GeoSeries(gpd.points_from_xy(x, y)).sindex
+
+    h10 = {}
+
+    def flag(name, mask):
+        mask = np.asarray(mask, dtype=bool)
+        entry = h10.setdefault(name, np.zeros(n, dtype=bool))
+        entry |= mask
+
+    # Treatment rows, coordinates and windows.
+    # First occurrence per key: duplicates are universe violations (E2),
+    # not a reason to stop the recheck.
+    keys = table["unique_key"].to_numpy()
+    first = ~pd.Series(keys).duplicated(keep="first").to_numpy()
+    row = np.full(n, -1, dtype=np.int64)
+    lookup = pd.Index(keys[first]).get_indexer(sample["treatment_key"].to_numpy())
+    row[lookup >= 0] = np.flatnonzero(first)[lookup[lookup >= 0]]
+    found = row >= 0
+    safe = np.where(found, row, 0)
+    flag("treatment_key_not_in_universe", ~found)
+    flag("treatment_coordinates_differ", found & (
+        (x[safe] != sample["treatment_x_m"].to_numpy())
+        | (y[safe] != sample["treatment_y_m"].to_numpy())
+    ))
+
+    c = table["created_s"].to_numpy()[safe] - shift_s
+    closed = table["closed_s"].to_numpy()[safe] - shift_s
+    flag("treatment_closed_missing", found & ~table["has_closed"].to_numpy()[safe])
+    w_start = c - event_s
+    w_end = np.maximum(closed + post_s, c + event_s)
+    b_start = c - event_s - baseline_s
+    b_end = c - event_s
+    for column, rebuilt in (
+        ("created_date", c), ("closed_date", closed),
+        ("window_start", w_start), ("window_end", w_end),
+        ("baseline_start", b_start), ("baseline_end", b_end),
+    ):
+        stored = _to_seconds(sample[column])
+        flag(f"{column}_differs", found & (stored != rebuilt))
+
+    flag("treatment_site_is_artifact",
+         found & table["is_artifact"].to_numpy()[safe])
+
+    # Control site.
+    cx = sample["control_x_m"].to_numpy()
+    cy = sample["control_y_m"].to_numpy()
+    whole = (cx == np.round(cx)) & (cy == np.round(cy))
+    site = np.array([
+        site_index.get((int(a), int(b)), -1) if ok else -1
+        for a, b, ok in zip(cx, cy, whole)
+    ])
+    flag("control_site_not_rebuilt", site < 0)
+    flag("control_site_id_differs", ~whole | np.array([
+        text != f"E{int(a)}_N{int(b)}"
+        for text, a, b in zip(sample["control_site_id"].astype(str), cx, cy)
+    ]))
+    flag("control_site_is_artifact", (site >= 0) & artifact_site[np.maximum(site, 0)])
+
+    # S-3 (E3).
+    s3_end = w_end if params.control_selection == "full_window" else c - 1
+    owner, point, _ = _recheck_candidates(
+        sindex, x, y, cx, cy, params.exclusion_radius_m
+    )
+    hit = usable[point] & (s[point] <= s3_end[owner]) & (e[point] >= w_start[owner])
+    flag("s3_dark_control", np.bincount(owner[hit], minlength=n) > 0)
+
+    # S-4 (R1), around the rebuilt treatment point.
+    tx, ty = x[safe], y[safe]
+    owner, point, _ = _recheck_candidates(
+        sindex, x, y, tx, ty, params.treatment_clean_radius_m
+    )
+    pre_hit = usable[point] & (s[point] <= c[owner] - 1) & (e[point] >= c[owner] - event_s)
+    post_hit = usable[point] & (s[point] <= w_end[owner]) & (e[point] >= closed[owner] + 1)
+    # Hits by own-episode complaints other than the treatment complaint
+    # itself (duplicate reports), before the exemption.
+    duplicate_hit = pre_hit & (point != safe[owner])
+    if not placebo:
+        post_hit &= point != safe[owner]
+        own = {}
+        for index in np.unique(owner[pre_hit]).tolist():
+            own[index] = _recheck_own_episode(
+                safe[index], table, sindex, params.episode_merge_radius_m
+            )
+        pre_hit &= np.array([
+            int(p) not in own.get(int(o), ()) for o, p in zip(owner, point)
+        ], dtype=bool) if len(owner) else pre_hit
+    if not placebo:
+        duplicate_hit &= ~pre_hit
+    else:
+        duplicate_hit &= False
+    n_pre_exempted = int(
+        (found & (np.bincount(owner[duplicate_hit], minlength=n) > 0)).sum()
+    )
+    flag("s4_pre_dirty", found & (np.bincount(owner[pre_hit], minlength=n) > 0))
+    flag("s4_post_dirty", found & (np.bincount(owner[post_hit], minlength=n) > 0))
+
+    # H11: crime recount.
+    crime = pd.read_parquet(CRIME_FILE, columns=["crime_datetime", "latitude", "longitude"])
+    crime = crime.dropna(subset=["crime_datetime", "latitude", "longitude"])
+    kx, ky = Transformer.from_crs(
+        "EPSG:4326", params.projected_crs, always_xy=True
+    ).transform(
+        crime["longitude"].to_numpy(dtype=np.float64),
+        crime["latitude"].to_numpy(dtype=np.float64),
+    )
+    kx, ky = np.asarray(kx), np.asarray(ky)
+    kt, sub_k = _whole_seconds(crime["crime_datetime"])
+    universe_problems["sub_second_crime_time"] = int(sub_k.sum())
+    crime_sindex = gpd.GeoSeries(gpd.points_from_xy(kx, ky)).sindex
+    universe["n_crimes"] = int(len(kt))
+    del crime
+
+    h11 = {}
+    for role, ux, uy in (("treatment", tx, ty), ("control", cx, cy)):
+        owner, point, distance = _recheck_candidates(
+            crime_sindex, kx, ky, ux, uy, params.outcome_radius_m
+        )
+        in_b = (kt[point] >= b_start[owner]) & (kt[point] <= b_end[owner] - 1)
+        near = distance <= params.direct_radius_m
+        direct = np.bincount(owner[in_b & near], minlength=n)
+        ring = np.bincount(owner[in_b & ~near], minlength=n)
+        for radius, counts in (("100m", direct), ("250m", ring)):
+            column = f"{role}_base_{radius}"
+            mask = counts != sample[column].to_numpy()
+            if role == "treatment":
+                mask &= found
+            h11[column] = mask
+
+    def result(check_id, masks, extra):
+        problems = []
+        violations = 0
+        for name, count in extra.items():
+            if count:
+                violations += count
+                problems.append(f"{count:,} {name} in the recheck universe")
+        for name, mask in masks.items():
+            count = int(mask.sum())
+            if count:
+                violations += count
+                problems.append(
+                    f"{count:,} {name}: "
+                    + ", ".join(sample.loc[mask, "pair_id"].head(10).astype(str))
+                )
+        return CheckResult(
+            check_id=check_id,
+            passed=violations == 0,
+            n_violations=violations,
+            examples=problems,
+            seconds=time.perf_counter() - start,
+        )
+
+    h10_universe = {
+        key: value for key, value in universe_problems.items()
+        if key != "sub_second_crime_time"
+    }
+    h11_universe = {"sub_second_crime_time": universe_problems["sub_second_crime_time"]}
+
+    summary = {
+        "skipped": False,
+        "sample_n": n,
+        "seed": params.recheck_seed,
+        "n_pairs": int(len(pairs)),
+        "candidate_margin_m": RECHECK_CANDIDATE_MARGIN_M,
+        "universe": universe,
+        "universe_problems": universe_problems,
+        # Sampled treatments with an S-4 pre hit by another complaint of
+        # their rebuilt own episode that the canonical exemption removed
+        # (the exemption is exercised; 0 in placebo runs).
+        "n_s4_pre_own_episode_exempted": n_pre_exempted,
+        "h10": {name: int(mask.sum()) for name, mask in h10.items()},
+        "h11": {name: int(mask.sum()) for name, mask in h11.items()},
+    }
+
+    return (
+        result("H10", h10, h10_universe),
+        result("H11", h11, h11_universe),
+        summary,
+    )
+
+
+def skipped_recheck(params, pairs):
+    """--skip-recheck: H10 and H11 are recorded as skipped, not passed."""
+
+    def skipped(check_id):
+        return CheckResult(
+            check_id=check_id, passed=True, n_violations=0,
+            examples=["skipped (--skip-recheck)"], seconds=0.0,
+        )
+
+    summary = {
+        "skipped": True,
+        "sample_n": 0,
+        "seed": params.recheck_seed,
+        "n_pairs": int(len(pairs)),
+    }
+    return skipped("H10"), skipped("H11"), summary
+
+
+# ---------------------------------------------------------
+# Step 19: unmatched table and site roles
+# ---------------------------------------------------------
+
+def build_unmatched(treatments_all, treatments_eligible, match, pairs, sites):
+    """
+    Step 19: one row per Stage 3 treatment that is not in the pairs.
+
+    Steps 1-8 (treatment rules): reason from treatments_all; baselines and
+    candidate counts null. Steps 9-12 (matching): reason and candidate
+    counts from match.rejected; baselines from step 10 (N14). Rows sorted
+    by treatment_key; dtypes as UNMATCHED_DTYPES.
+    """
+
+    matched = set(pairs["treatment_key"].tolist())
+    rules = treatments_all.loc[
+        treatments_all["reason_code"].notna()
+    ].copy()
+
+    rejected = match.rejected.merge(
+        treatments_eligible[
+            ["treatment_key", "base_100m", "base_250m"]
+        ],
+        on="treatment_key",
+        how="left",
+    )
+    rejected = rejected.merge(
+        treatments_all.drop(columns=["reason_code", "reason_step"]),
+        on="treatment_key",
+        how="left",
+    )
+
+    frames = []
+    for frame, has_matching in ((rules, False), (rejected, True)):
+        site_idx = frame["site_idx"].to_numpy().astype(np.int64)
+        part = pd.DataFrame({
+            "treatment_key": frame["treatment_key"].to_numpy(),
+            "treatment_site_id": sites["site_id"].to_numpy(dtype=object)[site_idx],
+            "treatment_episode_id": frame["episode_id"].to_numpy(),
+            "created_date": frame["created_date"].to_numpy(),
+            "closed_date": frame["closed_date"].to_numpy(),
+            "borough": frame["treatment_borough"].to_numpy(dtype=object),
+            "reason_code": frame["reason_code"].to_numpy(dtype=object),
+            "reason_step": frame["reason_step"].to_numpy(),
+        })
+        for column in ("treatment_base_100m", "treatment_base_250m",
+                       "n_candidates_band", "n_candidates_clean",
+                       "n_candidates_caliper"):
+            if has_matching:
+                source = column.replace("treatment_", "")
+                part[column] = frame[source].to_numpy()
+            else:
+                part[column] = pd.NA
+        frames.append(part)
+
+    unmatched = (
+        pd.concat(frames, ignore_index=True)
+        .sort_values("treatment_key", kind="mergesort")
+        .reset_index(drop=True)
+    )
+    unmatched["borough"] = unmatched["borough"].where(
+        pd.notna(unmatched["borough"]), None
+    )
+    unmatched = unmatched[list(UNMATCHED_DTYPES)].astype(UNMATCHED_DTYPES)
+
+    if set(unmatched["treatment_key"]) & matched:
+        raise HardCheckError("unmatched guard: a matched treatment is unmatched")
+
+    print(
+        f"Unmatched treatments: {len(unmatched):,} "
+        f"(rules {len(rules):,}, matching {len(match.rejected):,})"
+    )
+
+    return unmatched
+
+
+def assemble_sites(sites, pairs):
+    """Site table with n_times_treatment / n_times_control (U7)."""
+
+    out = sites.copy()
+    for column, role in (("n_times_treatment", "treatment_site_id"),
+                         ("n_times_control", "control_site_id")):
+        counts = pairs[role].value_counts()
+        out[column] = (
+            out["site_id"].map(counts).fillna(0).astype(np.int32).to_numpy()
+        )
+    return out[list(SITES_DTYPES)].astype(SITES_DTYPES)
+
+
+def full_attrition(attrition, match_summary):
+    """Steps 0-8 from the treatment rules, then matching steps 9-12 (N4)."""
+
+    steps = [dict(entry) for entry in attrition]
+    for code, step in REASON_CODES:
+        if step < 9:
+            continue
+        dropped = int(match_summary["unmatched_reasons"][code])
+        steps.append({
+            "step": step,
+            "rule": code,
+            "remaining": steps[-1]["remaining"] - dropped,
+            "dropped": dropped,
+        })
+    return steps
+
+
+# ---------------------------------------------------------
+# Determinism (N6)
+# ---------------------------------------------------------
+
+def pair_list_hash(pair_ids):
+    """sha256 of the sorted pair_id list, one id per line."""
+
+    text = "\n".join(sorted(str(value) for value in pair_ids))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def check_determinism(params, treatments_eligible, sites, idx, scales, match):
+    """
+    --check-determinism: fresh registry, band lists and matching (steps
+    12-13) on the same inputs; the sorted pair_id hash, the order hash and
+    pairs_raw must be identical. Returns the determinism record.
+    """
+
+    site_ids = sites["site_id"].to_numpy(dtype=object)
+
+    def ids(result):
+        raw = result.pairs_raw
+        return [
+            f"{key}_{site_ids[site]}"
+            for key, site in zip(raw["treatment_key"].tolist(),
+                                 raw["control_site_idx"].tolist())
+        ]
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        registry = init_reuse_registry(params, treatments_eligible)
+        idx, _ = build_band_candidates(params, treatments_eligible, sites, idx)
+        second, _ = match_treatments(
+            params, treatments_eligible, sites, idx, scales, registry
+        )
+    idx.band_sites = idx.band_dist = idx.band_offsets = None
+
+    first_hash = pair_list_hash(ids(match))
+    second_hash = pair_list_hash(ids(second))
+    record = {
+        "second_pass_pair_list_sha256": second_hash,
+        "second_pass_order_hash": second.order_hash,
+        "identical": bool(
+            first_hash == second_hash
+            and match.order_hash == second.order_hash
+            and match.pairs_raw.equals(second.pairs_raw)
+            and match.rejected.equals(second.rejected)
+        ),
+    }
+    print(
+        f"Determinism second pass: pair-list hash {second_hash[:16]}, "
+        f"identical {record['identical']}"
+    )
+    return record
+
+
+# ---------------------------------------------------------
+# Step 20: diagnostics and output writing
+# ---------------------------------------------------------
+
+# A1-A3 and the earlier item 11 amendment (recorded in the diagnostics).
+ACCEPTANCE_AMENDMENTS = {
+    "item_11": (
+        "No treatment is removed by W_OUTSIDE_DARKNESS alone: treatments "
+        "attributed to rule 2 by first-failure order must also fail "
+        "B_OUTSIDE_CRIME (attribution, not eligibility)."
+    ),
+    "A1": (
+        "Balance-only diagnostics are reported and reviewed. Each failed "
+        "balance-only flag needs a written explanation in the Step 1 report; "
+        "Step 1 fails on it only if the reviewer concludes it shows a "
+        "matching defect, leakage, an implementation error or a "
+        "methodological violation (known example: prior_episodes_250m)."
+    ),
+    "A2": (
+        "Contamination shares above the review share require reporting, "
+        "verification and a written explanation. The Commit 11 review "
+        "package satisfies this for the canonical c2bb341 definitions; "
+        "changes to the definitions or implementation require "
+        "re-verification. Sensitivity and placebo runs are report-only."
+    ),
+    "A3": (
+        "The single-commit requirement of item 20 is replaced by the "
+        "approved multi-commit plan; the baseline-pre-issue4 tag "
+        "requirement remains and is met."
+    ),
+}
+
+H16_POST_DEFINITION = (
+    "Placebo runs only (N5): every pair's created_date and closed_date equal "
+    "the real complaint dates minus placebo_shift_days; every complaint's "
+    "darkness interval equals the Stage 7 rule applied to the unshifted "
+    "dates; no matched treatment has an S-4 pre or post hit when no "
+    "exemption is applied. Not applicable when placebo_shift_days = 0."
+)
+
+LEGACY_PAIRS_BACKUP = "control_area_pairs.pre_issue4.parquet"
+
+# Expected Arrow types for the parquet schema check (N10).
+ARROW_TYPES = {
+    "string": ("string", "large_string"),
+    "int64": ("int64",),
+    "int32": ("int32",),
+    "Int32": ("int32",),
+    "int8": ("int8",),
+    "float64": ("double",),
+    "bool": ("bool",),
+    "datetime64[us]": ("timestamp[us]",),
+}
+
+
+def _json_safe(value, path, non_finite):
+    """
+    JSON-ready copy (N1, N2): numpy scalars and arrays, timestamps and
+    paths converted explicitly; non-finite floats become null and their
+    paths are listed in non_finite.
+    """
+
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item, f"{path}.{key}", non_finite)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [
+            _json_safe(item, f"{path}[{index}]", non_finite)
+            for index, item in enumerate(value)
+        ]
+    if isinstance(value, np.ndarray):
+        return _json_safe(value.tolist(), path, non_finite)
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, (int, np.integer)):
+        return int(value)
+    if isinstance(value, (float, np.floating)):
+        value = float(value)
+        if not math.isfinite(value):
+            non_finite.append({"path": path, "value": str(value)})
+            return None
+        return value
+    if isinstance(value, (pd.Timestamp, datetime, np.datetime64)):
+        return pd.Timestamp(value).isoformat()
+    if isinstance(value, Path):
+        return value.as_posix()
+    if value is None or isinstance(value, str):
+        return value
+    if value is pd.NA or value is pd.NaT:
+        return None
+    raise TypeError(f"diagnostics value at {path} is not serialisable: {type(value)}")
+
+
+def diagnostics_json(diagnostics):
+    non_finite = []
+    safe = _json_safe(diagnostics, "$", non_finite)
+    safe["non_finite"] = non_finite
+    return json.dumps(safe, indent=2, allow_nan=False, ensure_ascii=False)
+
+
+def _check_result_record(result, skipped):
+    status = "skipped" if result.check_id in skipped else (
+        "pass" if result.passed else "fail"
+    )
+    return {
+        "status": status,
+        "n_violations": result.n_violations,
+        "examples": result.examples[:10],
+        "seconds": round(result.seconds, 3),
+    }
+
+
+def build_diagnostics(state):
+    """
+    match_diagnostics.json content (blueprint §3.4) from the run state.
+    Missing sections (failed runs) are omitted; `status` says which.
+    """
+
+    params = state.get("params")
+    diagnostics = {"status": state.get("status", "failed")}
+    if "error" in state:
+        diagnostics["error"] = state["error"]
+
+    provenance = dict(state.get("provenance", {}))
+    provenance["python"] = sys.version
+    provenance["argv"] = list(state.get("argv", []))
+    diagnostics["provenance"] = provenance
+
+    if params is not None:
+        diagnostics["parameters"] = {
+            "values": dataclasses.asdict(params),
+            "cli_args": list(state.get("argv", [])),
+            "locked": locked_parameters_metadata(),
+            "conventions": CONVENTIONS,
+            "contamination_review_share": CONTAMINATION_REVIEW_SHARE,
+            "recheck_candidate_margin_m": RECHECK_CANDIDATE_MARGIN_M,
+            "h16_post_definition": H16_POST_DEFINITION,
+            "acceptance_amendments": ACCEPTANCE_AMENDMENTS,
+        }
+
+    coverage = state.get("coverage")
+    if coverage is not None:
+        diagnostics["coverage"] = {
+            "crime_min": _format_seconds(coverage.crime_min_s),
+            "crime_max": _format_seconds(coverage.crime_max_s),
+            "darkness_min": _format_seconds(coverage.dark_min_s),
+            "darkness_max": _format_seconds(coverage.dark_max_s),
+        }
+        eligible = state.get("treatments_eligible")
+        if eligible is not None and len(eligible):
+            diagnostics["coverage"]["eligible_created_min"] = (
+                eligible["created_date"].min()
+            )
+            diagnostics["coverage"]["eligible_created_max"] = (
+                eligible["created_date"].max()
+            )
+
+    sources = {}
+    for name in ("raw_summary", "darkness_summary", "sites_universe",
+                 "episode_summary"):
+        sources.update(state.get(name) or {})
+    if sources:
+        diagnostics["universe"] = {
+            key: sources[key] for key in DIAGNOSTICS_UNIVERSE_KEYS
+            if key in sources
+        }
+        if "episode_summary" in state:
+            diagnostics["universe"]["episode_d5_top10"] = (
+                state["episode_summary"]["d5_top10"]
+            )
+
+    for key in ("attrition", "balance", "contamination", "recheck",
+                "determinism"):
+        if key in state:
+            diagnostics[key] = state[key]
+
+    match_summary = state.get("match_summary")
+    if match_summary is not None:
+        diagnostics["unmatched_reasons"] = {
+            code: int((state["unmatched"]["reason_code"] == code).sum())
+            for code, _ in REASON_CODES
+        } if "unmatched" in state else None
+        diagnostics["candidates"] = {
+            "band": state.get("band_summary"),
+            "matching": match_summary["candidates"],
+            "reuse_blocked_matched": match_summary["reuse_blocked_matched"],
+            "reuse_blocked_conflict_total": (
+                match_summary["reuse_blocked_conflict_total"]
+            ),
+        }
+        reuse = {
+            "blocked_by_preregistration": match_summary["blocked_by_preregistration"],
+            "n_control_sites": match_summary["n_control_sites"],
+            "control_reuse_max": match_summary["control_reuse_max"],
+            "control_reuse_mean": match_summary["control_reuse_mean"],
+            "treatment_treatment_overlaps": state.get("pair_check_summary"),
+        }
+        pairs = state.get("pairs")
+        if pairs is not None:
+            per_site = pairs["control_site_id"].value_counts()
+            reuse["uses_per_control_site_histogram"] = {
+                int(uses): int(count)
+                for uses, count in per_site.value_counts().sort_index().items()
+            }
+        diagnostics["reuse"] = reuse
+
+    skipped = state.get("skipped_checks", set())
+    diagnostics["hard_checks"] = {
+        check_id: _check_result_record(result, skipped)
+        for check_id, result in state.get("checks", {}).items()
+    }
+
+    runtime = state.get("runtime", {})
+    diagnostics["runtime"] = {
+        "steps": runtime,
+        "total_seconds": round(sum(entry["seconds"] for entry in runtime.values()), 3),
+        "peak_mb": max((entry["peak_mb"] for entry in runtime.values()), default=None),
+    }
+
+    if "outputs" in state:
+        diagnostics["outputs"] = state["outputs"]
+
+    return diagnostics
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(HASH_BLOCK_BYTES), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def preserve_legacy_pairs(out_dir):
+    """
+    X3: before the first write, keep a pre-Issue-4 pairs file as
+    control_area_pairs.pre_issue4.parquet (copy, sha256 verified). An
+    existing backup is never overwritten; a file that already has the new
+    schema (control_site_id) is not a legacy file and is not copied.
+    """
+
+    import pyarrow.parquet as pq
+    import shutil
+
+    target = Path(out_dir) / PAIRS_FILENAME
+    backup = Path(out_dir) / LEGACY_PAIRS_BACKUP
+
+    if backup.exists():
+        return {"action": "existing_backup_kept", "path": backup.as_posix(),
+                "sha256": _sha256(backup)}
+    if not target.exists():
+        return {"action": "no_existing_pairs_file"}
+    if "control_site_id" in pq.read_schema(target).names:
+        return {"action": "existing_file_is_new_schema_not_backed_up"}
+
+    shutil.copy2(target, backup)
+    source_hash, backup_hash = _sha256(target), _sha256(backup)
+    if source_hash != backup_hash:
+        backup.unlink()
+        raise HardCheckError(
+            f"legacy backup failed: sha256 of {backup} differs from {target}"
+        )
+    print(f"Legacy pairs backed up to {backup} (sha256 {backup_hash[:16]}...)")
+    return {"action": "backed_up", "path": backup.as_posix(), "sha256": backup_hash}
+
+
+def _arrow_schema_problems(path, dtypes):
+    """N10: the written parquet has the expected columns and Arrow types."""
+
+    import pyarrow.parquet as pq
+
+    schema = pq.read_schema(path)
+    problems = []
+    if schema.names != list(dtypes):
+        problems.append(f"{path.name}: columns differ from the schema")
+    for column, dtype in dtypes.items():
+        if column in schema.names:
+            arrow = str(schema.field(column).type)
+            if arrow not in ARROW_TYPES[dtype]:
+                problems.append(f"{path.name}: {column} is {arrow}, expected {dtype}")
+    return problems
+
+
+def write_outputs(params, pairs, sites_out, unmatched, state):
+    """
+    Step 20 (N7, N10, N15): every file is written to a temporary name in
+    out_dir and schema-checked; then the parquet files are renamed with
+    os.replace and the diagnostics file is renamed last, as the completion
+    marker. A stale match_diagnostics.failed.json is removed on success.
+    On a PermissionError the files already replaced are reported and the
+    remaining temporary files are kept.
+    """
+
+    out_dir = Path(params.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    state["legacy_backup"] = preserve_legacy_pairs(out_dir)
+
+    tables = (
+        (PAIRS_FILENAME, pairs, PAIRS_DTYPES),
+        (SITES_FILENAME, sites_out, SITES_DTYPES),
+        (UNMATCHED_FILENAME, unmatched, UNMATCHED_DTYPES),
+    )
+    temporary = []
+    problems = []
+    for name, frame, dtypes in tables:
+        path = out_dir / f"{name}.tmp"
+        frame.to_parquet(path, engine="pyarrow", index=False)
+        problems += _arrow_schema_problems(path, dtypes)
+        temporary.append((path, out_dir / name))
+    if problems:
+        raise HardCheckError(
+            "parquet schema check failed (temporary files kept): "
+            + "; ".join(problems)
+        )
+
+    state["outputs"] = {
+        "out_dir": out_dir.as_posix(),
+        "legacy_backup": state["legacy_backup"],
+        "files": {
+            final.name: {"rows": len(frame), "sha256": _sha256(path)}
+            for (path, final), (_, frame, _) in zip(temporary, tables)
+        },
+    }
+    state["status"] = "completed"
+    diagnostics_path = out_dir / f"{DIAGNOSTICS_FILENAME}.tmp"
+    diagnostics_path.write_text(
+        diagnostics_json(build_diagnostics(state)), encoding="utf-8"
+    )
+    temporary.append((diagnostics_path, out_dir / DIAGNOSTICS_FILENAME))
+
+    replaced = []
+    try:
+        for path, final in temporary:
+            os.replace(path, final)
+            replaced.append(final.name)
+    except PermissionError as error:
+        raise HardCheckError(
+            f"could not replace {error.filename} (is it open elsewhere?); "
+            f"already replaced: {replaced or 'none'}; remaining temporary "
+            f"files kept in {out_dir}"
+        ) from error
+
+    failed = out_dir / FAILED_DIAGNOSTICS_FILENAME
+    if failed.exists():
+        failed.unlink()
+
+    return {final.name: final for _, final in temporary}
+
+
+def print_summary(state, written):
+    """Step 20: attrition table, reasons and the files written."""
+
+    print("\nAttrition (steps 0-12):")
+    print(
+        pd.DataFrame(state["attrition"]).to_string(
+            index=False,
+            formatters={"remaining": "{:,}".format, "dropped": "{:,}".format},
+        )
+    )
+    print("\nOutputs:")
+    for name, info in state["outputs"]["files"].items():
+        print(f"  {name}: {info['rows']:,} rows, sha256 {info['sha256'][:16]}...")
+    print(f"  {DIAGNOSTICS_FILENAME}: {written[DIAGNOSTICS_FILENAME]}")
+    backup = state["outputs"]["legacy_backup"]
+    print(f"  legacy pairs backup: {backup['action']}")
+    print(
+        f"\nStage 7 completed: {len(state['pairs']):,} pairs written to "
+        f"{state['outputs']['out_dir']}"
+    )
+
+
+def write_failed_diagnostics(state):
+    """N8: every stop writes match_diagnostics.failed.json when out_dir is known."""
+
+    params = state.get("params")
+    if params is None:
+        print("No failure diagnostics: parameters were not built.", file=sys.stderr)
+        return None
+
+    out_dir = Path(params.out_dir)
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / FAILED_DIAGNOSTICS_FILENAME
+        path.write_text(diagnostics_json(build_diagnostics(state)), encoding="utf-8")
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Could not write failure diagnostics: {error}", file=sys.stderr)
+        return None
+    print(f"Failure diagnostics written to {path}", file=sys.stderr)
+    return path
+
+
+# ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
 
@@ -4288,12 +5311,6 @@ def _check_h9(params, pairs, treatments_eligible, complaints, sites):
         "n_sites_with_overlap": sites_overlap,
         "n_treatments_in_overlap": treatments_overlap,
     }
-    problems.append(
-        "reported (not violations): treatment-treatment overlaps "
-        f"{n_pairs_overlap:,} interval pairs at {sites_overlap:,} sites, "
-        f"{treatments_overlap:,} treatments"
-    )
-
     return _check_result("H9", start, problems, violations), tt_summary
 
 
@@ -4395,6 +5412,150 @@ def _check_h14(pairs):
             problems.append(f"{count:,} pairs with {message}: {_pair_examples(pairs, mask)}")
 
     return _check_result("H14", start, problems, violations)
+
+
+def _check_h13(n_s3_rows, treatments_all, pairs, unmatched, attrition):
+    """
+    H13: every Stage 3 treatment is accounted for exactly once (N3, N4).
+    rows in pairs + rows in unmatched = n_s3_rows (read in step 2); no key
+    in both; the union equals the Stage 3 keys; the 12-step attrition list
+    starts at n_s3_rows, telescopes, ends at the pair count, and each
+    step's dropped count equals the unmatched rows with that reason_step.
+    All 12 reason codes appear in the list (count 0 allowed).
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    def add(condition, message):
+        nonlocal violations
+        if condition:
+            violations += 1
+            problems.append(message)
+
+    pair_keys = set(pairs["treatment_key"].tolist())
+    unmatched_keys = set(unmatched["treatment_key"].tolist())
+    stage3_keys = set(treatments_all["treatment_key"].tolist())
+
+    add(len(pairs) + len(unmatched) != n_s3_rows,
+        f"pairs {len(pairs):,} + unmatched {len(unmatched):,} != "
+        f"Stage 3 rows {n_s3_rows:,}")
+    add(bool(pair_keys & unmatched_keys),
+        f"{len(pair_keys & unmatched_keys):,} keys in both pairs and unmatched")
+    add(pair_keys | unmatched_keys != stage3_keys,
+        "pairs and unmatched keys differ from the Stage 3 keys")
+    add(len(unmatched_keys) != len(unmatched), "duplicated unmatched keys")
+
+    add(attrition[0]["remaining"] != n_s3_rows,
+        "attrition does not start at the Stage 3 row count")
+    for previous, entry in zip(attrition, attrition[1:]):
+        add(entry["remaining"] != previous["remaining"] - entry["dropped"],
+            f"attrition step {entry['step']} does not telescope")
+    add(attrition[-1]["remaining"] != len(pairs),
+        "attrition does not end at the pair count")
+
+    steps = unmatched["reason_step"].value_counts().to_dict()
+    listed = [entry["rule"] for entry in attrition[1:]]
+    add(listed != [code for code, _ in REASON_CODES],
+        "attrition does not list the 12 reason codes in order")
+    for entry in attrition[1:]:
+        actual = int(steps.get(entry["step"], 0))
+        add(actual != entry["dropped"],
+            f"step {entry['step']} ({entry['rule']}): attrition dropped "
+            f"{entry['dropped']:,}, unmatched rows {actual:,}")
+
+    return _check_result("H13", start, problems, violations)
+
+
+def _check_h16_post(params, pairs, complaints):
+    """
+    H16 after matching (N5; H16_POST_DEFINITION). Placebo runs: pair
+    dates equal the real complaint dates minus the shift; every
+    complaint's darkness interval is the Stage 7 rule applied to its
+    unshifted dates; no matched treatment has an S-4 pre or post hit with
+    no exemption applied. Canonical runs: not applicable.
+    """
+
+    start = time.perf_counter()
+    if params.placebo_shift_days == 0:
+        return _check_result(
+            "H16_post", start,
+            ["not applicable (placebo_shift_days = 0)"], 0,
+        )
+
+    problems = []
+    violations = 0
+    shift_s = params.placebo_shift_days * SECONDS_PER_DAY
+
+    row = pd.Index(complaints["unique_key"].to_numpy()).get_indexer(
+        pairs["treatment_key"].to_numpy()
+    )
+    found = row >= 0
+    safe = np.where(found, row, 0)
+    real_created = _to_seconds(complaints["created_date"])
+    has_closed = complaints["closed_date"].notna().to_numpy()
+    real_closed = np.zeros(len(complaints), dtype=np.int64)
+    real_closed[has_closed] = _to_seconds(complaints.loc[has_closed, "closed_date"])
+
+    tests = [
+        (~found, "treatment_key not in complaints"),
+        (found & (_to_seconds(pairs["created_date"])
+                  != real_created[safe] - shift_s),
+         "created_date is not the real date minus the shift"),
+        (found & (_to_seconds(pairs["closed_date"])
+                  != real_closed[safe] - shift_s),
+         "closed_date is not the real date minus the shift"),
+    ]
+
+    duration_h = np.full(len(complaints), np.nan)
+    duration_h[has_closed] = (real_closed[has_closed] - real_created[has_closed]) / 3600
+    valid = (
+        has_closed
+        & (duration_h >= params.valid_min_duration_h)
+        & (duration_h <= params.valid_max_duration_h)
+    )
+    start_s = real_created - params.report_lag_days * SECONDS_PER_DAY
+    end_s = np.where(
+        valid, real_closed,
+        real_created + int(round(params.imputed_duration_hours * 3600)),
+    )
+    interval_wrong = (
+        (complaints["dark_start_s"].to_numpy() != start_s)
+        | (complaints["dark_end_s"].to_numpy() != end_s)
+    )
+    count = int(interval_wrong.sum())
+    if count:
+        violations += count
+        problems.append(f"{count:,} complaints with darkness not built from real dates")
+
+    tree = cKDTree(complaints[["x_m", "y_m"]].to_numpy(dtype=np.float64))
+    centers = pairs[["treatment_x_m", "treatment_y_m"]].to_numpy(np.float64)
+    c = _to_seconds(pairs["created_date"])
+    closed = _to_seconds(pairs["closed_date"])
+    w_end = _to_seconds(pairs["window_end"])
+    event_s = params.event_window_days * SECONDS_PER_DAY
+    s = complaints["dark_start_s"].to_numpy()
+    e = complaints["dark_end_s"].to_numpy()
+    pre = np.zeros(len(pairs), dtype=bool)
+    post = np.zeros(len(pairs), dtype=bool)
+    for owner, point, _ in _ball_candidates(
+        tree, centers, params.treatment_clean_radius_m, RULE_QUERY_CHUNK
+    ):
+        pre[owner[(s[point] <= c[owner] - 1) & (e[point] >= c[owner] - event_s)]] = True
+        post[owner[(s[point] <= w_end[owner]) & (e[point] >= closed[owner] + 1)]] = True
+    tests += [
+        (pre, "matched treatments with an S-4 pre hit and no exemption"),
+        (post, "matched treatments with an S-4 post hit and no exemption"),
+    ]
+
+    for mask, message in tests:
+        count = int(np.asarray(mask).sum())
+        if count:
+            violations += count
+            problems.append(f"{count:,} {message}: {_pair_examples(pairs, mask)}")
+
+    return _check_result("H16_post", start, problems, violations)
 
 
 def _check_h16_inputs(params, treatments_all, complaints):
@@ -4882,7 +6043,9 @@ def run_hard_checks(params, stage, checks, **tables):
     "episodes" (H3, H4 after step 6), "scales" (H15 after step 11) and
     "pairs" (H5, H6, H7, H8, H9, H12 phase 1, H14 after step 14; H9's
     treatment-treatment overlap counts go into tables["summary"]) and
-    "balance" (H12 phase 2 on the full schema after step 15).
+    "balance" (H12 phase 2 on the full schema after step 15),
+    "recheck" (H10, H11 from step 18; skipped ones are recorded as such)
+    and "accounting" (H13, H16_post after step 19).
     """
 
     if stage == "inputs":
@@ -4938,6 +6101,16 @@ def run_hard_checks(params, stage, checks, **tables):
         ]
     elif stage == "balance":
         results = [_check_h12(tables["pairs"], include_balance=True)]
+    elif stage == "recheck":
+        results = [tables["h10"], tables["h11"]]
+    elif stage == "accounting":
+        results = [
+            _check_h13(
+                tables["n_s3_rows"], tables["treatments_all"],
+                tables["pairs"], tables["unmatched"], tables["attrition"],
+            ),
+            _check_h16_post(params, tables["pairs"], tables["complaints"]),
+        ]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
 
@@ -4985,9 +6158,12 @@ def _print_run_header(params):
         print(f"  {key}: {text}")
 
 
-def _stop(error):
+def _stop(error, state):
     # The violations were already printed by _record.
+    state["status"] = "failed"
+    state["error"] = str(error).splitlines()[0]
     sys.stdout.flush()
+    write_failed_diagnostics(state)
     print(
         f"\nStage 7 stopped: {str(error).splitlines()[0]}",
         file=sys.stderr,
@@ -4998,18 +6174,43 @@ def _stop(error):
 def main(argv=None):
     runtime = {}
     checks = {}
+    state = {
+        "argv": list(sys.argv[1:] if argv is None else argv),
+        "runtime": runtime,
+        "checks": checks,
+        "skipped_checks": set(),
+    }
+
+    try:
+        return _run(argv, state)
+    except Exception as error:
+        # Unhandled exception: failure diagnostics, then the traceback
+        # (exit 1).
+        state["status"] = "failed"
+        state["error"] = f"unhandled {type(error).__name__}: {error}"
+        write_failed_diagnostics(state)
+        raise
+
+
+def _run(argv, state):
+    runtime = state["runtime"]
+    checks = state["checks"]
 
     try:
         with StageTimer("parse_args", runtime):
             params = parse_args(argv, checks)
     except HardCheckError as error:
-        return _stop(error)
+        state["params"] = getattr(error, "params", None)
+        return _stop(error, state)
+
+    state["params"] = params
 
     _print_run_header(params)
 
     print("\n--- Provenance")
     with StageTimer("provenance", runtime):
         provenance = _collect_provenance()
+    state["provenance"] = provenance
 
     git = provenance["git"]
     print(f"git {git['sha'][:12]} on {git['branch']} (dirty: {git['dirty']})")
@@ -5054,7 +6255,9 @@ def main(argv=None):
                 complaints=complaints,
             )
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
+
+    state.update(raw_summary=raw_summary, coverage=coverage, n_s3_rows=n_s3_rows)
 
     treatments_all = _finalise_treatments(treatments_all)
 
@@ -5080,9 +6283,11 @@ def main(argv=None):
                 treatments_all=treatments_all,
             )
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
 
     print("\n--- Step 5: sites")
+    state.update(darkness_summary=darkness_summary, coverage=coverage)
+
     with StageTimer("build_sites", runtime):
         sites, complaints, sites_universe = build_sites(params, complaints)
 
@@ -5097,9 +6302,11 @@ def main(argv=None):
                 sites=sites,
             )
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
 
     print("\n--- Step 6: episodes")
+    state["sites_universe"] = sites_universe
+
     with StageTimer("build_episodes", runtime):
         episodes, complaints, sites, episode_links, episode_summary = (
             build_episodes(params, complaints, sites)
@@ -5118,7 +6325,9 @@ def main(argv=None):
                 episode_links=episode_links,
             )
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
+
+    state["episode_summary"] = episode_summary
 
     # The 25 m links are only needed for H4.
     del episode_links
@@ -5150,6 +6359,8 @@ def main(argv=None):
         )
 
     print("\n--- Step 10: treatment baselines")
+    state.update(treatments_eligible=treatments_eligible, attrition=attrition)
+
     with StageTimer("compute_treatment_baselines", runtime):
         treatments_eligible, baseline_summary = compute_treatment_baselines(
             params, treatments_eligible, indexes, crime
@@ -5164,7 +6375,7 @@ def main(argv=None):
         with StageTimer("checks_scales", runtime):
             run_hard_checks(params, "scales", checks, scales=scales)
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
 
     print("\n--- Step 12: reuse registry")
     with StageTimer("init_reuse_registry", runtime):
@@ -5181,6 +6392,8 @@ def main(argv=None):
         match, match_summary = match_treatments(
             params, treatments_eligible, sites, indexes, scales, registry
         )
+
+    state.update(band_summary=band_summary, match_summary=match_summary)
 
     # Band lists are only needed by matching.
     indexes.band_sites = indexes.band_dist = indexes.band_offsets = None
@@ -5208,7 +6421,14 @@ def main(argv=None):
                 summary=pair_check_summary,
             )
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
+
+    print(
+        "H9 reported (not violations): treatment-treatment overlaps "
+        f"{pair_check_summary['n_treatment_pairs_overlapping']:,} interval "
+        f"pairs at {pair_check_summary['n_sites_with_overlap']:,} sites, "
+        f"{pair_check_summary['n_treatments_in_overlap']:,} treatments"
+    )
 
     print("\n--- Step 15: balance")
     with StageTimer("compute_balance", runtime):
@@ -5222,7 +6442,7 @@ def main(argv=None):
         with StageTimer("checks_balance", runtime):
             run_hard_checks(params, "balance", checks, pairs=pairs)
     except HardCheckError as error:
-        return _stop(error)
+        return _stop(error, state)
 
     print("\n--- Step 16: contamination")
     with StageTimer("compute_contamination", runtime):
@@ -5230,15 +6450,94 @@ def main(argv=None):
             params, pairs, complaints, episodes, indexes, episode_summary
         )
 
-    # Steps 17-20 are added in later commits; Commit 12 returns
-    # EXIT_COMPLETED once all outputs are written.
-    sys.stdout.flush()
-    print(
-        "\nStage 7 incomplete on this branch; no outputs were produced.",
-        file=sys.stderr,
+    state.update(
+        treatments_eligible=treatments_eligible, pairs=pairs,
+        pair_check_summary=pair_check_summary, balance=balance,
+        contamination=contamination,
     )
 
-    return EXIT_INCOMPLETE
+    # Determinism (N6): hash of the sorted pair_id list and the order
+    # hash; with --check-determinism, a second steps 12-13 pass.
+    determinism = {
+        "pair_list_sha256": pair_list_hash(pairs["pair_id"]),
+        "order_hash": match.order_hash,
+        "check_determinism": params.check_determinism,
+        "second_pass": None,
+    }
+    print(
+        f"\nPair-list hash {determinism['pair_list_sha256'][:16]}, "
+        f"order hash {match.order_hash[:16]}"
+    )
+    if params.check_determinism:
+        print("\n--- Determinism check (second steps 12-13 pass)")
+        with StageTimer("check_determinism", runtime):
+            determinism["second_pass"] = check_determinism(
+                params, treatments_eligible, sites, indexes, scales, match
+            )
+    state["determinism"] = determinism
+    if params.check_determinism and not determinism["second_pass"]["identical"]:
+        return _stop(
+            HardCheckError("determinism check failed: second pass differs"),
+            state,
+        )
+
+    # The matching structures are not needed any more (EP memory plan).
+    del indexes, crime, registry
+    gc.collect()
+
+    print("\n--- Step 18: independent recheck")
+    with StageTimer("independent_recheck", runtime):
+        if params.skip_recheck:
+            h10, h11, recheck = skipped_recheck(params, pairs)
+            state["skipped_checks"] |= {"H10", "H11"}
+        else:
+            h10, h11, recheck = independent_recheck(params, pairs)
+    state["recheck"] = recheck
+    gc.collect()
+
+    print("\n--- Hard checks: recheck")
+    try:
+        with StageTimer("checks_recheck", runtime):
+            run_hard_checks(params, "recheck", checks, h10=h10, h11=h11)
+    except HardCheckError as error:
+        return _stop(error, state)
+
+    print("\n--- Step 19: unmatched treatments and site roles")
+    with StageTimer("build_unmatched", runtime):
+        unmatched = build_unmatched(
+            treatments_all, treatments_eligible, match, pairs, sites
+        )
+        sites_out = assemble_sites(sites, pairs)
+        attrition_all = full_attrition(attrition, match_summary)
+    state.update(unmatched=unmatched, attrition=attrition_all)
+
+    print("\n--- Hard checks: accounting")
+    try:
+        with StageTimer("checks_accounting", runtime):
+            run_hard_checks(
+                params,
+                "accounting",
+                checks,
+                n_s3_rows=n_s3_rows,
+                treatments_all=treatments_all,
+                pairs=pairs,
+                unmatched=unmatched,
+                attrition=attrition_all,
+                complaints=complaints,
+            )
+    except HardCheckError as error:
+        return _stop(error, state)
+
+    print("\n--- Step 20: outputs")
+    try:
+        with StageTimer("write_outputs", runtime):
+            written = write_outputs(params, pairs, sites_out, unmatched, state)
+    except HardCheckError as error:
+        return _stop(error, state)
+
+    print_summary(state, written)
+
+    return EXIT_COMPLETED
 
 
 if __name__ == "__main__":
