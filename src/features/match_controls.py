@@ -4690,10 +4690,6 @@ def build_diagnostics(state):
             key: sources[key] for key in DIAGNOSTICS_UNIVERSE_KEYS
             if key in sources
         }
-        if "episode_summary" in state:
-            diagnostics["universe"]["episode_d5_top10"] = (
-                state["episode_summary"]["d5_top10"]
-            )
 
     for key in ("attrition", "balance", "contamination", "recheck",
                 "determinism"):
