@@ -3723,8 +3723,10 @@ def _check_h9(params, pairs, treatments_eligible, complaints, sites):
 
     Fails when a control interval overlaps any other interval at its
     site (A2, closed), or, under reuse_policy = never, when a control site
-    appears more than once. Treatment-treatment overlaps are reported,
-    not violations (U6).
+    appears more than once. A control_site_id not in sites, or an
+    eligible treatment_key not in complaints, is one violation per row;
+    such rows are left out of the overlap sweep. Treatment-treatment
+    overlaps are reported, not violations (U6).
 
     Returns (CheckResult, treatment-overlap summary).
     """
@@ -3738,26 +3740,41 @@ def _check_h9(params, pairs, treatments_eligible, complaints, sites):
     row = pd.Index(complaints["unique_key"].to_numpy()).get_indexer(
         treatments_eligible["treatment_key"].to_numpy()
     )
-    if (c_site < 0).any() or (row < 0).any():
-        raise HardCheckError("H9: control site or treatment key not found")
-    t_site = complaints["site_idx"].to_numpy()[row].astype(np.int64)
+
+    # Unresolved rows are violations and are left out of the sweep.
+    c_found = c_site >= 0
+    t_found = row >= 0
+    if not c_found.all():
+        violations += int((~c_found).sum())
+        problems.append(
+            f"{int((~c_found).sum()):,} control_site_id not found in sites: "
+            f"{_pair_examples(pairs, ~c_found)}"
+        )
+    if not t_found.all():
+        missing = treatments_eligible.loc[~t_found, "treatment_key"]
+        violations += int(len(missing))
+        problems.append(
+            f"{len(missing):,} eligible treatment_key not found in complaints: "
+            f"{', '.join(missing.head(10).astype(str).tolist())}"
+        )
+    t_site = complaints["site_idx"].to_numpy()[row[t_found]].astype(np.int64)
 
     intervals = pd.DataFrame({
-        "site": np.concatenate([c_site, t_site]),
+        "site": np.concatenate([c_site[c_found], t_site]),
         "start": np.concatenate([
-            _to_seconds(pairs["window_start"]),
-            treatments_eligible["w_start_s"].to_numpy(),
+            _to_seconds(pairs["window_start"])[c_found],
+            treatments_eligible["w_start_s"].to_numpy()[t_found],
         ]),
         "end": np.concatenate([
-            _to_seconds(pairs["window_end"]),
-            treatments_eligible["w_end_s"].to_numpy(),
+            _to_seconds(pairs["window_end"])[c_found],
+            treatments_eligible["w_end_s"].to_numpy()[t_found],
         ]),
         "is_control": np.concatenate([
-            np.ones(len(pairs), dtype=bool),
-            np.zeros(len(treatments_eligible), dtype=bool),
+            np.ones(int(c_found.sum()), dtype=bool),
+            np.zeros(int(t_found.sum()), dtype=bool),
         ]),
         "pair_row": np.concatenate([
-            np.arange(len(pairs)), np.full(len(treatments_eligible), -1)
+            np.flatnonzero(c_found), np.full(int(t_found.sum()), -1)
         ]),
     }).sort_values(["site", "start", "end"], kind="mergesort")
 
@@ -4448,16 +4465,18 @@ def run_hard_checks(params, stage, checks, **tables):
         results = [_check_h15(tables["scales"])]
     elif stage == "pairs":
         pairs = tables["pairs"]
-        h9, overlap_summary = _check_h9(
-            params, pairs, tables["treatments_eligible"],
-            tables["complaints"], tables["sites"],
-        )
-        tables["summary"].update(overlap_summary)
         results = [
             _check_h5(pairs, tables["complaints"], tables["sites"]),
             _check_h6(params, pairs, tables["coverage"]),
             _check_h7(params, pairs),
             _check_h8(params, pairs, tables["scales"]),
+        ]
+        h9, overlap_summary = _check_h9(
+            params, pairs, tables["treatments_eligible"],
+            tables["complaints"], tables["sites"],
+        )
+        tables["summary"].update(overlap_summary)
+        results += [
             h9,
             _check_h12(pairs, include_balance=False),
             _check_h14(pairs),
