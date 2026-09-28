@@ -70,7 +70,7 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 
 | # | Old assumption | Replacement | Source |
 |---|---|---|---|
-| S10-1 | Two copies of the module: L1–35 is a stray header with the wrong project root (`parents[1]`); L36–524 is the working copy; L526–1014 is byte-identical to L36–524 and never runs. | Delete L1–35 and L526–1014 in a commit of their own (no behaviour change). | D14 |
+| S10-1 | Two copies of the module. L1–17 is a stray header with the wrong project root (`parents[1]`); L18–35 is the real header; L36–524 is the body. L526–1014 is byte-identical to L36–524, **including a second `__main__` block**, so running the script ran the whole event study twice (same results, double runtime). *(An earlier version of this note said "L1–35" and "never runs"; corrected after inspection.)* | Delete L1–17 and L525–1014 in a commit of their own. Checked as a pure deletion; old and new modules give identical coefficients and pre-trend test on the legacy panel, and reproduce the committed legacy `event_study_coefficients.csv`. | D14 |
 | S10-2 | Event units get geometry by merging `location_key` with the Stage 3 outage table (L108–121). This raises `ValueError` for controls, which are not outages. | Units come from the panel's `unit_id` and `location_x_m/y_m` (plus lat/lon); no outage table. | §11; S8-8 |
 | S10-3 | Crime projected with geopandas `to_crs`; KD query at exactly 100 m. | pyproj Transformer from lat/lon (as Stage 7 and 8). KD query at 100 + 1e-6 m, then the explicit formula. | A13 |
 | S10-4 | FE and clustering on `location_key`. | FE on `unit_id`; clustering on `treatment_h3_res7`. | §11; D13, D15 |
