@@ -3439,6 +3439,460 @@ def assemble_pairs(params, match, treatments_eligible, sites, registry):
     return pairs
 
 
+# Step 1 acceptance item 8: contamination shares above this are explained.
+CONTAMINATION_REVIEW_SHARE = 0.05
+
+
+def _smd_vr(treated, control):
+    """
+    SMD = (mean_T - mean_C) / sqrt((s_T**2 + s_C**2) / 2) and
+    VR = s_T**2 / s_C**2, sample variances (ddof = 1) (B1, B2).
+    Both variances 0: SMD = 0 if the means are equal, else +/-inf;
+    VR = 1. Only s_C**2 = 0: VR = inf.
+    """
+
+    treated = np.asarray(treated, dtype=np.float64)
+    control = np.asarray(control, dtype=np.float64)
+
+    mean_t, mean_c = float(treated.mean()), float(control.mean())
+    var_t = float(treated.var(ddof=1)) if len(treated) > 1 else float("nan")
+    var_c = float(control.var(ddof=1)) if len(control) > 1 else float("nan")
+
+    pooled = math.sqrt((var_t + var_c) / 2)
+    if pooled == 0:
+        smd = 0.0 if mean_t == mean_c else math.copysign(math.inf, mean_t - mean_c)
+    else:
+        smd = (mean_t - mean_c) / pooled
+
+    if var_t == 0 and var_c == 0:
+        vr = 1.0
+    elif var_c == 0:
+        vr = math.inf
+    else:
+        vr = var_t / var_c
+
+    return {
+        "treatment_mean": mean_t,
+        "treatment_sd": math.sqrt(var_t),
+        "control_mean": mean_c,
+        "control_sd": math.sqrt(var_c),
+        "smd": smd,
+        "variance_ratio": vr,
+    }
+
+
+def _balance_entry(params, treated, control):
+    entry = _smd_vr(treated, control)
+    low, high = params.vr_range
+    entry["pass"] = bool(
+        abs(entry["smd"]) < params.smd_max
+        and low <= entry["variance_ratio"] <= high
+    )
+    return entry
+
+
+def _crime_counts(params, crime_tree, crime_t, centers, start_s, end_s):
+    """
+    Night crimes with start_s <= t <= end_s (closed) around each center:
+    d <= direct_radius_m and direct_radius_m < d <= outcome_radius_m
+    (A12, A13 explicit formula).
+    """
+
+    n = len(centers)
+    direct = np.zeros(n, dtype=np.int64)
+    ring = np.zeros(n, dtype=np.int64)
+
+    for owner, points, distance in _ball_candidates(
+        crime_tree, centers, params.outcome_radius_m, TREATMENT_QUERY_CHUNK
+    ):
+        t = crime_t[points]
+        inside = (t >= start_s[owner]) & (t <= end_s[owner])
+        near = distance <= params.direct_radius_m
+        direct += np.bincount(owner[inside & near], minlength=n)
+        ring += np.bincount(owner[inside & ~near], minlength=n)
+
+    return direct, ring
+
+
+def _prior_episodes(params, idx, complaints, episodes, centers, b_start,
+                    b_last):
+    """
+    A9 (frozen): distinct episodes with b_start <= episodes.start_s <=
+    b_last that have at least one complaint (any, artifact sites
+    included) within prior_episode_radius_m of the center, measured to
+    the complaint's own point (A8, A13).
+    """
+
+    n = len(centers)
+    episode_id = complaints["episode_id"].to_numpy()
+    episode_start = episodes["start_s"].to_numpy()
+    n_episodes = len(episodes)
+    counts = np.zeros(n, dtype=np.int64)
+
+    for owner, points, _ in _ball_candidates(
+        idx.complaint_tree, centers, params.prior_episode_radius_m,
+        RULE_QUERY_CHUNK,
+    ):
+        episode = episode_id[points]
+        start = episode_start[episode]
+        keep = (start >= b_start[owner]) & (start <= b_last[owner])
+        unique = np.unique(owner[keep] * n_episodes + episode[keep])
+        counts += np.bincount(unique // n_episodes, minlength=n)
+
+    return counts
+
+
+def _cell_density(idx, cells, b_start, b_end):
+    """A10: crimes during B = [b_start, b_end) in the res-9 cell / km^2."""
+
+    unique_cells, inverse = np.unique(np.asarray(cells, dtype=object),
+                                      return_inverse=True)
+    rank = np.array(
+        [idx.crime_cell_rank.get(h3.str_to_int(cell), -1) for cell in unique_cells],
+        dtype=np.int64,
+    )[inverse]
+    area = np.array(
+        [h3.cell_area(cell, unit="km^2") for cell in unique_cells],
+        dtype=np.float64,
+    )[inverse]
+    counts = _count_in_window(
+        idx.crime_cell_key, rank, b_start, b_end, end_inclusive=False
+    )
+    return counts / area
+
+
+def compute_balance(params, pairs, treatments_eligible, episodes, complaints,
+                    crime, idx):
+    """
+    Step 15: the 8 bal_* columns and the balance diagnostics.
+
+    Units: treatment exact point (treatment_x_m/y_m); control rounded
+    site point (control_x_m/y_m). Windows from the pair columns (shifted
+    in placebo runs; complaints and crimes keep real dates, C4).
+
+    bal_*_prior_episodes_250m  _prior_episodes over B (A9, B5)
+    bal_*_h3r9_density         crimes during B in the pair's res-9 site
+                               cell per km^2 (A10, B4)
+    bal_*_pre_100m / _250m     night crimes d <= 100 / 100 < d <= 250
+                               during [created - 14 d, created] (A11, A12)
+
+    Matched variables: log1p of both baselines. Balance-only: prior
+    episodes and density (raw, B3), pre-window counts (raw and log1p).
+    Per variable: means, SDs, SMD, VR, pass (B1, B2, B12). Descriptive:
+    distance_m, pairs by created year and month (B14). Representativeness:
+    matched treatments vs all eligible treatments (B13).
+
+    Returns (pairs with every PAIRS_DTYPES column, balance dict).
+    """
+
+    b_start = _to_seconds(pairs["baseline_start"])
+    b_end = _to_seconds(pairs["baseline_end"])
+    created = _to_seconds(pairs["created_date"])
+    pre_start = created - params.s8_pre_window_days * SECONDS_PER_DAY
+    crime_t = crime["t_s"].to_numpy()
+
+    values = {}
+    for role in ("treatment", "control"):
+        centers = pairs[[f"{role}_x_m", f"{role}_y_m"]].to_numpy(np.float64)
+        values[f"bal_{role}_prior_episodes_250m"] = _prior_episodes(
+            params, idx, complaints, episodes, centers, b_start, b_end - 1
+        )
+        values[f"bal_{role}_h3r9_density"] = _cell_density(
+            idx, pairs[f"{role}_h3_res9"].to_numpy(dtype=object), b_start, b_end
+        )
+        direct, ring = _crime_counts(
+            params, idx.crime_tree, crime_t, centers, pre_start, created
+        )
+        values[f"bal_{role}_pre_100m"] = direct
+        values[f"bal_{role}_pre_250m"] = ring
+
+    pairs = pairs.assign(**{column: values[column] for column in BALANCE_COLUMNS})
+    pairs = pairs[list(PAIRS_DTYPES)].astype(PAIRS_DTYPES)
+
+    def column(role, name):
+        return pairs[f"bal_{role}_{name}"].to_numpy(np.float64)
+
+    matched = {
+        f"log_base_{radius}": _balance_entry(
+            params,
+            np.log1p(pairs[f"treatment_base_{radius}"].to_numpy(np.float64)),
+            np.log1p(pairs[f"control_base_{radius}"].to_numpy(np.float64)),
+        )
+        for radius in ("100m", "250m")
+    }
+    balance_only = {}
+    for name in ("prior_episodes_250m", "h3r9_density", "pre_100m", "pre_250m"):
+        balance_only[name] = _balance_entry(
+            params, column("treatment", name), column("control", name)
+        )
+    for name in ("pre_100m", "pre_250m"):
+        balance_only[f"log_{name}"] = _balance_entry(
+            params,
+            np.log1p(column("treatment", name)),
+            np.log1p(column("control", name)),
+        )
+
+    created_dates = pairs["created_date"]
+    descriptive = {
+        "distance_m": {
+            key: float(value) for key, value in
+            zip(("mean", "p10", "p50", "p90", "min", "max"),
+                (pairs["distance_m"].mean(),
+                 *np.percentile(pairs["distance_m"], [10, 50, 90]),
+                 pairs["distance_m"].min(), pairs["distance_m"].max()))
+        } if len(pairs) else {},
+        "pairs_by_year": {
+            int(k): int(v)
+            for k, v in created_dates.dt.year.value_counts().sort_index().items()
+        },
+        "pairs_by_month": {
+            int(k): int(v)
+            for k, v in created_dates.dt.month.value_counts().sort_index().items()
+        },
+    }
+
+    def describe(values):
+        values = np.asarray(values, dtype=np.float64)
+        return {
+            "mean": float(values.mean()),
+            "median": float(np.median(values)),
+            "p90": float(np.percentile(values, 90)),
+        }
+
+    def shares(series):
+        return (series.value_counts(normalize=True).sort_index()
+                .astype(float).to_dict())
+
+    eligible_years = treatments_eligible["created_date"].dt.year
+    representativeness = {
+        "n_matched": int(len(pairs)),
+        "n_eligible": int(len(treatments_eligible)),
+        "baseline": {
+            f"base_{radius}": {
+                "matched": describe(pairs[f"treatment_base_{radius}"]),
+                "eligible": describe(treatments_eligible[f"base_{radius}"]),
+                "smd_log1p": _smd_vr(
+                    np.log1p(pairs[f"treatment_base_{radius}"].to_numpy(np.float64)),
+                    np.log1p(treatments_eligible[f"base_{radius}"].to_numpy(np.float64)),
+                )["smd"],
+            }
+            for radius in ("100m", "250m")
+        },
+        "borough_share": {
+            "matched": {str(k): v for k, v in shares(pairs["treatment_borough"]).items()},
+            "eligible": {
+                str(k): v
+                for k, v in shares(treatments_eligible["treatment_borough"]).items()
+            },
+        },
+        "year_share": {
+            "matched": {int(k): v for k, v in shares(created_dates.dt.year).items()},
+            "eligible": {int(k): v for k, v in shares(eligible_years).items()},
+        },
+    }
+
+    balance = {
+        "thresholds": {
+            "smd_max": params.smd_max,
+            "vr_min": params.vr_range[0],
+            "vr_max": params.vr_range[1],
+            "smd_formula": "(mean_T - mean_C) / sqrt((s_T^2 + s_C^2) / 2), ddof 1",
+            "vr_formula": "s_T^2 / s_C^2, ddof 1",
+        },
+        "matched": matched,
+        "balance_only": balance_only,
+        "matched_pass": all(entry["pass"] for entry in matched.values()),
+        "balance_only_pass": all(entry["pass"] for entry in balance_only.values()),
+        "descriptive": descriptive,
+        "representativeness": representativeness,
+    }
+
+    print(
+        f"Balance (n = {len(pairs):,} pairs; |SMD| < {params.smd_max:g}, "
+        f"VR in [{params.vr_range[0]:g}, {params.vr_range[1]:g}]):"
+    )
+    print(
+        f"  {'variable':<24} {'T mean':>9} {'C mean':>9} {'T sd':>8} "
+        f"{'C sd':>8} {'SMD':>8} {'VR':>7}  pass"
+    )
+    for group, entries in (("matched", matched), ("balance-only", balance_only)):
+        for name, entry in entries.items():
+            print(
+                f"  {name:<24} {entry['treatment_mean']:>9.3f} "
+                f"{entry['control_mean']:>9.3f} {entry['treatment_sd']:>8.3f} "
+                f"{entry['control_sd']:>8.3f} {entry['smd']:>+8.4f} "
+                f"{entry['variance_ratio']:>7.3f}  {entry['pass']}  ({group})"
+            )
+    print(
+        f"  matched_pass {balance['matched_pass']}, "
+        f"balance_only_pass {balance['balance_only_pass']}"
+    )
+    for radius, entry in representativeness["baseline"].items():
+        print(
+            f"  representativeness {radius}: matched mean "
+            f"{entry['matched']['mean']:.3f} / median {entry['matched']['median']:g} "
+            f"vs eligible {entry['eligible']['mean']:.3f} / "
+            f"{entry['eligible']['median']:g} (SMD log1p {entry['smd_log1p']:+.4f})"
+        )
+
+    return pairs, balance
+
+
+def _pairs_near_other_pairs(centers, other, radius, w_start, w_end):
+    """
+    Pairs i with some pair j != i whose `other` point is within radius
+    (explicit formula, A13) and whose closed W overlaps (A2).
+    """
+
+    tree = cKDTree(other)
+    flagged = np.zeros(len(centers), dtype=bool)
+
+    for owner, points, _ in _ball_candidates(
+        tree, centers, radius, TREATMENT_QUERY_CHUNK
+    ):
+        hit = (
+            (points != owner)
+            & (w_start[points] <= w_end[owner])
+            & (w_end[points] >= w_start[owner])
+        )
+        flagged[owner[hit]] = True
+
+    return flagged
+
+
+def _dark_near(idx, complaints, centers, inner, outer, win_start, win_end,
+               exclude=None):
+    """
+    Per center, complaints with inner < d <= outer (inner < 0 for d <= outer)
+    whose darkness interval overlaps the closed window (A2); `exclude`
+    is an optional complaint row per center that is not counted.
+    """
+
+    dark_start = complaints["dark_start_s"].to_numpy()
+    dark_end = complaints["dark_end_s"].to_numpy()
+    counts = np.zeros(len(centers), dtype=np.int64)
+
+    for owner, points, distance in _ball_candidates(
+        idx.complaint_tree, centers, outer, RULE_QUERY_CHUNK
+    ):
+        hit = (
+            (distance > inner)
+            & (dark_start[points] <= win_end[owner])
+            & (dark_end[points] >= win_start[owner])
+        )
+        if exclude is not None:
+            hit &= points != exclude[owner]
+        counts += np.bincount(owner[hit], minlength=len(centers))
+
+    return counts
+
+
+def compute_contamination(params, pairs, complaints, episodes, idx,
+                          episode_summary):
+    """
+    Step 16: contamination diagnostics (report only; shares above
+    CONTAMINATION_REVIEW_SHARE are flagged for explanation). Shares are
+    over pairs (B10); W is closed (A2); distances by the explicit formula.
+
+    D1  control within 500 m (<=, B6) of another pair's treatment with
+        overlapping W (matched treatments only, B7)
+    D2  control with a complaint at exclusion_radius_m < d <= 500
+        overlapping the full W (B8)
+    D2b pre_only only: control with a complaint within exclusion_radius_m
+        overlapping [created_s, w_end_s] (went dark after selection)
+    D3  control within 500 m (<=) of another pair's control with
+        overlapping W
+    D4  per pair, other complaints within 100 m of the treatment
+        overlapping [created_s, closed_s]; the treatment complaint is
+        excluded, same-episode duplicates are included (B9)
+    D5  episode chaining, taken from the step 6 episode summary (B11)
+    """
+
+    n = len(pairs)
+    zone = 2 * params.outcome_radius_m
+    treatment_xy = pairs[["treatment_x_m", "treatment_y_m"]].to_numpy(np.float64)
+    control_xy = pairs[["control_x_m", "control_y_m"]].to_numpy(np.float64)
+    w_start = _to_seconds(pairs["window_start"])
+    w_end = _to_seconds(pairs["window_end"])
+    created = _to_seconds(pairs["created_date"])
+    closed = _to_seconds(pairs["closed_date"])
+
+    def share(flagged):
+        count = int(np.asarray(flagged).sum())
+        value = count / n if n else float("nan")
+        return {
+            "n_pairs": count,
+            "share": value,
+            "above_review_share": bool(value > CONTAMINATION_REVIEW_SHARE),
+        }
+
+    contamination = {
+        "review_share": CONTAMINATION_REVIEW_SHARE,
+        "n_pairs": n,
+        "D1": share(_pairs_near_other_pairs(
+            control_xy, treatment_xy, zone, w_start, w_end
+        )),
+        "D2": share(_dark_near(
+            idx, complaints, control_xy, params.exclusion_radius_m, zone,
+            w_start, w_end,
+        ) > 0),
+        "D3": share(_pairs_near_other_pairs(
+            control_xy, control_xy, zone, w_start, w_end
+        )),
+    }
+    if params.control_selection == "pre_only":
+        contamination["D2b"] = share(_dark_near(
+            idx, complaints, control_xy, -1.0, params.exclusion_radius_m,
+            created, w_end,
+        ) > 0)
+
+    own = pd.Index(complaints["unique_key"].to_numpy()).get_indexer(
+        pairs["treatment_key"].to_numpy()
+    )
+    d4 = _dark_near(
+        idx, complaints, treatment_xy, -1.0, params.direct_radius_m,
+        created, closed, exclude=own,
+    )
+    contamination["D4"] = {
+        "mean": float(d4.mean()) if n else float("nan"),
+        "p50": float(np.percentile(d4, 50)) if n else float("nan"),
+        "p90": float(np.percentile(d4, 90)) if n else float("nan"),
+        "max": int(d4.max()) if n else 0,
+        "share_zero": float((d4 == 0).mean()) if n else float("nan"),
+    }
+    contamination["D5"] = {
+        "n_episodes": episode_summary["n_episodes"],
+        "episodes_over_100m": episode_summary["d5_episodes_over_100m"],
+        "episodes_over_365d": episode_summary["d5_episodes_over_365d"],
+        "max_footprint_m": episode_summary["episode_max_footprint_m"],
+        "top10": episode_summary["d5_top10"],
+    }
+
+    print(f"Contamination (n = {n:,} pairs; review share {CONTAMINATION_REVIEW_SHARE:.0%}):")
+    for key in ("D1", "D2", "D2b", "D3"):
+        if key in contamination:
+            entry = contamination[key]
+            print(
+                f"  {key:<3} {entry['n_pairs']:>7,} pairs  share {entry['share']:.4f}"
+                f"{'  ABOVE REVIEW SHARE' if entry['above_review_share'] else ''}"
+            )
+    entry = contamination["D4"]
+    print(
+        f"  D4  other complaints within {params.direct_radius_m:g} m during "
+        f"[created, closed]: mean {entry['mean']:.3f}, p50 {entry['p50']:g}, "
+        f"p90 {entry['p90']:g}, max {entry['max']}, zero share "
+        f"{entry['share_zero']:.3f}"
+    )
+    entry = contamination["D5"]
+    print(
+        f"  D5  {entry['episodes_over_100m']} episodes > 100 m, "
+        f"{entry['episodes_over_365d']} > 365 days (of {entry['n_episodes']:,}); "
+        f"max footprint {entry['max_footprint_m']:.1f} m"
+    )
+
+    return contamination
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -4427,7 +4881,8 @@ def run_hard_checks(params, stage, checks, **tables):
     "darkness" (H2, H17 after step 4), "sites" (H18 after step 5),
     "episodes" (H3, H4 after step 6), "scales" (H15 after step 11) and
     "pairs" (H5, H6, H7, H8, H9, H12 phase 1, H14 after step 14; H9's
-    treatment-treatment overlap counts go into tables["summary"]).
+    treatment-treatment overlap counts go into tables["summary"]) and
+    "balance" (H12 phase 2 on the full schema after step 15).
     """
 
     if stage == "inputs":
@@ -4481,6 +4936,8 @@ def run_hard_checks(params, stage, checks, **tables):
             _check_h12(pairs, include_balance=False),
             _check_h14(pairs),
         ]
+    elif stage == "balance":
+        results = [_check_h12(tables["pairs"], include_balance=True)]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
 
@@ -4753,7 +5210,27 @@ def main(argv=None):
     except HardCheckError as error:
         return _stop(error)
 
-    # Steps 15-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 15: balance")
+    with StageTimer("compute_balance", runtime):
+        pairs, balance = compute_balance(
+            params, pairs, treatments_eligible, episodes, complaints, crime,
+            indexes,
+        )
+
+    print("\n--- Hard checks: balance")
+    try:
+        with StageTimer("checks_balance", runtime):
+            run_hard_checks(params, "balance", checks, pairs=pairs)
+    except HardCheckError as error:
+        return _stop(error)
+
+    print("\n--- Step 16: contamination")
+    with StageTimer("compute_contamination", runtime):
+        contamination = compute_contamination(
+            params, pairs, complaints, episodes, indexes, episode_summary
+        )
+
+    # Steps 17-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
