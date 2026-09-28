@@ -3319,6 +3319,126 @@ def match_treatments(params, treatments_eligible, sites, idx, scales,
     return result, summary
 
 
+BALANCE_COLUMNS = tuple(column for column in PAIRS_DTYPES if column.startswith("bal_"))
+
+
+def assemble_pairs(params, match, treatments_eligible, sites, registry):
+    """
+    Step 14: one row per matched pair, in match_order, with the
+    PAIRS_DTYPES columns except the bal_* columns (step 15).
+
+    Treatment: exact complaint point (x/y and latitude/longitude), site
+    modal borough and precinct, treatment-site H3 cells (U1), episode,
+    windows and Commit 8 baselines. Control: the site's rounded point,
+    modal labels and H3 cells. pair_id = {treatment_key}_{control_site_id};
+    outage_duration_hours = (closed_date - created_date) / 3600 s (U8);
+    control_reuse_count = pairs using the same control site, counted from
+    the pairs (cross-checked against the registry).
+    """
+
+    raw = match.pairs_raw
+    treatment = (
+        treatments_eligible.set_index("treatment_key")
+        .loc[raw["treatment_key"].to_numpy()]
+        .reset_index()
+    )
+    t_site = treatment["site_idx"].to_numpy()
+    c_site = raw["control_site_idx"].to_numpy().astype(np.int64)
+
+    def site_column(name, index):
+        return sites[name].to_numpy()[index]
+
+    reuse_count = raw.groupby("control_site_idx")["treatment_key"].transform(
+        "size"
+    )
+    if len(raw) and not all(
+        registry.n_uses(site) == count
+        for site, count in zip(c_site.tolist(), reuse_count.tolist())
+    ):
+        raise HardCheckError(
+            "reuse guard: control_reuse_count differs from the registry"
+        )
+
+    columns = {
+        "pair_id": [
+            f"{key}_{site_id}"
+            for key, site_id in zip(
+                raw["treatment_key"].tolist(), site_column("site_id", c_site)
+            )
+        ],
+        "treatment_key": raw["treatment_key"].to_numpy(),
+        "treatment_site_id": site_column("site_id", t_site),
+        "control_site_id": site_column("site_id", c_site),
+        "treatment_episode_id": treatment["episode_id"].to_numpy(),
+        "created_date": treatment["created_date"].to_numpy(),
+        "closed_date": treatment["closed_date"].to_numpy(),
+        "outage_duration_hours": (
+            _to_seconds(treatment["closed_date"])
+            - _to_seconds(treatment["created_date"])
+        ) / 3600.0,
+        "treatment_latitude": treatment["latitude"].to_numpy(),
+        "treatment_longitude": treatment["longitude"].to_numpy(),
+        "treatment_x_m": treatment["x_m"].to_numpy(),
+        "treatment_y_m": treatment["y_m"].to_numpy(),
+        "control_latitude": site_column("latitude", c_site),
+        "control_longitude": site_column("longitude", c_site),
+        "control_x_m": site_column("x_m", c_site).astype(np.float64),
+        "control_y_m": site_column("y_m", c_site).astype(np.float64),
+        "treatment_borough": treatment["treatment_borough"].to_numpy(),
+        "control_borough": site_column("borough", c_site),
+        "treatment_police_precinct": treatment[
+            "treatment_police_precinct"
+        ].to_numpy(),
+        "control_police_precinct": site_column("police_precinct", c_site),
+    }
+    for role, index in (("treatment", t_site), ("control", c_site)):
+        for resolution in params.h3_resolutions:
+            columns[f"{role}_h3_res{resolution}"] = site_column(
+                f"h3_res{resolution}", index
+            )
+    columns.update({
+        "distance_m": raw["distance_m"].to_numpy(),
+        "window_start": treatment["window_start"].to_numpy(),
+        "window_end": treatment["window_end"].to_numpy(),
+        "baseline_start": treatment["baseline_start"].to_numpy(),
+        "baseline_end": treatment["baseline_end"].to_numpy(),
+        "treatment_base_100m": treatment["base_100m"].to_numpy(),
+        "treatment_base_250m": treatment["base_250m"].to_numpy(),
+        "control_base_100m": raw["control_base_100m"].to_numpy(),
+        "control_base_250m": raw["control_base_250m"].to_numpy(),
+        "match_distance": raw["match_distance"].to_numpy(),
+        "n_candidates_band": raw["n_candidates_band"].to_numpy(),
+        "n_candidates_clean": raw["n_candidates_clean"].to_numpy(),
+        "n_candidates_caliper": raw["n_candidates_caliper"].to_numpy(),
+        "n_candidates_reuse_blocked": raw[
+            "n_candidates_reuse_blocked"
+        ].to_numpy(),
+        "control_reuse_count": reuse_count.to_numpy(),
+        "match_seed": np.full(len(raw), params.match_seed),
+        "match_order": raw["match_order"].to_numpy(),
+        "control_selection": np.full(len(raw), params.control_selection),
+        "reuse_policy": np.full(len(raw), params.reuse_policy),
+        "placebo_shift_days": np.full(len(raw), params.placebo_shift_days),
+    })
+
+    order = [column for column in PAIRS_DTYPES if column not in BALANCE_COLUMNS]
+    if list(columns) != order:
+        raise HardCheckError("assembly guard: pair columns out of schema order")
+
+    pairs = pd.DataFrame(columns).astype(
+        {column: PAIRS_DTYPES[column] for column in order}
+    )
+
+    print(
+        f"Pairs assembled: {len(pairs):,} rows x {len(pairs.columns)} columns "
+        f"({len(BALANCE_COLUMNS)} bal_* columns follow in step 15); "
+        f"{pairs['control_site_id'].nunique():,} control sites, "
+        f"max control_reuse_count {int(pairs['control_reuse_count'].max()) if len(pairs) else 0}"
+    )
+
+    return pairs
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -3432,6 +3552,378 @@ def _check_h15(scales):
         examples=problems,
         seconds=time.perf_counter() - start,
     )
+
+
+def _check_result(check_id, start, problems, violations):
+    return CheckResult(
+        check_id=check_id,
+        passed=violations == 0,
+        n_violations=int(violations),
+        examples=problems,
+        seconds=time.perf_counter() - start,
+    )
+
+
+def _pair_examples(pairs, mask, limit=10):
+    return ", ".join(pairs.loc[mask, "pair_id"].head(limit).astype(str).tolist())
+
+
+def _check_h5(pairs, complaints, sites):
+    """
+    H5: every matched treatment is first-of-episode, not at an artifact
+    site and has a borough. Path (approved): pairs.treatment_key ->
+    complaints.unique_key -> complaint row -> complaint site_idx -> sites
+    row. treatment_episode_id and treatment_site_id are validated values,
+    not join keys. Uses no treatment-rule output.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    row = pd.Index(complaints["unique_key"].to_numpy()).get_indexer(
+        pairs["treatment_key"].to_numpy()
+    )
+    found = row >= 0
+    safe = np.where(found, row, 0)
+
+    site_idx = complaints["site_idx"].to_numpy()[safe]
+    tests = (
+        (~found, "treatment_key not found in complaints"),
+        (found & ~complaints["is_first_of_episode"].to_numpy()[safe],
+         "treatment is not the first complaint of its episode"),
+        (found & sites["is_artifact"].to_numpy()[site_idx],
+         "treatment site is an artifact"),
+        (found & sites["borough"].isna().to_numpy()[site_idx],
+         "treatment site has no borough"),
+        (found & (pairs["treatment_episode_id"].to_numpy()
+                  != complaints["episode_id"].to_numpy()[safe]),
+         "treatment_episode_id differs from the complaint's episode"),
+        (found & (pairs["treatment_site_id"].to_numpy(dtype=object)
+                  != sites["site_id"].to_numpy(dtype=object)[site_idx]),
+         "treatment_site_id differs from the complaint's site"),
+    )
+    for mask, message in tests:
+        count = int(mask.sum())
+        if count:
+            violations += count
+            problems.append(f"{count:,} {message}: {_pair_examples(pairs, mask)}")
+
+    return _check_result("H5", start, problems, violations)
+
+
+def _check_h6(params, pairs, coverage):
+    """
+    H6: pair windows inside coverage, mirroring treatment rules 1-3
+    (U4): W in crime coverage; W +/- lag in darkness coverage; B =
+    [b_start, b_end) in crime coverage, B evaluated as [b_start,
+    b_end - 1] (A13). Placebo runs use the shifted windows.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    lag = params.report_lag_days * SECONDS_PER_DAY
+    w_start = _to_seconds(pairs["window_start"])
+    w_end = _to_seconds(pairs["window_end"])
+    b_start = _to_seconds(pairs["baseline_start"])
+    b_end = _to_seconds(pairs["baseline_end"])
+
+    tests = (
+        (w_start < coverage.crime_min_s, "W starts before crime coverage"),
+        (w_end > coverage.crime_max_s, "W ends after crime coverage"),
+        (w_start - lag < coverage.dark_min_s,
+         "W start - lag before darkness coverage"),
+        (w_end + lag > coverage.dark_max_s,
+         "W end + lag after darkness coverage"),
+        (b_start < coverage.crime_min_s, "B starts before crime coverage"),
+        (b_end - 1 > coverage.crime_max_s, "B ends after crime coverage"),
+    )
+    for mask, message in tests:
+        count = int(mask.sum())
+        if count:
+            violations += count
+            problems.append(f"{count:,} {message}: {_pair_examples(pairs, mask)}")
+
+    return _check_result("H6", start, problems, violations)
+
+
+def _check_h7(params, pairs):
+    """
+    H7: distance recomputed from the pair coordinates with the explicit
+    formula equals distance_m exactly (U5) and lies in
+    [match_band_min_m - 1e-6, match_band_max_m + 1e-6]; boroughs are
+    equal and present. Zone disjointness follows from d >= 500 m.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    distance = _distance(
+        pairs["treatment_x_m"].to_numpy(), pairs["treatment_y_m"].to_numpy(),
+        pairs["control_x_m"].to_numpy(), pairs["control_y_m"].to_numpy(),
+    )
+    t_borough = pairs["treatment_borough"]
+    c_borough = pairs["control_borough"]
+
+    tests = (
+        (distance != pairs["distance_m"].to_numpy(),
+         "distance_m differs from the recomputed distance"),
+        (distance < params.match_band_min_m - 1e-6,
+         f"closer than {params.match_band_min_m:g} m"),
+        (distance > params.match_band_max_m + 1e-6,
+         f"farther than {params.match_band_max_m:g} m"),
+        ((t_borough.isna() | c_borough.isna()).to_numpy()
+         | (t_borough.fillna("") != c_borough.fillna("")).to_numpy(),
+         "treatment and control boroughs differ or are missing"),
+    )
+    for mask, message in tests:
+        count = int(mask.sum())
+        if count:
+            violations += count
+            problems.append(f"{count:,} {message}: {_pair_examples(pairs, mask)}")
+
+    return _check_result("H7", start, problems, violations)
+
+
+def _check_h8(params, pairs, scales):
+    """
+    H8: |log1p(treatment) - log1p(control)| <= caliper_sd * sd for both
+    baselines, in the matcher's form (O5), no tolerance.
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    for radius, sd in (("100m", scales.sd_100), ("250m", scales.sd_250)):
+        t = np.log1p(pairs[f"treatment_base_{radius}"].to_numpy(np.float64))
+        c = np.log1p(pairs[f"control_base_{radius}"].to_numpy(np.float64))
+        mask = ~(np.abs(t - c) <= params.caliper_sd * sd)
+        count = int(mask.sum())
+        if count:
+            violations += count
+            problems.append(
+                f"{count:,} pairs outside the {radius} caliper: "
+                f"{_pair_examples(pairs, mask)}"
+            )
+
+    return _check_result("H8", start, problems, violations)
+
+
+def _check_h9(params, pairs, treatments_eligible, complaints, sites):
+    """
+    H9 (approved interpretation): intervals rebuilt without the
+    ReuseRegistry. Control uses: the pair's control site
+    (control_site_id) and closed W (window_start/window_end). Treatment
+    windows: every eligible treatment's closed W at its own site, the
+    site found via treatment_key -> complaints -> site_idx.
+
+    Fails when a control interval overlaps any other interval at its
+    site (A2, closed), or, under reuse_policy = never, when a control site
+    appears more than once. Treatment-treatment overlaps are reported,
+    not violations (U6).
+
+    Returns (CheckResult, treatment-overlap summary).
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    site_of = pd.Index(sites["site_id"].to_numpy(dtype=object))
+    c_site = site_of.get_indexer(pairs["control_site_id"].to_numpy(dtype=object))
+    row = pd.Index(complaints["unique_key"].to_numpy()).get_indexer(
+        treatments_eligible["treatment_key"].to_numpy()
+    )
+    if (c_site < 0).any() or (row < 0).any():
+        raise HardCheckError("H9: control site or treatment key not found")
+    t_site = complaints["site_idx"].to_numpy()[row].astype(np.int64)
+
+    intervals = pd.DataFrame({
+        "site": np.concatenate([c_site, t_site]),
+        "start": np.concatenate([
+            _to_seconds(pairs["window_start"]),
+            treatments_eligible["w_start_s"].to_numpy(),
+        ]),
+        "end": np.concatenate([
+            _to_seconds(pairs["window_end"]),
+            treatments_eligible["w_end_s"].to_numpy(),
+        ]),
+        "is_control": np.concatenate([
+            np.ones(len(pairs), dtype=bool),
+            np.zeros(len(treatments_eligible), dtype=bool),
+        ]),
+        "pair_row": np.concatenate([
+            np.arange(len(pairs)), np.full(len(treatments_eligible), -1)
+        ]),
+    }).sort_values(["site", "start", "end"], kind="mergesort")
+
+    # Sorted by start within a site: interval i overlaps an earlier one
+    # when the running maximum end before it is >= its start, and a later
+    # one when the next start is <= its end.
+    by_site = intervals.groupby("site", sort=False)
+    prior_end = (
+        by_site["end"].cummax().groupby(intervals["site"]).shift(1).to_numpy()
+    )
+    next_start = by_site["start"].shift(-1).to_numpy()
+    start_s = intervals["start"].to_numpy()
+    end_s = intervals["end"].to_numpy()
+    overlaps = (prior_end >= start_s) | (next_start <= end_s)
+
+    bad_rows = intervals["pair_row"].to_numpy()[
+        overlaps & intervals["is_control"].to_numpy()
+    ]
+    if len(bad_rows):
+        mask = np.zeros(len(pairs), dtype=bool)
+        mask[bad_rows] = True
+        violations += int(mask.sum())
+        problems.append(
+            f"{int(mask.sum()):,} control intervals overlap another interval "
+            f"at their site: {_pair_examples(pairs, mask)}"
+        )
+
+    if params.reuse_policy == "never":
+        mask = pairs["control_site_id"].duplicated(keep=False).to_numpy()
+        if mask.any():
+            violations += int(mask.sum())
+            problems.append(
+                f"{int(mask.sum()):,} pairs reuse a control site under "
+                f"'never': {_pair_examples(pairs, mask)}"
+            )
+
+    # Descriptive: treatment-treatment overlaps among eligible treatments.
+    treatments = intervals.loc[~intervals["is_control"]]
+    n_pairs_overlap = 0
+    sites_overlap = 0
+    treatments_overlap = 0
+    for _, group in treatments.groupby("site", sort=False):
+        if len(group) < 2:
+            continue
+        a = group["start"].to_numpy()
+        b = group["end"].to_numpy()
+        both = (a[:, None] <= b[None, :]) & (b[:, None] >= a[None, :])
+        np.fill_diagonal(both, False)
+        n = int(both.sum()) // 2
+        if n:
+            n_pairs_overlap += n
+            sites_overlap += 1
+            treatments_overlap += int(both.any(axis=1).sum())
+
+    tt_summary = {
+        "n_treatment_pairs_overlapping": n_pairs_overlap,
+        "n_sites_with_overlap": sites_overlap,
+        "n_treatments_in_overlap": treatments_overlap,
+    }
+    problems.append(
+        "reported (not violations): treatment-treatment overlaps "
+        f"{n_pairs_overlap:,} interval pairs at {sites_overlap:,} sites, "
+        f"{treatments_overlap:,} treatments"
+    )
+
+    return _check_result("H9", start, problems, violations), tt_summary
+
+
+def _check_h12(pairs, include_balance):
+    """
+    H12: pair_id and treatment_key unique; treatment site != control site;
+    required columns without nulls; columns, order and dtypes equal to
+    PAIRS_DTYPES. Phase 1 (include_balance False, after step 14) excludes
+    the bal_* columns; phase 2 (after step 15) checks the full schema (U2).
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    expected = [
+        column for column in PAIRS_DTYPES
+        if include_balance or column not in BALANCE_COLUMNS
+    ]
+
+    if list(pairs.columns) != expected:
+        missing = [column for column in expected if column not in pairs.columns]
+        extra = [column for column in pairs.columns if column not in expected]
+        violations += 1
+        problems.append(
+            f"columns differ from the schema (missing {missing}, extra {extra}, "
+            f"or order)"
+        )
+
+    wrong = [
+        f"{column}: {pairs[column].dtype} != {PAIRS_DTYPES[column]}"
+        for column in expected
+        if column in pairs.columns
+        and str(pairs[column].dtype) != PAIRS_DTYPES[column]
+    ]
+    if wrong:
+        violations += len(wrong)
+        problems.append(f"{len(wrong)} wrong dtypes: {wrong[:10]}")
+
+    nulls = {
+        column: int(pairs[column].isna().sum())
+        for column in expected
+        if column in pairs.columns and column not in PAIRS_NULLABLE_COLUMNS
+        and pairs[column].isna().any()
+    }
+    if nulls:
+        violations += sum(nulls.values())
+        problems.append(f"nulls in required columns: {nulls}")
+
+    for column in ("pair_id", "treatment_key"):
+        mask = pairs[column].duplicated(keep=False).to_numpy()
+        if mask.any():
+            violations += int(mask.sum())
+            problems.append(
+                f"{int(mask.sum()):,} duplicated {column}: "
+                f"{_pair_examples(pairs, mask)}"
+            )
+
+    mask = (
+        pairs["treatment_site_id"].astype(object).to_numpy()
+        == pairs["control_site_id"].astype(object).to_numpy()
+    )
+    if mask.any():
+        violations += int(mask.sum())
+        problems.append(
+            f"{int(mask.sum()):,} pairs with treatment site == control site: "
+            f"{_pair_examples(pairs, mask)}"
+        )
+
+    return _check_result("H12", start, problems, violations)
+
+
+def _check_h14(pairs):
+    """
+    H14: band >= clean >= caliper >= 1, and 0 <= reuse_blocked <=
+    caliper - 1 (U3, from the O3 counting rule).
+    """
+
+    start = time.perf_counter()
+    problems = []
+    violations = 0
+
+    band = pairs["n_candidates_band"].to_numpy()
+    clean = pairs["n_candidates_clean"].to_numpy()
+    caliper = pairs["n_candidates_caliper"].to_numpy()
+    blocked = pairs["n_candidates_reuse_blocked"].to_numpy()
+
+    tests = (
+        (band < clean, "band < clean"),
+        (clean < caliper, "clean < caliper"),
+        (caliper < 1, "caliper < 1"),
+        (blocked < 0, "reuse_blocked < 0"),
+        (blocked > caliper - 1, "reuse_blocked > caliper - 1"),
+    )
+    for mask, message in tests:
+        count = int(mask.sum())
+        if count:
+            violations += count
+            problems.append(f"{count:,} pairs with {message}: {_pair_examples(pairs, mask)}")
+
+    return _check_result("H14", start, problems, violations)
 
 
 def _check_h16_inputs(params, treatments_all, complaints):
@@ -3916,7 +4408,9 @@ def run_hard_checks(params, stage, checks, **tables):
 
     Stages implemented so far: "inputs" (H1, H16 after step 2),
     "darkness" (H2, H17 after step 4), "sites" (H18 after step 5),
-    "episodes" (H3, H4 after step 6) and "scales" (H15 after step 11).
+    "episodes" (H3, H4 after step 6), "scales" (H15 after step 11) and
+    "pairs" (H5, H6, H7, H8, H9, H12 phase 1, H14 after step 14; H9's
+    treatment-treatment overlap counts go into tables["summary"]).
     """
 
     if stage == "inputs":
@@ -3952,6 +4446,22 @@ def run_hard_checks(params, stage, checks, **tables):
         ]
     elif stage == "scales":
         results = [_check_h15(tables["scales"])]
+    elif stage == "pairs":
+        pairs = tables["pairs"]
+        h9, overlap_summary = _check_h9(
+            params, pairs, tables["treatments_eligible"],
+            tables["complaints"], tables["sites"],
+        )
+        tables["summary"].update(overlap_summary)
+        results = [
+            _check_h5(pairs, tables["complaints"], tables["sites"]),
+            _check_h6(params, pairs, tables["coverage"]),
+            _check_h7(params, pairs),
+            _check_h8(params, pairs, tables["scales"]),
+            h9,
+            _check_h12(pairs, include_balance=False),
+            _check_h14(pairs),
+        ]
     else:
         raise ValueError(f"unknown hard-check stage {stage!r}")
 
@@ -4199,7 +4709,32 @@ def main(argv=None):
     # Band lists are only needed by matching.
     indexes.band_sites = indexes.band_dist = indexes.band_offsets = None
 
-    # Steps 14-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 14: pair assembly")
+    with StageTimer("assemble_pairs", runtime):
+        pairs = assemble_pairs(
+            params, match, treatments_eligible, sites, registry
+        )
+
+    print("\n--- Hard checks: pairs")
+    pair_check_summary = {}
+    try:
+        with StageTimer("checks_pairs", runtime):
+            run_hard_checks(
+                params,
+                "pairs",
+                checks,
+                pairs=pairs,
+                treatments_eligible=treatments_eligible,
+                complaints=complaints,
+                sites=sites,
+                coverage=coverage,
+                scales=scales,
+                summary=pair_check_summary,
+            )
+    except HardCheckError as error:
+        return _stop(error)
+
+    # Steps 15-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
