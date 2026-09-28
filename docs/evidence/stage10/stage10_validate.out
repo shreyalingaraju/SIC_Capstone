@@ -1,0 +1,14 @@
+PASS: Stage 10 runs (exit 0)
+PASS: units == panel unit_ids with panel geometry; no outage table
+Complete treatment-control pairs: 20051
+Complete event-study units: 40102
+PASS: brute-force weekly counts, 200 units x 9 weeks - 0 mismatches
+PASS: within estimate == LSDV C(unit_id) + C(rel_week) (300 pairs)
+PASS: clusters, fixed effects, weeks and gap recorded - clusters 193, F 0.8412
+PASS: two runs give identical CSV, JSON and PNG - {'event_study_coefficients.csv': True, 'event_study_summary.json': True, 'event_study_plot.png': True}
+PASS: Stage 10 runs on causal_panel.parquet -         4     0.001244   0.004941 -0.008440  0.010929 0.8012
+PASS: Stage 10 runs on causal_panel_shifted.parquet -         4    -0.000050   0.004860 -0.009574  0.009475 0.9918
+PASS: legacy-schema panel rejected
+
+scratch: C:\Users\shrey\AppData\Local\Temp\s10_z76_6qi3
+FAILS: none

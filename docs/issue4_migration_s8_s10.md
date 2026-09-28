@@ -75,7 +75,8 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 | S10-3 | Crime projected with geopandas `to_crs`; KD query at exactly 100 m. | pyproj Transformer from lat/lon (as Stage 7 and 8). KD query at 100 + 1e-6 m, then the explicit formula. | A13 |
 | S10-4 | FE and clustering on `location_key`. | FE on `unit_id`; clustering on `treatment_h3_res7`. | §11; D13, D15 |
 | S10-5 | Documentation says weeks −5…+5. | Weeks −4…+4, reference week −1 = [−14, −7) days. The −7…0 day gap is **flagged, not fixed**, as approved. | review F5; §11 |
-| S10-6 | Fixed paths. | `--panel`, `--out` (directory); verification runs use a scratch directory. | as S9-6 |
+| S10-6 | Fixed paths. | `--panel`, `--crime`, `--out` (directory); verification runs use a scratch directory. | as S9-6 |
+| S10-7 | Only CSV and PNG outputs; the pre-trend F-test is printed. | Adds `event_study_summary.json` (observations, units, pairs, FE, clusters, week windows, pre-trend test, coefficients, provisional status). The PNG is written without a software-version tag, so it is byte-reproducible. Headless matplotlib backend (`Agg`). | reproducibility |
 
 **Unchanged:** week windows, the complete-coverage filter (c ± 35 d), outcome radius 100 m, reference week, and the pre-trend F-test.
 
