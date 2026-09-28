@@ -1,0 +1,15 @@
+PASS: Stage 9 runs (exit 0) -   family=sm.families.NegativeBinomial(),
+PASS: summary is strict JSON
+PASS: within-transformation FE == LSDV with C(unit_id) + C(period) (400 pairs)
+PASS: paired mean == hand-computed mean == FE coefficient (4 terms)
+PASS: paired-mean SE == CR1 formula with treatment_h3_res7 clusters
+PASS: dataset statistics and cluster counts - {'treatment_h3_res7': 193, 'pair_id': 20051, 'twoway_treatment_control_h3_res7': [193, 195], 'treatment_police_precinct': 78}
+PASS: terciles and years partition the pairs - terciles [6845, 6911, 6295]
+PASS: robustness schemes present with SEs
+PASS: primary robustness entry equals the main FE result
+PASS: two runs give an identical summary
+PASS: Stage 9 runs on causal_panel.parquet -   family=sm.families.NegativeBinomial(),
+PASS: Stage 9 runs on causal_panel_shifted.parquet -   family=sm.families.NegativeBinomial(),
+
+scratch: C:\Users\shrey\AppData\Local\Temp\s9_6jevjpko
+FAILS: none

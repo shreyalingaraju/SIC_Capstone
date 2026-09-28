@@ -57,6 +57,15 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 
 **Unchanged:** the model specifications (basic OLS, separate during/post, FE, Poisson, NB2), the outcomes, and `baseline_crime_intensity` as a covariate (M8, deferred).
 
+**Statistical implications (observed on the canonical scratch run, 20,051 pairs):**
+- **Clustering is much coarser.** Primary clustering moves from `location_key`, about 100k clusters in the legacy run, where a reused control site counted as a cluster, to 193 treatment H3 res-7 cells.
+  - Robustness schemes: 20,051 pairs; two-way 193 × 195 cells; 78 precincts.
+  - Standard errors are expected to be larger, and to account for spatial correlation between nearby pairs that the old clustering ignored.
+  - Legacy and Issue 4 standard errors are not comparable.
+- **FE on `unit_id`.** A reused control site no longer shares one fixed effect across unrelated pairs. Every FE unit is balanced (3 periods), as the within-transformation assumes. The FE coefficients now equal the paired-difference means exactly (the run asserts this).
+- **NB2 uses a fixed α = 1.0.** statsmodels emits a `ValueWarning`. This is pre-existing (the old code made the same call). It is recorded as a limitation, not changed, because the model specifications are frozen.
+- **Tercile edges.** The D20 terciles use quantile edges of log1p(treatment `base_100m`), and ties go to the lower tercile. Group sizes are therefore unequal (canonical: 6,845 / 6,911 / 6,295).
+
 ## Stage 10: `src/models/event_study.py`
 
 | # | Old assumption | Replacement | Source |
