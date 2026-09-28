@@ -1,0 +1,1086 @@
+{
+  "status": "completed",
+  "provenance": {
+    "run_started_utc": "2026-09-28T17:59:28+00:00",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "git": {
+      "sha": "0fd113d952f665d23603250c4fdb63e6e8baf55f",
+      "branch": "issue4-step1",
+      "dirty": false
+    },
+    "packages": {
+      "python": "3.14.4",
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "geopandas": "1.1.4",
+      "shapely": "2.1.2",
+      "h3": "4.5.0",
+      "pyproj": "3.8.0",
+      "pyarrow": "25.0.1",
+      "psutil": "7.2.2"
+    },
+    "inputs": {
+      "raw_complaints": {
+        "path": "data/raw/streetlight_complaints.csv",
+        "size_bytes": 136324946,
+        "modified_utc": "2026-09-19T17:07:31+00:00",
+        "sha256": "be0cb278dc9a7cc01f5caccc0f0e69925681e059367771d5e14fcbd463b4d7de"
+      },
+      "treatments": {
+        "path": "data/processed/clean_streetlights.parquet",
+        "size_bytes": 10331206,
+        "modified_utc": "2026-09-19T17:51:16+00:00",
+        "sha256": "502a906f2733ef629a9877cc8fa4a86b8d60f94a923ef9d0ef1ad5329d29c948"
+      },
+      "crime": {
+        "path": "data/processed/clean_crime.parquet",
+        "size_bytes": 30075992,
+        "modified_utc": "2026-09-26T19:00:18+00:00",
+        "sha256": "51f1e8d53934a3f0ae6ab9bdb3f8a3b544743dbc6ee398a89dfa2975488c073d"
+      }
+    },
+    "python": "3.14.4 (tags/v3.14.4:23116f9, Apr  7 2026, 14:10:54) [MSC v.1944 64 bit (AMD64)]",
+    "argv": [
+      "--out-dir",
+      "C:/Users/shrey/AppData/Local/Temp/claude/c--Shreya-SIC-Capstone/2fbabb3f-b156-445f-b341-0e41b5a091cc/scratchpad/ev"
+    ]
+  },
+  "parameters": {
+    "values": {
+      "projected_crs": "EPSG:32118",
+      "nyc_bbox": [
+        40.49,
+        40.92,
+        -74.26,
+        -73.69
+      ],
+      "site_round_m": 1,
+      "episode_merge_radius_m": 25.0,
+      "artifact_quantile": 0.999,
+      "valid_min_duration_h": 0.5,
+      "valid_max_duration_h": 8760.0,
+      "report_lag_days": 7,
+      "imputed_duration_hours": 160.0,
+      "direct_radius_m": 100.0,
+      "outcome_radius_m": 250.0,
+      "exclusion_radius_m": 350.0,
+      "match_band_min_m": 500.0,
+      "match_band_max_m": 1500.0,
+      "treatment_clean_radius_m": 100.0,
+      "event_window_days": 35,
+      "post_window_days": 14,
+      "baseline_days": 365,
+      "s8_pre_window_days": 14,
+      "prior_episode_radius_m": 250.0,
+      "h3_resolutions": [
+        7,
+        9,
+        10
+      ],
+      "caliper_sd": 0.5,
+      "reuse_policy": "non_overlapping",
+      "control_selection": "full_window",
+      "match_seed": 42,
+      "placebo_shift_days": 0,
+      "recheck_sample_n": 2000,
+      "recheck_seed": 20260927,
+      "smd_max": 0.1,
+      "vr_range": [
+        0.5,
+        2.0
+      ],
+      "out_dir": "C:/Users/shrey/AppData/Local/Temp/claude/c--Shreya-SIC-Capstone/2fbabb3f-b156-445f-b341-0e41b5a091cc/scratchpad/ev",
+      "skip_recheck": false,
+      "check_determinism": false
+    },
+    "cli_args": [
+      "--out-dir",
+      "C:/Users/shrey/AppData/Local/Temp/claude/c--Shreya-SIC-Capstone/2fbabb3f-b156-445f-b341-0e41b5a091cc/scratchpad/ev"
+    ],
+    "locked": {
+      "valid_min_duration_h": {
+        "value": 0.5,
+        "must_match": "Stage 3"
+      },
+      "valid_max_duration_h": {
+        "value": 8760.0,
+        "must_match": "Stage 3"
+      },
+      "post_window_days": {
+        "value": 14,
+        "must_match": "Stage 8"
+      },
+      "event_window_days": {
+        "value": 35,
+        "must_match": "Stage 10"
+      },
+      "direct_radius_m": {
+        "value": 100.0,
+        "must_match": "Stage 8"
+      },
+      "outcome_radius_m": {
+        "value": 250.0,
+        "must_match": "Stage 8"
+      },
+      "s8_pre_window_days": {
+        "value": 14,
+        "must_match": "Stage 8"
+      }
+    },
+    "conventions": {
+      "A1": "311 and NYPD timestamps are naive NYC local time; the repeated DST hour is ignored.",
+      "A2": "Overlap is closed: [s, e] overlaps [a, b] when s <= b and e >= a. S-4 pre [c-35d, c): s < c and e >= c-35d. S-4 post (closed, W_end]: e > closed and s <= W_end.",
+      "A3": "Times are stored as int64 seconds.",
+      "A4": "Site borough and precinct are the modal value, ties broken alphabetically; empty or 'Unspecified' becomes null.",
+      "A5": "The Stage 3 validity rule (0.5-8760 h) is duplicated here and must stay in sync with src/data/clean_streetlights.py.",
+      "A6": "Darkness coverage is min/max raw created_date; crime coverage is min/max crime_datetime.",
+      "A7": "Artifact-site complaints form single-complaint episodes and still count as darkness.",
+      "A8": "S-3 and S-4 distances are measured to each complaint's point (A13 formula).",
+      "A9": "Prior episodes: episode start in B and at least one complaint within 250 m.",
+      "A10": "Res-9 density: crimes during B in the unit's res-9 cell divided by cell area (km^2).",
+      "A11": "S8 pre-window [c-14d, c] includes both ends; B is half-open (evaluated as in A13).",
+      "A12": "Distances follow Stage 8: <= 100 m direct, (100, 250] m ring, using the A13 formula.",
+      "A13": "Index times are whole-second int64 timestamps. A half-open window [a, b) is evaluated as the closed lookup [a, b - 1]; a left-open window (a, b] is evaluated as the closed lookup [a + 1, b]. A query with a > b is an empty window: clean / count 0. Radius membership is decided only by the explicit float64 formula sqrt(dx**2 + dy**2) <= r in EPSG:32118 metres. KD-tree radius queries only generate candidates and use a positive tolerance (KD_QUERY_TOLERANCE_M = 1e-6 m); final inclusion is decided by the explicit formula."
+    },
+    "contamination_review_share": 0.05,
+    "recheck_candidate_margin_m": 1.0,
+    "h16_post_definition": "Placebo runs only (N5): every pair's created_date and closed_date equal the real complaint dates minus placebo_shift_days; every complaint's darkness interval equals the Stage 7 rule applied to the unshifted dates; no matched treatment has an S-4 pre or post hit when no exemption is applied. Not applicable when placebo_shift_days = 0.",
+    "acceptance_amendments": {
+      "item_11": "No treatment is removed by W_OUTSIDE_DARKNESS alone: treatments attributed to rule 2 by first-failure order must also fail B_OUTSIDE_CRIME (attribution, not eligibility).",
+      "A1": "Balance-only diagnostics are reported and reviewed. Each failed balance-only flag needs a written explanation in the Step 1 report; Step 1 fails on it only if the reviewer concludes it shows a matching defect, leakage, an implementation error or a methodological violation (known example: prior_episodes_250m).",
+      "A2": "Contamination shares above the review share require reporting, verification and a written explanation. The Commit 11 review package satisfies this for the canonical c2bb341 definitions; changes to the definitions or implementation require re-verification. Sensitivity and placebo runs are report-only.",
+      "A3": "The single-commit requirement of item 20 is replaced by the approved multi-commit plan; the baseline-pre-issue4 tag requirement remains and is met."
+    }
+  },
+  "coverage": {
+    "crime_min": "2019-11-01T00:00:00",
+    "crime_max": "2026-06-30T23:40:00",
+    "darkness_min": "2020-01-01T00:45:00",
+    "darkness_max": "2026-09-18T00:29:00",
+    "eligible_created_min": "2020-12-05T10:41:00",
+    "eligible_created_max": "2026-05-26T23:34:00"
+  },
+  "universe": {
+    "n_raw_complaints": 218465,
+    "n_with_coordinates": 182277,
+    "n_in_bbox": 182277,
+    "n_imputed": 74546,
+    "imputed_by_year": {
+      "2020": 17248,
+      "2021": 15043,
+      "2022": 24676,
+      "2023": 8248,
+      "2024": 2281,
+      "2025": 2367,
+      "2026": 4683
+    },
+    "n_sites": 46034,
+    "artifact_quantile_method": "higher",
+    "artifact_threshold": 44,
+    "artifact_threshold_is_maximum": false,
+    "n_artifact_sites": 44,
+    "n_artifact_complaints": 4735,
+    "n_episodes": 152656,
+    "episode_size_percentiles": {
+      "p50": 1.0,
+      "p90": 2.0,
+      "p99": 4.0,
+      "p100": 30.0
+    },
+    "episode_span_days_percentiles": {
+      "p50": 13.666666666666666,
+      "p90": 34.420138888888886,
+      "p99": 263.79378472222277,
+      "p100": 713.1395833333333
+    },
+    "episode_max_footprint_m": 44.20554673622685
+  },
+  "attrition": [
+    {
+      "step": 0,
+      "rule": "Stage 3 valid closures (H17)",
+      "remaining": 107731,
+      "dropped": 0
+    },
+    {
+      "step": 1,
+      "rule": "W_OUTSIDE_CRIME",
+      "remaining": 100895,
+      "dropped": 6836
+    },
+    {
+      "step": 2,
+      "rule": "W_OUTSIDE_DARKNESS",
+      "remaining": 99306,
+      "dropped": 1589
+    },
+    {
+      "step": 3,
+      "rule": "B_OUTSIDE_CRIME",
+      "remaining": 90885,
+      "dropped": 8421
+    },
+    {
+      "step": 4,
+      "rule": "ARTIFACT_SITE",
+      "remaining": 89118,
+      "dropped": 1767
+    },
+    {
+      "step": 5,
+      "rule": "NO_BOROUGH",
+      "remaining": 89115,
+      "dropped": 3
+    },
+    {
+      "step": 6,
+      "rule": "NOT_FIRST_OF_EPISODE",
+      "remaining": 72143,
+      "dropped": 16972
+    },
+    {
+      "step": 7,
+      "rule": "S4_PRE_DIRTY",
+      "remaining": 46621,
+      "dropped": 25522
+    },
+    {
+      "step": 8,
+      "rule": "S4_POST_DIRTY",
+      "remaining": 33152,
+      "dropped": 13469
+    },
+    {
+      "step": 9,
+      "rule": "NO_CANDIDATE_IN_BAND",
+      "remaining": 33148,
+      "dropped": 4
+    },
+    {
+      "step": 10,
+      "rule": "NO_CLEAN_CANDIDATE",
+      "remaining": 30352,
+      "dropped": 2796
+    },
+    {
+      "step": 11,
+      "rule": "NO_CANDIDATE_IN_CALIPER",
+      "remaining": 21796,
+      "dropped": 8556
+    },
+    {
+      "step": 12,
+      "rule": "REUSE_CONFLICT",
+      "remaining": 20051,
+      "dropped": 1745
+    }
+  ],
+  "balance": {
+    "thresholds": {
+      "smd_max": 0.1,
+      "vr_min": 0.5,
+      "vr_max": 2.0,
+      "smd_formula": "(mean_T - mean_C) / sqrt((s_T^2 + s_C^2) / 2), ddof 1",
+      "vr_formula": "s_T^2 / s_C^2, ddof 1"
+    },
+    "matched": {
+      "log_base_100m": {
+        "treatment_mean": 1.394754650776858,
+        "treatment_sd": 0.9970013166493992,
+        "control_mean": 1.3897883981604326,
+        "control_sd": 0.9866516440582128,
+        "smd": 0.00500711073986333,
+        "variance_ratio": 1.0210894191411533,
+        "pass": true
+      },
+      "log_base_250m": {
+        "treatment_mean": 3.017129303886133,
+        "treatment_sd": 1.1222188911541018,
+        "control_mean": 2.998707547351117,
+        "control_sd": 1.1003790482043114,
+        "smd": 0.016575977968724977,
+        "variance_ratio": 1.040089052622082,
+        "pass": true
+      }
+    },
+    "balance_only": {
+      "prior_episodes_250m": {
+        "treatment_mean": 6.542915565308464,
+        "treatment_sd": 5.455747255190741,
+        "control_mean": 4.809884793775872,
+        "control_sd": 4.466183723165786,
+        "smd": 0.34760880001083105,
+        "variance_ratio": 1.4922284534853465,
+        "pass": false
+      },
+      "h3r9_density": {
+        "treatment_mean": 210.38233246322133,
+        "treatment_sd": 260.2706034826211,
+        "control_mean": 200.2017525830902,
+        "control_sd": 248.12052355198068,
+        "smd": 0.040038754349733086,
+        "variance_ratio": 1.1003348300570677,
+        "pass": true
+      },
+      "pre_100m": {
+        "treatment_mean": 0.22557478430003491,
+        "treatment_sd": 0.7136267264954597,
+        "control_mean": 0.21904144431699168,
+        "control_sd": 0.5981671913903746,
+        "smd": 0.00992256389718615,
+        "variance_ratio": 1.423301921247714,
+        "pass": true
+      },
+      "pre_250m": {
+        "treatment_mean": 1.344072614832178,
+        "treatment_sd": 2.0269904847951348,
+        "control_mean": 1.2628297840506708,
+        "control_sd": 1.9247293042570903,
+        "smd": 0.0411039479263859,
+        "variance_ratio": 1.1090831389860065,
+        "pass": true
+      },
+      "log_pre_100m": {
+        "treatment_mean": 0.13335036022447247,
+        "treatment_sd": 0.3239410845552485,
+        "control_mean": 0.13109453600257862,
+        "control_sd": 0.32008304938019044,
+        "smd": 0.0070052770620956046,
+        "variance_ratio": 1.0242517439059389,
+        "pass": true
+      },
+      "log_pre_250m": {
+        "treatment_mean": 0.5994058194208846,
+        "treatment_sd": 0.6640295023162303,
+        "control_mean": 0.5728637550227494,
+        "control_sd": 0.6508901152780356,
+        "smd": 0.04036861115809915,
+        "variance_ratio": 1.0407811020639135,
+        "pass": true
+      }
+    },
+    "matched_pass": true,
+    "balance_only_pass": false,
+    "descriptive": {
+      "distance_m": {
+        "mean": 1035.8126356127327,
+        "p10": 605.1385492328216,
+        "p50": 1056.2454731229325,
+        "p90": 1425.2339009817279,
+        "min": 500.03709202420987,
+        "max": 1499.981838947824
+      },
+      "pairs_by_year": {
+        "2020": 176,
+        "2021": 2484,
+        "2022": 2033,
+        "2023": 3822,
+        "2024": 5042,
+        "2025": 4662,
+        "2026": 1832
+      },
+      "pairs_by_month": {
+        "1": 1921,
+        "2": 1640,
+        "3": 1891,
+        "4": 1650,
+        "5": 1698,
+        "6": 1503,
+        "7": 1658,
+        "8": 1675,
+        "9": 1566,
+        "10": 1683,
+        "11": 1554,
+        "12": 1612
+      }
+    },
+    "representativeness": {
+      "n_matched": 20051,
+      "n_eligible": 33152,
+      "baseline": {
+        "base_100m": {
+          "matched": {
+            "mean": 5.771682210363573,
+            "median": 3.0,
+            "p90": 15.0
+          },
+          "eligible": {
+            "mean": 8.399161438223938,
+            "median": 4.0,
+            "p90": 21.0
+          },
+          "smd_log1p": -0.18513771592343672
+        },
+        "base_250m": {
+          "matched": {
+            "mean": 34.65478031020897,
+            "median": 20.0,
+            "p90": 87.0
+          },
+          "eligible": {
+            "mean": 45.651785714285715,
+            "median": 26.0,
+            "p90": 112.0
+          },
+          "smd_log1p": -0.18568965379358032
+        }
+      },
+      "borough_share": {
+        "matched": {
+          "BRONX": 0.12627799112263727,
+          "BROOKLYN": 0.2785397237045534,
+          "MANHATTAN": 0.0508702807840008,
+          "QUEENS": 0.3923993815769787,
+          "STATEN ISLAND": 0.15191262281182982
+        },
+        "eligible": {
+          "BRONX": 0.17223696911196912,
+          "BROOKLYN": 0.287765444015444,
+          "MANHATTAN": 0.0991192084942085,
+          "QUEENS": 0.32013151544401547,
+          "STATEN ISLAND": 0.12074686293436293
+        }
+      },
+      "year_share": {
+        "matched": {
+          "2020": 0.00877761707645504,
+          "2021": 0.12388409555633136,
+          "2022": 0.10139145179791531,
+          "2023": 0.19061393446710886,
+          "2024": 0.25145878011071765,
+          "2025": 0.23250710687746248,
+          "2026": 0.09136701411400927
+        },
+        "eligible": {
+          "2020": 0.008536438223938224,
+          "2021": 0.12901182432432431,
+          "2022": 0.13245053088803088,
+          "2023": 0.16674710424710426,
+          "2024": 0.22791988416988418,
+          "2025": 0.24348455598455598,
+          "2026": 0.09184966216216216
+        }
+      }
+    }
+  },
+  "contamination": {
+    "review_share": 0.05,
+    "n_pairs": 20051,
+    "D1": {
+      "n_pairs": 14900,
+      "share": 0.743105082040796,
+      "above_review_share": true
+    },
+    "D2": {
+      "n_pairs": 17399,
+      "share": 0.867737269961598,
+      "above_review_share": true
+    },
+    "D3": {
+      "n_pairs": 18202,
+      "share": 0.9077851478729241,
+      "above_review_share": true
+    },
+    "D4": {
+      "mean": 0.05695476534836168,
+      "p50": 0.0,
+      "p90": 0.0,
+      "max": 11,
+      "share_zero": 0.9581567004139444
+    },
+    "D5": {
+      "n_episodes": 152656,
+      "episodes_over_100m": 0,
+      "episodes_over_365d": 222,
+      "max_footprint_m": 44.20554673622685,
+      "top10": [
+        {
+          "episode_id": 97741,
+          "first_unique_key": 59713594,
+          "n_complaints": 7,
+          "span_m": 24.177432983386204,
+          "span_days": 426.74097222222224
+        },
+        {
+          "episode_id": 103315,
+          "first_unique_key": 60853173,
+          "n_complaints": 6,
+          "span_m": 17.993565233761704,
+          "span_days": 382.9486111111111
+        },
+        {
+          "episode_id": 25491,
+          "first_unique_key": 49518165,
+          "n_complaints": 3,
+          "span_m": 17.079716410910564,
+          "span_days": 417.0701388888889
+        },
+        {
+          "episode_id": 16538,
+          "first_unique_key": 47341298,
+          "n_complaints": 5,
+          "span_m": 16.529638043527562,
+          "span_days": 402.7270833333333
+        },
+        {
+          "episode_id": 50828,
+          "first_unique_key": 53249960,
+          "n_complaints": 6,
+          "span_m": 15.132974243402726,
+          "span_days": 519.9916666666667
+        },
+        {
+          "episode_id": 80944,
+          "first_unique_key": 56501247,
+          "n_complaints": 11,
+          "span_m": 12.088716498299993,
+          "span_days": 412.0701388888889
+        },
+        {
+          "episode_id": 40334,
+          "first_unique_key": 51954190,
+          "n_complaints": 5,
+          "span_m": 5.694145298247507,
+          "span_days": 516.0611111111111
+        },
+        {
+          "episode_id": 128,
+          "first_unique_key": 45293646,
+          "n_complaints": 4,
+          "span_m": 0.0,
+          "span_days": 368.9819444444444
+        },
+        {
+          "episode_id": 870,
+          "first_unique_key": 45380528,
+          "n_complaints": 6,
+          "span_m": 0.0,
+          "span_days": 385.43680555555557
+        },
+        {
+          "episode_id": 1343,
+          "first_unique_key": 45426930,
+          "n_complaints": 4,
+          "span_m": 0.0,
+          "span_days": 388.33472222222224
+        }
+      ]
+    }
+  },
+  "recheck": {
+    "skipped": false,
+    "sample_n": 2000,
+    "seed": 20260927,
+    "n_pairs": 20051,
+    "candidate_margin_m": 1.0,
+    "universe": {
+      "n_complaints": 182277,
+      "n_sites": 46034,
+      "artifact_threshold": 44,
+      "n_artifact_sites": 44,
+      "n_crimes": 921427
+    },
+    "universe_problems": {
+      "unparseable_created_date": 0,
+      "duplicate_unique_key": 0,
+      "sub_second_complaint_time": 0,
+      "sub_second_crime_time": 0
+    },
+    "n_s4_pre_own_episode_exempted": 36,
+    "h10": {
+      "treatment_key_not_in_universe": 0,
+      "treatment_coordinates_differ": 0,
+      "treatment_closed_missing": 0,
+      "created_date_differs": 0,
+      "closed_date_differs": 0,
+      "window_start_differs": 0,
+      "window_end_differs": 0,
+      "baseline_start_differs": 0,
+      "baseline_end_differs": 0,
+      "treatment_site_is_artifact": 0,
+      "control_site_not_rebuilt": 0,
+      "control_site_id_differs": 0,
+      "control_site_is_artifact": 0,
+      "s3_dark_control": 0,
+      "s4_pre_dirty": 0,
+      "s4_post_dirty": 0
+    },
+    "h11": {
+      "treatment_base_100m": 0,
+      "treatment_base_250m": 0,
+      "control_base_100m": 0,
+      "control_base_250m": 0
+    }
+  },
+  "determinism": {
+    "pair_list_sha256": "ab63c3773819247367c0a8261d06e7f0f9639d40525e817698950e85e516ee8b",
+    "order_hash": "b36524dc5113cea381dd1749d44b45969cf519ab3a97ad6fae93947666beb59a",
+    "check_determinism": false,
+    "second_pass": null
+  },
+  "unmatched_reasons": {
+    "W_OUTSIDE_CRIME": 6836,
+    "W_OUTSIDE_DARKNESS": 1589,
+    "B_OUTSIDE_CRIME": 8421,
+    "ARTIFACT_SITE": 1767,
+    "NO_BOROUGH": 3,
+    "NOT_FIRST_OF_EPISODE": 16972,
+    "S4_PRE_DIRTY": 25522,
+    "S4_POST_DIRTY": 13469,
+    "NO_CANDIDATE_IN_BAND": 4,
+    "NO_CLEAN_CANDIDATE": 2796,
+    "NO_CANDIDATE_IN_CALIPER": 8556,
+    "REUSE_CONFLICT": 1745
+  },
+  "candidates": {
+    "band": {
+      "n_treatments": 33152,
+      "n_entries": 12878312,
+      "band_raw": {
+        "n": 33152,
+        "mean": 401.83952702702703,
+        "p10": 224.0,
+        "p50": 409.0,
+        "p90": 558.0,
+        "max": 962,
+        "n_zero": 4
+      },
+      "band": {
+        "n": 33152,
+        "mean": 388.4625965250965,
+        "p10": 211.0,
+        "p50": 396.0,
+        "p90": 548.0,
+        "max": 962,
+        "n_zero": 4
+      },
+      "memory_mb": 147.6
+    },
+    "matching": {
+      "band": {
+        "n": 33152,
+        "mean": 388.4625965250965,
+        "p10": 211.0,
+        "p50": 396.0,
+        "p90": 548.0,
+        "max": 962,
+        "n_zero": 4
+      },
+      "clean": {
+        "n": 33152,
+        "mean": 30.216276544401545,
+        "p10": 1.0,
+        "p50": 19.0,
+        "p90": 75.0,
+        "max": 360,
+        "n_zero": 2800
+      },
+      "caliper": {
+        "n": 33152,
+        "mean": 6.029741795366795,
+        "p10": 0.0,
+        "p50": 2.0,
+        "p90": 17.0,
+        "max": 165,
+        "n_zero": 11356
+      }
+    },
+    "reuse_blocked_matched": {
+      "n": 20051,
+      "mean": 0.25150865293501573,
+      "p10": 0.0,
+      "p50": 0.0,
+      "p90": 1.0,
+      "max": 10,
+      "n_zero": 16519
+    },
+    "reuse_blocked_conflict_total": 2718
+  },
+  "reuse": {
+    "blocked_by_preregistration": 643,
+    "n_control_sites": 14393,
+    "control_reuse_max": 12,
+    "control_reuse_mean": 1.3931077607170153,
+    "treatment_treatment_overlaps": {
+      "n_treatment_pairs_overlapping": 935,
+      "n_sites_with_overlap": 876,
+      "n_treatments_in_overlap": 1831
+    },
+    "uses_per_control_site_histogram": {
+      "1": 10226,
+      "2": 3050,
+      "3": 835,
+      "4": 215,
+      "5": 51,
+      "6": 12,
+      "7": 3,
+      "12": 1
+    }
+  },
+  "hard_checks": {
+    "H0": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.001
+    },
+    "H1": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.012
+    },
+    "H16": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [
+        "not applicable (placebo_shift_days = 0)"
+      ],
+      "seconds": 0.0
+    },
+    "H2": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.025
+    },
+    "H17": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.001
+    },
+    "H18": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [
+        "T = 44 at sorted index 45987; ceil(q*n)-th smallest = 44 (agrees)"
+      ],
+      "seconds": 0.12
+    },
+    "H3": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.357
+    },
+    "H4": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.201
+    },
+    "H15": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.0
+    },
+    "H5": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.009
+    },
+    "H6": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.006
+    },
+    "H7": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.001
+    },
+    "H8": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.001
+    },
+    "H9": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.425
+    },
+    "H12": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.007
+    },
+    "H14": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.0
+    },
+    "H10": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 2.643
+    },
+    "H11": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 2.643
+    },
+    "H13": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [],
+      "seconds": 0.021
+    },
+    "H16_post": {
+      "status": "pass",
+      "n_violations": 0,
+      "examples": [
+        "not applicable (placebo_shift_days = 0)"
+      ],
+      "seconds": 0.0
+    }
+  },
+  "runtime": {
+    "steps": {
+      "parse_args": {
+        "seconds": 0.001,
+        "rss_start_mb": 136.7,
+        "rss_end_mb": 136.7,
+        "peak_mb": 136.7,
+        "completed": true
+      },
+      "provenance": {
+        "seconds": 0.37,
+        "rss_start_mb": 136.7,
+        "rss_end_mb": 137.6,
+        "peak_mb": 139.6,
+        "completed": true
+      },
+      "load_raw_complaints": {
+        "seconds": 1.631,
+        "rss_start_mb": 137.6,
+        "rss_end_mb": 223.3,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "load_treatments": {
+        "seconds": 0.056,
+        "rss_start_mb": 223.3,
+        "rss_end_mb": 247.3,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "load_crime": {
+        "seconds": 0.24,
+        "rss_start_mb": 247.3,
+        "rss_end_mb": 303.8,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "checks_inputs": {
+        "seconds": 0.012,
+        "rss_start_mb": 303.9,
+        "rss_end_mb": 304.7,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "build_darkness_intervals": {
+        "seconds": 0.437,
+        "rss_start_mb": 301.4,
+        "rss_end_mb": 304.7,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "checks_darkness": {
+        "seconds": 0.026,
+        "rss_start_mb": 304.7,
+        "rss_end_mb": 304.7,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "build_sites": {
+        "seconds": 0.63,
+        "rss_start_mb": 304.7,
+        "rss_end_mb": 282.2,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "checks_sites": {
+        "seconds": 0.122,
+        "rss_start_mb": 282.2,
+        "rss_end_mb": 297.8,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "build_episodes": {
+        "seconds": 0.329,
+        "rss_start_mb": 297.8,
+        "rss_end_mb": 323.4,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "checks_episodes": {
+        "seconds": 0.563,
+        "rss_start_mb": 323.4,
+        "rss_end_mb": 323.8,
+        "peak_mb": 445.1,
+        "completed": true
+      },
+      "build_spatial_indexes": {
+        "seconds": 10.155,
+        "rss_start_mb": 313.1,
+        "rss_end_mb": 578.6,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "compute_windows": {
+        "seconds": 0.034,
+        "rss_start_mb": 578.6,
+        "rss_end_mb": 591.9,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "apply_treatment_rules": {
+        "seconds": 0.701,
+        "rss_start_mb": 591.9,
+        "rss_end_mb": 589.9,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "compute_treatment_baselines": {
+        "seconds": 1.918,
+        "rss_start_mb": 589.9,
+        "rss_end_mb": 591.2,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "standardise": {
+        "seconds": 0.002,
+        "rss_start_mb": 591.2,
+        "rss_end_mb": 592.2,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "checks_scales": {
+        "seconds": 0.0,
+        "rss_start_mb": 592.2,
+        "rss_end_mb": 592.2,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "init_reuse_registry": {
+        "seconds": 0.007,
+        "rss_start_mb": 592.2,
+        "rss_end_mb": 594.1,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "build_band_candidates": {
+        "seconds": 3.7,
+        "rss_start_mb": 594.1,
+        "rss_end_mb": 737.3,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "match_treatments": {
+        "seconds": 1.992,
+        "rss_start_mb": 737.3,
+        "rss_end_mb": 754.5,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "assemble_pairs": {
+        "seconds": 0.091,
+        "rss_start_mb": 607.1,
+        "rss_end_mb": 613.4,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "checks_pairs": {
+        "seconds": 0.45,
+        "rss_start_mb": 613.4,
+        "rss_end_mb": 625.0,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "compute_balance": {
+        "seconds": 2.289,
+        "rss_start_mb": 625.0,
+        "rss_end_mb": 616.5,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "checks_balance": {
+        "seconds": 0.007,
+        "rss_start_mb": 616.5,
+        "rss_end_mb": 616.6,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "compute_contamination": {
+        "seconds": 0.926,
+        "rss_start_mb": 616.6,
+        "rss_end_mb": 640.5,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "independent_recheck": {
+        "seconds": 2.792,
+        "rss_start_mb": 358.4,
+        "rss_end_mb": 397.1,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "checks_recheck": {
+        "seconds": 0.0,
+        "rss_start_mb": 397.1,
+        "rss_end_mb": 397.1,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "build_unmatched": {
+        "seconds": 0.172,
+        "rss_start_mb": 397.1,
+        "rss_end_mb": 382.7,
+        "peak_mb": 1524.8,
+        "completed": true
+      },
+      "checks_accounting": {
+        "seconds": 0.025,
+        "rss_start_mb": 382.7,
+        "rss_end_mb": 382.7,
+        "peak_mb": 1524.8,
+        "completed": true
+      }
+    },
+    "total_seconds": 29.678,
+    "peak_mb": 1524.8
+  },
+  "outputs": {
+    "out_dir": "C:/Users/shrey/AppData/Local/Temp/claude/c--Shreya-SIC-Capstone/2fbabb3f-b156-445f-b341-0e41b5a091cc/scratchpad/ev",
+    "legacy_backup": {
+      "action": "no_existing_pairs_file"
+    },
+    "files": {
+      "control_area_pairs.parquet": {
+        "rows": 20051,
+        "sha256": "abb9869b94d517991778e55bb5b5952ad9a32a7edcf61457ead05a1fced314a4"
+      },
+      "outage_sites.parquet": {
+        "rows": 46034,
+        "sha256": "9b349a620a3fbf9212eb98fe7f213474ef81754795318815f43dea0cea30112e"
+      },
+      "unmatched_treatments.parquet": {
+        "rows": 87680,
+        "sha256": "b8fa10c3b83a1f87713f414e20552c28e8df0e3e144694e36708a99ea59e8947"
+      }
+    }
+  },
+  "non_finite": []
+}
