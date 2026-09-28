@@ -2876,6 +2876,449 @@ def standardise(params, treatments_eligible):
     return treatments_eligible, scales
 
 
+def init_reuse_registry(params, treatments_eligible):
+    """
+    Step 12: reuse registry, pre-filled with every eligible treatment's
+    closed W at its own site (C3). In placebo runs these are the shifted
+    windows. The occupied interval is always the full W, also under
+    control_selection = pre_only.
+    """
+
+    registry = ReuseRegistry(params.reuse_policy)
+    registry.preregister(
+        treatments_eligible["site_idx"].to_numpy(),
+        treatments_eligible["w_start_s"].to_numpy(),
+        treatments_eligible["w_end_s"].to_numpy(),
+    )
+
+    n_sites = treatments_eligible["site_idx"].nunique()
+    print(
+        f"Reuse registry ({params.reuse_policy}): "
+        f"{len(treatments_eligible):,} treatment windows pre-registered "
+        f"at {n_sites:,} sites"
+    )
+
+    return registry
+
+
+def build_band_candidates(params, treatments_eligible, sites, idx):
+    """
+    Step 13 prep: usable band candidates per eligible treatment (S-1,
+    S-2, D17), stored as CSR arrays on idx.
+
+    Distance from the treatment complaint's exact point to the site's
+    rounded point, explicit float64 formula (A13; KD-tree candidates at
+    match_band_max_m + KD_QUERY_TOLERANCE_M). A site is a band candidate
+    when
+        match_band_min_m <= d <= match_band_max_m
+        and sites.borough == treatment_borough
+        and sites.eligible_control
+    Within a treatment, candidates are ordered by site_idx.
+
+    band_sites (int32), band_dist (float64), band_offsets (int64, length
+    n + 1) are set on idx. Returns (idx, summary); the summary has the
+    raw spatial-band counts (distance only), diagnostics only.
+    """
+
+    n = len(treatments_eligible)
+    centers = treatments_eligible[["x_m", "y_m"]].to_numpy(dtype=np.float64)
+
+    borough_codes, borough_labels = pd.factorize(sites["borough"], sort=True)
+    site_borough = np.asarray(borough_codes, dtype=np.int64)
+    treatment_borough = pd.Categorical(
+        treatments_eligible["treatment_borough"], categories=borough_labels
+    ).codes.astype(np.int64)
+    eligible_control = sites["eligible_control"].to_numpy(dtype=bool)
+
+    band_raw = np.zeros(n, dtype=np.int64)
+    owners, points_all, distances = [], [], []
+
+    for owner, points, distance in _ball_candidates(
+        idx.site_tree, centers, params.match_band_max_m, TREATMENT_QUERY_CHUNK
+    ):
+        in_band = distance >= params.match_band_min_m
+        owner, points, distance = owner[in_band], points[in_band], distance[in_band]
+        band_raw += np.bincount(owner, minlength=n)
+
+        usable = (
+            eligible_control[points]
+            & (site_borough[points] == treatment_borough[owner])
+            & (treatment_borough[owner] >= 0)
+        )
+        owner, points, distance = owner[usable], points[usable], distance[usable]
+
+        order = np.lexsort((points, owner))
+        owners.append(owner[order])
+        points_all.append(points[order])
+        distances.append(distance[order])
+
+    owner = np.concatenate(owners)
+    idx.band_sites = np.concatenate(points_all).astype(np.int32)
+    idx.band_dist = np.concatenate(distances).astype(np.float64)
+    idx.band_offsets = np.concatenate(
+        ([0], np.cumsum(np.bincount(owner, minlength=n)))
+    ).astype(np.int64)
+    del owners, points_all, distances, owner
+
+    usable_counts = np.diff(idx.band_offsets)
+    summary = {
+        "n_treatments": n,
+        "n_entries": int(len(idx.band_sites)),
+        "band_raw": _count_percentiles(band_raw),
+        "band": _count_percentiles(usable_counts),
+        "memory_mb": round(
+            (idx.band_sites.nbytes + idx.band_dist.nbytes
+             + idx.band_offsets.nbytes) / 2**20, 1
+        ),
+    }
+
+    print(
+        f"Band candidates [{params.match_band_min_m:g}, "
+        f"{params.match_band_max_m:g}] m: {summary['n_entries']:,} usable "
+        f"entries for {n:,} treatments ({summary['memory_mb']:.1f} MB); "
+        f"raw spatial p50 {summary['band_raw']['p50']:g}, "
+        f"usable p50 {summary['band']['p50']:g}"
+    )
+
+    return idx, summary
+
+
+def _count_percentiles(values):
+    values = np.asarray(values)
+
+    if not len(values):
+        return {"n": 0}
+
+    return {
+        "n": int(len(values)),
+        "mean": float(values.mean()),
+        "p10": float(np.percentile(values, 10)),
+        "p50": float(np.percentile(values, 50)),
+        "p90": float(np.percentile(values, 90)),
+        "max": int(values.max()),
+        "n_zero": int((values == 0).sum()),
+    }
+
+
+def _caliper_candidates(params, treatments_eligible, idx, scales, rows):
+    """
+    Clean -> baselines -> caliper -> ranking for a block of treatment
+    rows. None of these depend on the registry, so they are computed
+    vectorized before the sequential reuse pass.
+
+    Clean (S-3): _dirty_mask over the selection window, closed:
+        full_window: [w_start_s, w_end_s]
+        pre_only:    [w_start_s, created_s - 1]   ([c - 35 d, c), A13)
+    Control baselines: crimes during the treatment's B, [b_start_s,
+    b_end_s - 1] (A13), from the direct and ring indexes.
+    Caliper (H8 form, both variables):
+        |log1p(t) - log1p(c)| <= caliper_sd * sd
+    Match distance: sqrt((z100_t - z100_c)**2 + (z250_t - z250_c)**2),
+    z_c = log1p(c) / sd from this run's treatment scales.
+    Ranking: match_distance, then distance_m, then site_id (site_idx is
+    numbered in sorted site_id order).
+
+    Returns per-row counts (n_clean, n_caliper) and the ranked caliper
+    candidates as flat arrays with a per-row owner.
+    """
+
+    # rows is a contiguous block, so its band entries are contiguous too.
+    first, last = idx.band_offsets[rows[0]], idx.band_offsets[rows[-1] + 1]
+    owner = np.repeat(rows, np.diff(idx.band_offsets[rows[0]:rows[-1] + 2]))
+    site = idx.band_sites[first:last].astype(np.int64)
+    distance = idx.band_dist[first:last]
+
+    w_start = treatments_eligible["w_start_s"].to_numpy()
+    if params.control_selection == "full_window":
+        sel_end = treatments_eligible["w_end_s"].to_numpy()
+    else:
+        sel_end = treatments_eligible["created_s"].to_numpy() - 1
+
+    clean = ~_dirty_mask(idx, site, w_start[owner], sel_end[owner])
+    owner, site, distance = owner[clean], site[clean], distance[clean]
+
+    b_start = treatments_eligible["b_start_s"].to_numpy()[owner]
+    b_end = treatments_eligible["b_end_s"].to_numpy()[owner]
+    base_100 = _count_in_window(
+        idx.crime_direct_key, site, b_start, b_end, end_inclusive=False
+    )
+    base_250 = _count_in_window(
+        idx.crime_ring_key, site, b_start, b_end, end_inclusive=False
+    )
+
+    log_100_c = np.log1p(base_100.astype(np.float64))
+    log_250_c = np.log1p(base_250.astype(np.float64))
+    log_100_t = treatments_eligible["log_base_100m"].to_numpy()[owner]
+    log_250_t = treatments_eligible["log_base_250m"].to_numpy()[owner]
+
+    in_caliper = (
+        (np.abs(log_100_t - log_100_c) <= params.caliper_sd * scales.sd_100)
+        & (np.abs(log_250_t - log_250_c) <= params.caliper_sd * scales.sd_250)
+    )
+
+    n_clean = np.bincount(owner, minlength=len(treatments_eligible))[rows]
+    n_caliper = np.bincount(
+        owner[in_caliper], minlength=len(treatments_eligible)
+    )[rows]
+
+    owner = owner[in_caliper]
+    site = site[in_caliper]
+    distance = distance[in_caliper]
+    base_100 = base_100[in_caliper]
+    base_250 = base_250[in_caliper]
+
+    dz_100 = (
+        treatments_eligible["z100"].to_numpy()[owner]
+        - log_100_c[in_caliper] / scales.sd_100
+    )
+    dz_250 = (
+        treatments_eligible["z250"].to_numpy()[owner]
+        - log_250_c[in_caliper] / scales.sd_250
+    )
+    match_distance = np.sqrt(dz_100 ** 2 + dz_250 ** 2)
+
+    order = np.lexsort((site, distance, match_distance, owner))
+
+    return {
+        "n_clean": n_clean,
+        "n_caliper": n_caliper,
+        "owner": owner[order],
+        "site": site[order],
+        "distance": distance[order],
+        "match_distance": match_distance[order],
+        "base_100": base_100[order],
+        "base_250": base_250[order],
+    }
+
+
+def match_treatments(params, treatments_eligible, sites, idx, scales,
+                     registry):
+    """
+    Step 13: greedy 1:1 nearest-neighbour matching with a caliper (D10,
+    D12).
+
+    Order: rows sorted by treatment_key, then
+    np.random.default_rng(match_seed).permutation(n); match_order is the
+    position in that order. For each treatment: band (usable candidates,
+    see build_band_candidates) -> clean -> caliper -> ranking -> the
+    first candidate the registry reports free, which is assigned.
+
+    Counts per treatment (nested sets): n_candidates_band >=
+    n_candidates_clean >= n_candidates_caliper. n_candidates_reuse_blocked
+    counts only the ranked caliper candidates examined before the
+    selected one (all of them for REUSE_CONFLICT); unexamined candidates
+    are never counted. blocked_by_preregistration counts examined
+    candidates whose W overlaps a pre-registered treatment window, also
+    when an assigned window overlaps too.
+
+    Reason codes, first failure: NO_CANDIDATE_IN_BAND (no usable control
+    candidate in the band), NO_CLEAN_CANDIDATE, NO_CANDIDATE_IN_CALIPER,
+    REUSE_CONFLICT.
+
+    Returns (MatchResult, summary).
+    """
+
+    site_ids = sites["site_id"].to_numpy(dtype=object)
+    if len(site_ids) > 1 and not (site_ids[1:] > site_ids[:-1]).all():
+        raise HardCheckError(
+            "tie-break guard: site_idx is not in sorted site_id order"
+        )
+
+    n = len(treatments_eligible)
+    keys = treatments_eligible["treatment_key"].to_numpy(dtype=np.int64)
+    w_start = treatments_eligible["w_start_s"].to_numpy()
+    w_end = treatments_eligible["w_end_s"].to_numpy()
+
+    n_band = np.diff(idx.band_offsets)
+    n_clean = np.zeros(n, dtype=np.int64)
+    n_caliper = np.zeros(n, dtype=np.int64)
+    ranked = {name: [] for name in (
+        "owner", "site", "distance", "match_distance", "base_100", "base_250"
+    )}
+
+    for begin in range(0, n, TREATMENT_QUERY_CHUNK):
+        rows = np.arange(begin, min(begin + TREATMENT_QUERY_CHUNK, n))
+        block = _caliper_candidates(
+            params, treatments_eligible, idx, scales, rows
+        )
+        n_clean[rows] = block["n_clean"]
+        n_caliper[rows] = block["n_caliper"]
+        for name in ranked:
+            ranked[name].append(block[name])
+
+    ranked = {name: np.concatenate(parts) for name, parts in ranked.items()}
+    cal_offsets = np.concatenate(
+        ([0], np.cumsum(np.bincount(ranked["owner"], minlength=n)))
+    )
+
+    # Internal guards (do not replace H14).
+    if not ((n_band >= n_clean).all() and (n_clean >= n_caliper).all()):
+        raise HardCheckError("candidate guard: counts are not nested")
+
+    sorted_rows = np.argsort(keys, kind="stable")
+    rng = np.random.default_rng(params.match_seed)
+    sequence = sorted_rows[rng.permutation(n)]
+    order_hash = hashlib.sha256(keys[sequence].tobytes()).hexdigest()
+
+    code_of = {step: code for code, step in REASON_CODES}
+    matched, rejected = [], []
+    n_prereg_blocked = 0
+    n_conflict_blocked = 0
+
+    for position, row in enumerate(sequence.tolist()):
+        counts = (int(n_band[row]), int(n_clean[row]), int(n_caliper[row]))
+
+        if counts[0] == 0:
+            rejected.append((keys[row], 9, *counts))
+            continue
+        if counts[1] == 0:
+            rejected.append((keys[row], 10, *counts))
+            continue
+        if counts[2] == 0:
+            rejected.append((keys[row], 11, *counts))
+            continue
+
+        blocked = 0
+        chosen = -1
+        for entry in range(cal_offsets[row], cal_offsets[row + 1]):
+            site = int(ranked["site"][entry])
+            if registry.is_free(site, w_start[row], w_end[row]):
+                registry.assign(site, w_start[row], w_end[row])
+                chosen = entry
+                break
+            blocked += 1
+            if registry.blocked_by_preregistration(
+                site, w_start[row], w_end[row]
+            ):
+                n_prereg_blocked += 1
+
+        if chosen < 0:
+            n_conflict_blocked += blocked
+            rejected.append((keys[row], 12, *counts))
+            continue
+
+        matched.append((
+            keys[row],
+            int(ranked["site"][chosen]),
+            float(ranked["distance"][chosen]),
+            float(ranked["match_distance"][chosen]),
+            int(ranked["base_100"][chosen]),
+            int(ranked["base_250"][chosen]),
+            *counts,
+            blocked,
+            position,
+        ))
+
+    pairs_raw = pd.DataFrame(
+        matched,
+        columns=[
+            "treatment_key", "control_site_idx", "distance_m",
+            "match_distance", "control_base_100m", "control_base_250m",
+            "n_candidates_band", "n_candidates_clean", "n_candidates_caliper",
+            "n_candidates_reuse_blocked", "match_order",
+        ],
+    ).astype({
+        "treatment_key": "int64",
+        "control_site_idx": "int32",
+        "distance_m": "float64",
+        "match_distance": "float64",
+        "control_base_100m": "int32",
+        "control_base_250m": "int32",
+        "n_candidates_band": "int32",
+        "n_candidates_clean": "int32",
+        "n_candidates_caliper": "int32",
+        "n_candidates_reuse_blocked": "int32",
+        "match_order": "int32",
+    })
+
+    rejected = pd.DataFrame(
+        rejected,
+        columns=[
+            "treatment_key", "reason_step",
+            "n_candidates_band", "n_candidates_clean", "n_candidates_caliper",
+        ],
+    )
+    rejected.insert(
+        1,
+        "reason_code",
+        rejected["reason_step"].map(code_of).astype("string"),
+    )
+    rejected = rejected.astype({
+        "treatment_key": "int64",
+        "reason_step": "int8",
+        "n_candidates_band": "Int32",
+        "n_candidates_clean": "Int32",
+        "n_candidates_caliper": "Int32",
+    })
+
+    if len(pairs_raw) + len(rejected) != n:
+        raise HardCheckError(
+            "match accounting guard: pairs + rejected != eligible treatments"
+        )
+
+    result = MatchResult(
+        pairs_raw=pairs_raw,
+        rejected=rejected,
+        order_hash=order_hash,
+        blocked_by_preregistration=n_prereg_blocked,
+    )
+
+    reasons = {
+        code: int((rejected["reason_step"] == step).sum())
+        for code, step in REASON_CODES
+        if step >= 9
+    }
+    reuse = pairs_raw["control_site_idx"].value_counts()
+    summary = {
+        "n_treatments": n,
+        "n_pairs": len(pairs_raw),
+        "unmatched_reasons": reasons,
+        "candidates": {
+            "band": _count_percentiles(n_band),
+            "clean": _count_percentiles(n_clean),
+            "caliper": _count_percentiles(n_caliper),
+        },
+        "reuse_blocked_matched": _count_percentiles(
+            pairs_raw["n_candidates_reuse_blocked"].to_numpy()
+        ),
+        "reuse_blocked_conflict_total": n_conflict_blocked,
+        "blocked_by_preregistration": n_prereg_blocked,
+        "n_control_sites": int(len(reuse)),
+        "control_reuse_max": int(reuse.max()) if len(reuse) else 0,
+        "control_reuse_mean": float(reuse.mean()) if len(reuse) else 0.0,
+        "order_hash": order_hash,
+    }
+
+    attrition = [("eligible treatments", n)]
+    remaining = n
+    for code, count in reasons.items():
+        remaining -= count
+        attrition.append((f"after {code}", remaining))
+
+    print(
+        f"Matching (seed {params.match_seed}, caliper {params.caliper_sd:g} "
+        f"SD, {params.control_selection}, {params.reuse_policy}): "
+        f"{len(pairs_raw):,} pairs from {n:,} eligible treatments"
+    )
+    for label, remaining in attrition:
+        print(f"  {label:<32} {remaining:>8,}")
+    for name in ("band", "clean", "caliper"):
+        entry = summary["candidates"][name]
+        print(
+            f"  candidates {name:<8} p10 {entry['p10']:g}, "
+            f"p50 {entry['p50']:g}, p90 {entry['p90']:g}, "
+            f"max {entry['max']:,}, zero {entry['n_zero']:,}"
+        )
+    print(
+        f"  reuse: {summary['n_control_sites']:,} control sites, "
+        f"max {summary['control_reuse_max']} uses, "
+        f"mean {summary['control_reuse_mean']:.3f}; blocked by "
+        f"pre-registration {n_prereg_blocked:,}; order hash {order_hash[:16]}"
+    )
+
+    return result, summary
+
+
 # ---------------------------------------------------------
 # Hard checks
 # ---------------------------------------------------------
@@ -3737,7 +4180,26 @@ def main(argv=None):
     except HardCheckError as error:
         return _stop(error)
 
-    # Steps 12-20 are added in later commits; Commit 12 returns
+    print("\n--- Step 12: reuse registry")
+    with StageTimer("init_reuse_registry", runtime):
+        registry = init_reuse_registry(params, treatments_eligible)
+
+    print("\n--- Step 13: band candidates")
+    with StageTimer("build_band_candidates", runtime):
+        indexes, band_summary = build_band_candidates(
+            params, treatments_eligible, sites, indexes
+        )
+
+    print("\n--- Step 13: matching")
+    with StageTimer("match_treatments", runtime):
+        match, match_summary = match_treatments(
+            params, treatments_eligible, sites, indexes, scales, registry
+        )
+
+    # Band lists are only needed by matching.
+    indexes.band_sites = indexes.band_dist = indexes.band_offsets = None
+
+    # Steps 14-20 are added in later commits; Commit 12 returns
     # EXIT_COMPLETED once all outputs are written.
     sys.stdout.flush()
     print(
