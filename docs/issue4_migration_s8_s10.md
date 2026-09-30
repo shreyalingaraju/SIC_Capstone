@@ -34,9 +34,8 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 | S8-10 | Precinct not carried. | `treatment_police_precinct` (pair level) for the precinct clustering robustness check. | D13 |
 | S8-11 | The D3 coverage guard may drop pairs. | Kept, and it must now drop 0 (Stage 7 enforces coverage). Any drop stops the run. | §9; Step 2 asserts |
 | S8-12 | Asserts only check period counts. | Added: every pair's explicit distance is ≥ `MATCH_BAND_MIN_M` − 1e-6; each `unit_id` has exactly 3 rows; `pair_id` is unique in the pairs file. | Step 2 asserts |
-| S8-13 | Script-level code with fixed paths; overwrites `causal_panel.parquet` in place. | Functions, `main()` and argparse: `--pairs`, `--out`, `--pre-window {canonical, shifted}` (shifted = [c − 21 d, c − 7 d), D19). Atomic write (temporary file, then `os.replace`). An existing old-schema panel (no `unit_id`) is first copied to `causal_panel.pre_issue4.parquet`, sha256-verified and never overwritten. | Part 3 Step 2; Q9 |
+| S8-13 | Script-level code with fixed paths; overwrites `causal_panel.parquet` in place. | Functions, `main()` and argparse: `--pairs`, `--crime`, `--out`, `--pre-window {canonical, shifted}` (shifted = [c − 21 d, c − 7 d), D19). Atomic write (temporary file, then `os.replace`). An existing old-schema panel (no `unit_id`) is first copied to `causal_panel.pre_issue4.parquet`, sha256-verified and never overwritten. | Part 3 Step 2; Q9 |
 | S8-14 | KD query at exactly r = 250, then the explicit formula. | KD query at r + 1e-6 m generates candidates; the explicit formula decides (A13 convention). Only a point within 1e-6 m of the 250 m boundary could change. | A13 |
-
 | S8-15 | (new) | With `--pre-window shifted`, `baseline_crime_intensity` follows the shifted pre-window on every row, because it is defined as the unit's pre-window 100 m count. The during and post rows are otherwise identical to the canonical panel (checked by `stage8_validate.py`). | definition kept (M8) |
 
 **Unchanged:**
@@ -59,9 +58,9 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 
 **Statistical implications (observed on the canonical scratch run, 20,051 pairs):**
 - **Clustering is much coarser.** Primary clustering moves from `location_key`, about 100k clusters in the legacy run, where a reused control site counted as a cluster, to 193 treatment H3 res-7 cells.
-  - Robustness schemes: 20,051 pairs; two-way 193 × 195 cells; 78 precincts.
-  - Standard errors are expected to be larger, and to account for spatial correlation between nearby pairs that the old clustering ignored.
+  - Robustness schemes: 20,051 pairs; two-way 193 × 195 cells; precinct 78 clusters = 77 observed precinct values plus one `<missing>` cluster (101 pairs).
   - Legacy and Issue 4 standard errors are not comparable.
+  - *(Corrected in Phase 6: an earlier version said the standard errors were "expected to be larger". No direction is claimed. On the canonical scratch run, the relative sizes of the primary, pair, two-way and precinct SEs differ by outcome and term. See `docs/issue4_design.md` §5.3–§5.4 for the SE convention and the observed cluster structure.)*
 - **FE on `unit_id`.** A reused control site no longer shares one fixed effect across unrelated pairs. Every FE unit is balanced (3 periods), as the within-transformation assumes. The FE coefficients now equal the paired-difference means exactly (the run asserts this).
 - **NB2 uses a fixed α = 1.0.** statsmodels emits a `ValueWarning`. This is pre-existing (the old code made the same call). It is recorded as a limitation, not changed, because the model specifications are frozen.
 - **Tercile edges.** The D20 terciles use quantile edges of log1p(treatment `base_100m`), and ties go to the lower tercile. Group sizes are therefore unequal (canonical: 6,845 / 6,911 / 6,295).
