@@ -1,0 +1,43 @@
+PASS: H10 passes (canonical sample) - sample 2000, flags {'treatment_key_not_in_universe': 0, 'treatment_coordinates_differ': 0, 'treatment_closed_missing': 0, 'created_date_differs': 0, 'closed_date_differs': 0, 'window_start_differs': 0, 'window_end_differs': 0, 'baseline_start_differs': 0, 'baseline_end_differs': 0, 'treatment_site_is_artifact': 0, 'control_site_not_rebuilt': 0, 'control_site_id_differs': 0, 'control_site_is_artifact': 0, 's3_dark_control': 0, 's4_pre_dirty': 0, 's4_post_dirty': 0}
+PASS: H11 passes (canonical sample) - {'treatment_base_100m': 0, 'treatment_base_250m': 0, 'control_base_100m': 0, 'control_base_250m': 0}
+PASS: canonical own-episode exemption exercised - 36 sampled treatments
+PASS: recheck artifact threshold = production - {'n_complaints': 182277, 'n_sites': 46034, 'artifact_threshold': 44, 'n_artifact_sites': 44, 'n_crimes': 921427}
+PASS: R2 rebuilt own episode == production episode (300 multi-complaint) - 0 mismatches
+PASS: negative H10 treatment coordinates - H10 flags {'treatment_coordinates_differ': 5}; other check passed: True
+PASS: negative H10 window_end - H10 flags {'window_end_differs': 3}; other check passed: True
+PASS: negative H10 S-3 control at the dark treatment site - H10 flags {'s3_dark_control': 2}; other check passed: False
+PASS: negative H10 control not a rebuilt site - H10 flags {'control_site_not_rebuilt': 2, 'control_site_id_differs': 2}; other check passed: True
+PASS: negative H10 control_site_id text - H10 flags {'control_site_id_differs': 1}; other check passed: True
+PASS: negative H10 S4_PRE_DIRTY treatment injected - H10 flags {'s3_dark_control': 3, 's4_pre_dirty': 5, 's4_post_dirty': 4}; other check passed: False
+PASS: negative H10 S4_POST_DIRTY treatment injected - H10 flags {'s3_dark_control': 3, 's4_post_dirty': 5}; other check passed: False
+PASS: negative H10 artifact flags (quantile 0.5) - {'treatment_site_is_artifact': 34, 'control_site_is_artifact': 15, 's4_pre_dirty': 1}
+PASS: negative H11 base counts - H11 flags {'treatment_base_250m': 1, 'control_base_100m': 2}; other check passed: True
+PASS: negative E2 universe violations - {'unparseable_created_date': 1, 'duplicate_unique_key': 2, 'sub_second_complaint_time': 0, 'sub_second_crime_time': 0}
+PASS: H13 passes - []
+PASS: unmatched schema and reasons
+PASS: negative H13 dropped unmatched row - ['pairs 20,051 + unmatched 87,679 != Stage 3 rows 107,731', 'pairs and unmatched keys differ from the Stage 3 keys', 'step 2 (W_OUTSIDE_DARKNESS): attrition dropped 1,589, unmatched rows 1,588']
+PASS: negative H13 attrition - ['attrition step 5 does not telescope', 'step 5 (NO_BOROUGH): attrition dropped 4, unmatched rows 3']
+PASS: negative H13 Stage 3 total - ['pairs 20,051 + unmatched 87,680 != Stage 3 rows 107,732']
+PASS: H16_post not applicable (canonical)
+PASS: H16_post passes (placebo) - []
+PASS: negative H16_post shifted date - ['1 created_date is not the real date minus the shift: 59572116_E323775_N62940']
+PASS: negative H16_post darkness interval - ['1 complaints with darkness not built from real dates']
+PASS: H10/H11 pass (placebo) - {'treatment_key_not_in_universe': 0, 'treatment_coordinates_differ': 0, 'treatment_closed_missing': 0, 'created_date_differs': 0, 'closed_date_differs': 0, 'window_start_differs': 0, 'window_end_differs': 0, 'baseline_start_differs': 0, 'baseline_end_differs': 0, 'treatment_site_is_artifact': 0, 'control_site_not_rebuilt': 0, 'control_site_id_differs': 0, 'control_site_is_artifact': 0, 's3_dark_control': 0, 's4_pre_dirty': 0, 's4_post_dirty': 0}, exempted 0
+PASS: H10/H11 pass (pre_only) - {'treatment_key_not_in_universe': 0, 'treatment_coordinates_differ': 0, 'treatment_closed_missing': 0, 'created_date_differs': 0, 'closed_date_differs': 0, 'window_start_differs': 0, 'window_end_differs': 0, 'baseline_start_differs': 0, 'baseline_end_differs': 0, 'treatment_site_is_artifact': 0, 'control_site_not_rebuilt': 0, 'control_site_id_differs': 0, 'control_site_is_artifact': 0, 's3_dark_control': 0, 's4_pre_dirty': 0, 's4_post_dirty': 0}
+PASS: CLI canonical run exit 0 (twice, separate processes) - 0, 0
+PASS: diagnostics strict JSON with all sections - missing set(); non_finite []
+PASS: determinism second pass identical
+PASS: pair-list hash equal across processes - ab63c37738192473
+PASS: parquet files byte-identical across processes - {'control_area_pairs.parquet': True, 'outage_sites.parquet': True, 'unmatched_treatments.parquet': True}
+PASS: pyarrow schemas match
+PASS: hard checks all pass in diagnostics - {'H0': 'pass', 'H1': 'pass', 'H16': 'pass', 'H2': 'pass', 'H17': 'pass', 'H18': 'pass', 'H3': 'pass', 'H4': 'pass', 'H15': 'pass', 'H5': 'pass', 'H6': 'pass', 'H7': 'pass', 'H8': 'pass', 'H9': 'pass', 'H12': 'pass', 'H14': 'pass', 'H10': 'pass', 'H11': 'pass', 'H13': 'pass', 'H16_post': 'pass'}
+PASS: site role counts (U7)
+PASS: no temporary or failure files left
+PASS: H0 failure writes failed diagnostics (exit 1) - H0 parameter validation failed (1 violations)
+PASS: success removes stale failure file; --skip-recheck recorded as skipped - {'H10': 'skipped', 'H11': 'skipped'}
+FAIL: legacy backup created with equal sha256
+FAIL: existing backup never overwritten
+PASS: new-schema file not backed up
+
+scratch: C:\Users\shrey\AppData\Local\Temp\c12_3ms7jdlv
+FAILS: ['legacy backup created with equal sha256', 'existing backup never overwritten']

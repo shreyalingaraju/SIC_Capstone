@@ -2,11 +2,11 @@
 
 Written for: the Issue 4 reviewer and whoever runs Phase 9. It is the authoritative 20-item Step 1 checklist, with its amendments, the evidence so far and what is still missing.
 
-**Status (2026-09-30): Step 1 is not yet accepted.**
+**Status (2026-09-30): Step 1 is not yet accepted; the Phase 9 acceptance runs are done and await review.**
 - The 20 items were approved with the Step 1 blueprint (decision log §3).
 - Commit 12 was approved on 2026-09-28 on the basis of scratch-run evidence.
-- The Phase 9 canonical acceptance run, which writes into `data/processed`, has **not** been done.
-- `docs/acceptance_report.md` (Q11) does not exist yet.
+- The Phase 9 acceptance runs (canonical into `data/processed`) are done. The per-item results, evidence and hashes are in [acceptance_report.md](acceptance_report.md) (Q11), which supersedes the "Pending Phase 9" statuses below.
+- The statuses in this checklist are kept as they were before Phase 9, for the record.
 
 ## Evidence status
 
@@ -186,7 +186,7 @@ These gaps come from the Phase 3–5 review. They are not part of the original P
 | V-7 | The Stage 10 SEs and pre-trend F-test are not independently checked. |
 | V-8 | Stage 9 does not check that each pair has exactly one T and one C unit. Its paired-mean = FE assertion would pass on a NaN mean. |
 | V-9 | The Stage 8 validator compares only `location_x_m`, `base_100m` and `location_key` with the pair columns (not y, lat/lon, `base_250m`, borough or res-9/10 cells). |
-| V-10 | The Stage 8 validator's legacy-backup check depends on the state of `data/processed`. It is skipped silently when `causal_panel.parquet` is missing, and it will fail once Phase 9 writes an Issue 4 panel there. The old-schema rejection checks in the Stage 8 and 10 validators also fall back to whatever is in `data/processed`. |
+| V-10 | The Stage 8 validator's legacy-backup check depends on the state of `data/processed`. It is skipped silently when `causal_panel.parquet` is missing, and it will fail once Phase 9 writes an Issue 4 panel there. The old-schema rejection checks in the Stage 8 and 10 validators also fall back to whatever is in `data/processed`. **Also affects `commit12_validate.py`** (observed in Phase 9): its legacy-backup test copies `data/processed/control_area_pairs.parquet` as the legacy fixture. Once that path holds the Issue 4 pairs, "legacy backup created with equal sha256" and "existing backup never overwritten" fail. This is not an X3 defect: `preserve_legacy_pairs` correctly refuses a new-schema file. Recorded in [acceptance_report.md §5](acceptance_report.md); the frozen script is unchanged. |
 | V-11 | The evidence `.out` files don't record their command lines, input hashes or the git commit. |
 
 ---

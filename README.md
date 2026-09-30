@@ -10,8 +10,10 @@ Streetlight outages and night-time crime in New York City: a causal pipeline tha
   - Stage 7 is rewritten.
   - Stages 8–10 are migrated to the new pair schema.
   - An independent review of the Stage 8–10 migration found no blocking issues.
-- **Phase 6 (documentation)** is being completed: this README and [docs/issue4_design.md](docs/issue4_design.md), [docs/issue4_decisions.md](docs/issue4_decisions.md) and [docs/issue4_acceptance.md](docs/issue4_acceptance.md).
-- **Final acceptance (Phase 9) has not been completed.** All the Issue 4 evidence so far comes from scratch runs. No Issue 4 stage has yet written into `data/processed/` or `outputs/`.
+- **Phase 6 (documentation)** is complete: this README and [docs/issue4_design.md](docs/issue4_design.md), [docs/issue4_decisions.md](docs/issue4_decisions.md) and [docs/issue4_acceptance.md](docs/issue4_acceptance.md).
+- **The Phase 9 acceptance runs are done; the acceptance decision is pending review.** Results are in [docs/acceptance_report.md](docs/acceptance_report.md).
+  - The canonical Stage 7 and Stage 8 outputs are now in `data/processed/`.
+  - Stages 9 and 10 were run only into the git-ignored `outputs/robustness/`, so `outputs/` itself is unchanged.
 - **Legacy results** in `outputs/` are pre-Issue-4 and are **not** current results (see [Stale and legacy results](#stale-and-legacy-results)).
 - Nothing on `issue4-step1` has been pushed or merged to `main`.
 
@@ -226,5 +228,5 @@ Full descriptions and evidence are in [docs/issue4_design.md §9](docs/issue4_de
   - They were produced with the old control design, in which every control was itself a treated outage.
   - They are **not current results**. They must not be cited or compared with Issue 4 standard errors.
   - They stay in place for now. Moving them to `outputs/legacy_pre_issue4/` is planned but not yet scheduled; it was not part of the Phase 7 scope.
-- **`data/processed/`** (git-ignored) still holds the pre-Issue-4 `control_area_pairs.parquet` and `causal_panel.parquet`. Stages 9 and 10 reject that panel because it has no `unit_id`. The first canonical Issue 4 runs (Phase 9) will back them up as `*.pre_issue4.parquet`.
+- **`data/processed/`** (git-ignored) holds the Issue 4 canonical outputs, written in Phase 9. The pre-Issue-4 `control_area_pairs.parquet` and `causal_panel.parquet` are preserved there as `control_area_pairs.pre_issue4.parquet` and `causal_panel.pre_issue4.parquet` (sha256 verified; see [docs/acceptance_report.md §4](docs/acceptance_report.md)). Stages 9 and 10 reject the legacy panel because it has no `unit_id`.
 - **Notebooks 05–08** show the old schema and stale outputs. Stale banners (Q7) are approved but not yet scheduled, and full realignment is deferred. The pipeline runs from `src/`, not from the notebooks.

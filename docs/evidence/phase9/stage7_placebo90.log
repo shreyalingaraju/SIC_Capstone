@@ -1,0 +1,309 @@
+H0: PASS (0 violations, 0.00 s)
+[parse_args] 0.00 s, rss 135 MB, peak 135 MB
+========================================
+Stage 7: control matching (Issue 4)
+========================================
+
+Parameters:
+  projected_crs: EPSG:32118
+  nyc_bbox: (40.49, 40.92, -74.26, -73.69)
+  site_round_m: 1
+  episode_merge_radius_m: 25.0
+  artifact_quantile: 0.999
+  valid_min_duration_h: 0.5
+  valid_max_duration_h: 8760.0
+  report_lag_days: 7
+  imputed_duration_hours: 160.0
+  direct_radius_m: 100.0
+  outcome_radius_m: 250.0
+  exclusion_radius_m: 350.0
+  match_band_min_m: 500.0
+  match_band_max_m: 1500.0
+  treatment_clean_radius_m: 100.0
+  event_window_days: 35
+  post_window_days: 14
+  baseline_days: 365
+  s8_pre_window_days: 14
+  prior_episode_radius_m: 250.0
+  h3_resolutions: (7, 9, 10)
+  caliper_sd: 0.5
+  reuse_policy: non_overlapping
+  control_selection: full_window
+  match_seed: 42
+  placebo_shift_days: 90
+  recheck_sample_n: 2000
+  recheck_seed: 20260927
+  smd_max: 0.1
+  vr_range: (0.5, 2.0)
+  out_dir: outputs\robustness\placebo90
+  skip_recheck: False
+  check_determinism: False
+
+Locked cross-stage parameters:
+  valid_min_duration_h = 0.5 (must match Stage 3)
+  valid_max_duration_h = 8760 (must match Stage 3)
+  post_window_days = 14 (must match Stage 8)
+  event_window_days = 35 (must match Stage 10)
+  direct_radius_m = 100 (must match Stage 8)
+  outcome_radius_m = 250 (must match Stage 8)
+  s8_pre_window_days = 14 (must match Stage 8)
+
+Conventions:
+  A1: 311 and NYPD timestamps are naive NYC local time; the repeated DST hour is ignored.
+  A2: Overlap is closed: [s, e] overlaps [a, b] when s <= b and e >= a. S-4 pre [c-35d, c): s < c and e >= c-35d. S-4 post (closed, W_end]: e > closed and s <= W_end.
+  A3: Times are stored as int64 seconds.
+  A4: Site borough and precinct are the modal value, ties broken alphabetically; empty or 'Unspecified' becomes null.
+  A5: The Stage 3 validity rule (0.5-8760 h) is duplicated here and must stay in sync with src/data/clean_streetlights.py.
+  A6: Darkness coverage is min/max raw created_date; crime coverage is min/max crime_datetime.
+  A7: Artifact-site complaints form single-complaint episodes and still count as darkness.
+  A8: S-3 and S-4 distances are measured to each complaint's point (A13 formula).
+  A9: Prior episodes: episode start in B and at least one complaint within 250 m.
+  A10: Res-9 density: crimes during B in the unit's res-9 cell divided by cell area (km^2).
+  A11: S8 pre-window [c-14d, c] includes both ends; B is half-open (evaluated as in A13).
+  A12: Distances follow Stage 8: <= 100 m direct, (100, 250] m ring, using the A13 formula.
+  A13: Index times are whole-second int64 timestamps. A half-open window [a, b) is evaluated as the closed lookup [a, b - 1]; a left-open window (a, b] is evaluated as the closed lookup [a + 1, b]. A query with a > b is an empty window: clean / count 0. Radius membership is decided only by the explicit float64 formula sqrt(dx**2 + dy**2) <= r in EPSG:32118 metres. KD-tree radius queries only generate candidates and use a positive tolerance (KD_QUERY_TOLERANCE_M = 1e-6 m); final inclusion is decided by the explicit formula.
+
+--- Provenance
+[provenance] 0.54 s, rss 136 MB, peak 138 MB
+git 6d252048bb9c on issue4-step1 (dirty: False)
+raw_complaints: data/raw/streetlight_complaints.csv 136,324,946 bytes sha256 be0cb278dc9a7cc0...
+treatments: data/processed/clean_streetlights.parquet 10,331,206 bytes sha256 502a906f2733ef62...
+crime: data/processed/clean_crime.parquet 30,075,992 bytes sha256 51f1e8d53934a3f0...
+
+--- Step 1: raw complaints
+Raw complaints: 218,465 -> with coordinates 182,277 -> inside bbox 182,277
+[load_raw_complaints] 1.59 s, rss 222 MB, peak 443 MB
+
+--- Step 2: treatments
+Stage 3 treatments: 107,731 (placebo shift 90 days)
+[load_treatments] 0.06 s, rss 247 MB, peak 443 MB
+
+--- Step 3: crime
+Crimes: 921,427
+[load_crime] 0.21 s, rss 297 MB, peak 443 MB
+Crime coverage: 2019-11-01T00:00:00 -> 2026-06-30T23:40:00
+Darkness coverage: 2020-01-01T00:45:00 -> 2026-09-18T00:29:00
+
+--- Hard checks: inputs
+H1: PASS (0 violations, 0.01 s)
+H16: PASS (0 violations, 0.00 s)
+[checks_inputs] 0.01 s, rss 296 MB, peak 443 MB
+
+Loaded: 182,277 complaints, 107,731 treatments, 921,427 crimes
+
+--- Step 4: darkness intervals
+Darkness intervals: 182,277 complaints, 107,731 valid closures, 74,546 imputed (160 h, lag 7 d)
+              total  imputed  too_short  closed_before_created  missing_closed  too_long  imputed_share
+created_year                                                                                           
+2020          27975    17248       9027                   7480              43       698          0.617
+2021          27011    15043       9471                   4726              72       774          0.557
+2022          38776    24676      18659                   5313             148       556          0.636
+2023          22104     8248       5148                   2299             266       535          0.373
+2024          21194     2281        710                    490             632       449          0.108
+2025          25226     2367        549                    604            1032       182          0.094
+2026          19991     4683        242                    139            4302         0          0.234
+[build_darkness_intervals] 0.09 s, rss 298 MB, peak 443 MB
+
+--- Hard checks: darkness
+H2: PASS (0 violations, 0.01 s)
+H17: PASS (0 violations, 0.00 s)
+[checks_darkness] 0.01 s, rss 298 MB, peak 443 MB
+
+--- Step 5: sites
+Sites: 46,034 from 182,277 complaints (max 940 complaints at one site)
+Artifact threshold T = 44 (quantile 0.999, 'higher'; maximum: False); 44 artifact sites with 4,735 complaints; 4 sites at T are not artifacts
+Eligible control sites: 45,987; without borough: 3; label conflicts: borough 231, precinct 47
+Top 10 sites by complaint count:
+       site_id  n_complaints  latitude  longitude   borough  is_artifact
+E302934_N68372           940 40.782370 -73.965241 MANHATTAN         True
+E313332_N63942           467 40.742374 -73.842153    QUEENS         True
+E303181_N55126           298 40.663087 -73.962383  BROOKLYN         True
+E312460_N59514           209 40.702514 -73.852566    QUEENS         True
+E304161_N65357           208 40.755214 -73.950726    QUEENS         True
+E298206_N60841           184 40.714556 -74.021232 MANHATTAN         True
+E319753_N62174           134 40.726324 -73.766187    QUEENS         True
+E315295_N46144           121 40.582067 -73.819346    QUEENS         True
+E308715_N75168           116 40.843526 -73.896660     BRONX         True
+E306614_N68060           111 40.779539 -73.921649    QUEENS         True
+[build_sites] 0.54 s, rss 280 MB, peak 443 MB
+
+--- Hard checks: sites
+H18: PASS (0 violations, 0.11 s)
+    - T = 44 at sorted index 45987; ceil(q*n)-th smallest = 44 (agrees)
+[checks_sites] 0.11 s, rss 303 MB, peak 443 MB
+
+--- Step 6: episodes
+Episodes: 152,656 from 182,277 complaints; links within 25 m: 701,062, of which overlapping in time: 41,920; 18,707 episodes have more than one complaint
+Episode size percentiles: p50 1, p90 2, p99 4, p100 30
+Episode span (days) percentiles: p50 13.7, p90 34.4, p99 263.8, p100 713.1
+D5 chaining: 0 episodes span > 100 m, 222 span > 365 days; largest footprint 44.2 m
+Top D5 episodes by footprint:
+ episode_id  first_unique_key  n_complaints  span_m  span_days
+      97741          59713594             7    24.2      426.7
+     103315          60853173             6    18.0      382.9
+      25491          49518165             3    17.1      417.1
+      16538          47341298             5    16.5      402.7
+      50828          53249960             6    15.1      520.0
+      80944          56501247            11    12.1      412.1
+      40334          51954190             5     5.7      516.1
+        128          45293646             4     0.0      369.0
+        870          45380528             6     0.0      385.4
+       1343          45426930             4     0.0      388.3
+[build_episodes] 0.33 s, rss 320 MB, peak 443 MB
+
+--- Hard checks: episodes
+H3: PASS (0 violations, 0.24 s)
+H4: PASS (0 violations, 0.18 s)
+[checks_episodes] 0.42 s, rss 327 MB, peak 443 MB
+
+--- Step 7: spatial indexes
+KD-trees: 182,277 complaints, 46,034 sites, 921,427 crimes; indexes over 45,987 eligible control sites
+  dirty        radius 350 m          entries   5,819,233  per site p50 111, p99 353.14, max 502, empty 0  89.1 MB
+  crime_direct radius 100 m          entries   2,610,730  per site p50 26, p99 421, max 2,910, empty 871  19.9 MB
+  crime_ring   radius (100, 250] m   entries  13,638,177  per site p50 167, p99 1619.28, max 4,874, empty 100  104.1 MB
+  crime_cell   res 9, 6,385 cells, 921,427 entries, 7.0 MB
+  within 1 mm of a boundary (informational): complaints at 350 m: 44, crimes at 100 m: 162, crimes at 250 m: 160
+  key times: 2019-11-01T00:00:00 -> 2026-09-11T00:29:00
+[build_spatial_indexes] 13.37 s, rss 584 MB, peak 1532 MB
+
+--- Step 8: treatment windows
+[compute_windows] 0.05 s, rss 596 MB, peak 1532 MB
+
+--- Step 9: treatment rules
+Treatment rules (placebo shift 90 d): 39,882 of 107,731 eligible
+ step                         rule remaining dropped
+    0 Stage 3 valid closures (H17)   107,731       0
+    1              W_OUTSIDE_CRIME   104,819   2,912
+    2           W_OUTSIDE_DARKNESS   103,577   1,242
+    3              B_OUTSIDE_CRIME    94,298   9,279
+    4                ARTIFACT_SITE    92,452   1,846
+    5                   NO_BOROUGH    92,449       3
+    6         NOT_FIRST_OF_EPISODE    74,999  17,450
+    7                 S4_PRE_DIRTY    52,595  22,404
+    8                S4_POST_DIRTY    39,882  12,713
+[apply_treatment_rules] 0.88 s, rss 591 MB, peak 1532 MB
+
+--- Step 10: treatment baselines
+base_100m: mean 8.195, median 4, p90 21, max 591, zero share 0.166  (n = 39,882)
+base_250m: mean 45.004, median 26, p90 111, max 959, zero share 0.017  (n = 39,882)
+[compute_treatment_baselines] 3.15 s, rss 587 MB, peak 1532 MB
+
+--- Step 11: standardisation
+Scales (sample SD of log1p, n = 39,882): sd_100 = 1.094615, sd_250 = 1.187581
+[standardise] 0.00 s, rss 589 MB, peak 1532 MB
+
+--- Hard checks: scales
+H15: PASS (0 violations, 0.00 s)
+[checks_scales] 0.00 s, rss 589 MB, peak 1532 MB
+
+--- Step 12: reuse registry
+Reuse registry (non_overlapping): 39,882 treatment windows pre-registered at 24,675 sites
+[init_reuse_registry] 0.01 s, rss 592 MB, peak 1532 MB
+
+--- Step 13: band candidates
+Band candidates [500, 1500] m: 15,476,445 usable entries for 39,882 treatments (177.4 MB); raw spatial p50 408, usable p50 396
+[build_band_candidates] 5.83 s, rss 771 MB, peak 1532 MB
+
+--- Step 13: matching
+Matching (seed 42, caliper 0.5 SD, full_window, non_overlapping): 25,720 pairs from 39,882 eligible treatments
+  eligible treatments                39,882
+  after NO_CANDIDATE_IN_BAND         39,875
+  after NO_CLEAN_CANDIDATE           37,956
+  after NO_CANDIDATE_IN_CALIPER      28,729
+  after REUSE_CONFLICT               25,720
+  candidates band     p10 212, p50 396, p90 549, max 962, zero 7
+  candidates clean    p10 2, p50 24, p90 85, max 348, zero 1,926
+  candidates caliper  p10 0, p50 3, p90 20, max 123, zero 11,153
+  reuse: 17,328 control sites, max 8 uses, mean 1.484; blocked by pre-registration 3,205; order hash b0aaa8d1e5eb4329
+[match_treatments] 3.22 s, rss 791 MB, peak 1532 MB
+
+--- Step 14: pair assembly
+Pairs assembled: 25,720 rows x 46 columns (8 bal_* columns follow in step 15); 17,328 control sites, max control_reuse_count 8
+[assemble_pairs] 0.14 s, rss 645 MB, peak 1532 MB
+
+--- Hard checks: pairs
+H5: PASS (0 violations, 0.01 s)
+H6: PASS (0 violations, 0.01 s)
+H7: PASS (0 violations, 0.00 s)
+H8: PASS (0 violations, 0.00 s)
+H9: PASS (0 violations, 0.80 s)
+H12: PASS (0 violations, 0.01 s)
+H14: PASS (0 violations, 0.00 s)
+[checks_pairs] 0.84 s, rss 648 MB, peak 1532 MB
+H9 reported (not violations): treatment-treatment overlaps 3,482 interval pairs at 2,897 sites, 6,373 treatments
+
+--- Step 15: balance
+Balance (n = 25,720 pairs; |SMD| < 0.1, VR in [0.5, 2]):
+  variable                    T mean    C mean     T sd     C sd      SMD      VR  pass
+  log_base_100m                1.412     1.408    0.998    0.988  +0.0046   1.019  True  (matched)
+  log_base_250m                3.033     3.016    1.116    1.097  +0.0156   1.035  True  (matched)
+  prior_episodes_250m          6.454     4.890    5.676    4.625  +0.3021   1.506  False  (balance-only)
+  h3r9_density               213.430   203.940  271.641  255.982  +0.0360   1.126  True  (balance-only)
+  pre_100m                     0.227     0.224    0.615    0.596  +0.0057   1.065  True  (balance-only)
+  pre_250m                     1.367     1.297    2.065    2.005  +0.0347   1.061  True  (balance-only)
+  log_pre_100m                 0.135     0.134    0.326    0.322  +0.0022   1.022  True  (balance-only)
+  log_pre_250m                 0.606     0.581    0.668    0.658  +0.0369   1.033  True  (balance-only)
+  matched_pass True, balance_only_pass False
+  representativeness base_100m: matched mean 5.908 / median 3 vs eligible 8.195 / 4 (SMD log1p -0.1580)
+  representativeness base_250m: matched mean 35.146 / median 21 vs eligible 45.004 / 26 (SMD log1p -0.1627)
+[compute_balance] 3.87 s, rss 636 MB, peak 1532 MB
+
+--- Hard checks: balance
+H12: PASS (0 violations, 0.02 s)
+[checks_balance] 0.02 s, rss 635 MB, peak 1532 MB
+
+--- Step 16: contamination
+Contamination (n = 25,720 pairs; review share 5%):
+  D1   22,098 pairs  share 0.8592  ABOVE REVIEW SHARE
+  D2   21,860 pairs  share 0.8499  ABOVE REVIEW SHARE
+  D3   24,120 pairs  share 0.9378  ABOVE REVIEW SHARE
+  D4  other complaints within 100 m during [created, closed]: mean 0.008, p50 0, p90 0, max 4, zero share 0.993
+  D5  0 episodes > 100 m, 222 > 365 days (of 152,656); max footprint 44.2 m
+[compute_contamination] 1.65 s, rss 654 MB, peak 1532 MB
+
+Pair-list hash fca33e5ef45aa584, order hash b0aaa8d1e5eb4329
+
+--- Step 18: independent recheck
+[independent_recheck] 3.46 s, rss 409 MB, peak 1532 MB
+
+--- Hard checks: recheck
+H10: PASS (0 violations, 3.25 s)
+H11: PASS (0 violations, 3.25 s)
+[checks_recheck] 0.00 s, rss 409 MB, peak 1532 MB
+
+--- Step 19: unmatched treatments and site roles
+Unmatched treatments: 82,011 (rules 67,849, matching 14,162)
+[build_unmatched] 0.24 s, rss 392 MB, peak 1532 MB
+
+--- Hard checks: accounting
+H13: PASS (0 violations, 0.03 s)
+H16_post: PASS (0 violations, 0.28 s)
+[checks_accounting] 0.32 s, rss 394 MB, peak 1532 MB
+
+--- Step 20: outputs
+[write_outputs] 0.35 s, rss 422 MB, peak 1532 MB
+
+Attrition (steps 0-12):
+ step                         rule remaining dropped
+    0 Stage 3 valid closures (H17)   107,731       0
+    1              W_OUTSIDE_CRIME   104,819   2,912
+    2           W_OUTSIDE_DARKNESS   103,577   1,242
+    3              B_OUTSIDE_CRIME    94,298   9,279
+    4                ARTIFACT_SITE    92,452   1,846
+    5                   NO_BOROUGH    92,449       3
+    6         NOT_FIRST_OF_EPISODE    74,999  17,450
+    7                 S4_PRE_DIRTY    52,595  22,404
+    8                S4_POST_DIRTY    39,882  12,713
+    9         NO_CANDIDATE_IN_BAND    39,875       7
+   10           NO_CLEAN_CANDIDATE    37,956   1,919
+   11      NO_CANDIDATE_IN_CALIPER    28,729   9,227
+   12               REUSE_CONFLICT    25,720   3,009
+
+Outputs:
+  control_area_pairs.parquet: 25,720 rows, sha256 075e659f85351105...
+  outage_sites.parquet: 46,034 rows, sha256 6108b0c370d94b5f...
+  unmatched_treatments.parquet: 82,011 rows, sha256 10581cae34ac6dd2...
+  match_diagnostics.json: outputs\robustness\placebo90\match_diagnostics.json
+  legacy pairs backup: no_existing_pairs_file
+
+Stage 7 completed: 25,720 pairs written to outputs/robustness/placebo90

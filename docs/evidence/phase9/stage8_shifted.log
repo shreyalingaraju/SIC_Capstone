@@ -1,0 +1,24 @@
+Loading Stage 8 input data...
+Pairs: 20,051; crimes: 921,427
+Pre-window: shifted
+Crime coverage: 2019-11-01T00:00:00.000000 to 2026-06-30T23:40:00.000000
+Pairs outside crime coverage (D3 guard, must be 0): 0
+Calculating crime counts...
+
+Validating causal panel...
+Panel shape: (120306, 27)
+Unique pairs: 20051
+Unique units: 40102
+Unique locations: 24133
+
+Period counts:
+period
+pre       40102
+during    40102
+post      40102
+Name: count, dtype: int64[pyarrow]
+Legacy panel backup: no existing panel
+
+Causal panel saved to:
+outputs\robustness\shifted\causal_panel.parquet
+sha256 85f0eeb485eedceb187b590ce4000eb5a75df63ebc740809668fdf8140d9ba40

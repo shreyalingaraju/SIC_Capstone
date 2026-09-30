@@ -5,7 +5,7 @@ Written for: capstone reviewers and anyone who will run, check or extend the Iss
 **Status (2026-09-30):**
 - Stages 7–10 are implemented on branch `issue4-step1`.
 - The Phase 3–5 independent review reported **no blocking issues**.
-- Final acceptance (Phase 9) has **not** been run. Nothing here is a final result.
+- The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)); the acceptance decision is pending review. Nothing here is a final result.
 - Every Stage 9 and 10 estimate is provisional while M8 (§9) is open.
 
 **How to read this document.** Each statement carries one of these labels:
@@ -725,11 +725,11 @@ Usage, runtimes and optional scripts are in [scripts/validation/README.md](../sc
 | [scripts/validation/commit12_validate.py](../scripts/validation/commit12_validate.py) | Stage 7: 40 checks (H10/H11 plus negative tests, H13, H16_post, determinism, schemas, backups) | [evidence/commit12/](evidence/commit12/): `commit12_validate.out`, the canonical scratch log and diagnostics, and `self_review.md` |
 | [scripts/validation/stage8_validate.py](../scripts/validation/stage8_validate.py) | Stage 8: 11 checks | [evidence/stage8/](evidence/stage8/) |
 | [scripts/validation/stage9_validate.py](../scripts/validation/stage9_validate.py) | Stage 9: 12 checks | [evidence/stage9/](evidence/stage9/) |
-| [scripts/validation/stage10_validate.py](../scripts/validation/stage10_validate.py) | Stage 10: 10 checks | [evidence/stage10/](evidence/stage10/) |
+| [scripts/validation/stage10_validate.py](../scripts/validation/stage10_validate.py) | Stage 10: 9 checks (corrected from "10" in Phase 9) | [evidence/stage10/](evidence/stage10/) |
 
-All the evidence so far comes from **scratch runs** (`--out-dir` / `--out` in a temporary folder). `data/processed` and `outputs/` have not been written by any Issue 4 stage.
+Up to Phase 8, all the evidence came from **scratch runs** (`--out-dir` / `--out` in a temporary folder). The Phase 9 acceptance runs wrote the canonical Stage 7 and Stage 8 outputs into `data/processed` and ran Stages 9 and 10 into `outputs/robustness/` only. `outputs/` is unchanged. Evidence: [evidence/phase9/](evidence/phase9/) and [acceptance_report.md](acceptance_report.md).
 
-Phase 8 moved the Commit 4–11 review validators into the repository and re-ran them against the current modules. Phase 9 (acceptance runs) will produce the canonical evidence; see [issue4_acceptance.md](issue4_acceptance.md).
+Phase 8 moved the Commit 4–11 review validators into the repository and re-ran them against the current modules. Phase 9 (acceptance runs) produced the canonical evidence; see [acceptance_report.md](acceptance_report.md).
 
 ---
 
@@ -778,7 +778,7 @@ The M1–M8 list is taken from the final release review. No message explicitly a
 | Move the legacy results to `outputs/legacy_pre_issue4/` | Original Phase 7 plan | Not part of the Phase 7 scope given on 2026-09-30; not yet scheduled |
 | Validation scripts in the repository (Commit 4–11 validators, shared helper, README) | Phase 8 plan | **Done** in Phase 8 |
 | Hardening the Stage 8–10 validators (acceptance doc §5, gaps V-1 to V-11) | Phase 3–5 review | Not in the original Phase 8 scope; not yet scheduled |
-| Canonical acceptance runs into `data/processed` | Phase 9 plan | Phase 9 |
+| Canonical acceptance runs into `data/processed` | Phase 9 plan | **Done** in Phase 9 ([acceptance_report.md](acceptance_report.md)) |
 | `docs/acceptance_report.md`, `docs/release_readiness_review.md` | Q11 | Phases 9 and 10 |
 | M8 fixes (exposure normalisation, `baseline_crime_intensity`, the −7..0 gap) | M8 | Deferred; results stay provisional |
 | Commit 6 fix-up P3 (group-id guard in `_build_sorted_index`) | P3 | Deferred by decision |

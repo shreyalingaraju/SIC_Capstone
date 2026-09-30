@@ -1,0 +1,841 @@
+{
+ "runs": [
+  {
+   "name": "s7_canonical",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--check-determinism"
+   ],
+   "started_utc": "2026-09-30T16:46:47+00:00",
+   "exit": 0,
+   "seconds": 49.8,
+   "peak_rss_mb": 1396.4,
+   "log": "docs\\evidence\\phase9\\stage7_canonical.log"
+  },
+  {
+   "name": "s7_canonical2",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--out-dir",
+    "outputs/robustness/canonical2"
+   ],
+   "started_utc": "2026-09-30T16:47:37+00:00",
+   "exit": 0,
+   "seconds": 41.5,
+   "peak_rss_mb": 1315.6,
+   "log": "docs\\evidence\\phase9\\stage7_canonical2.log"
+  },
+  {
+   "name": "s7_seed101",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--match-seed",
+    "101",
+    "--out-dir",
+    "outputs/robustness/seed101"
+   ],
+   "started_utc": "2026-09-30T16:48:19+00:00",
+   "exit": 0,
+   "seconds": 39.3,
+   "peak_rss_mb": 1329.0,
+   "log": "docs\\evidence\\phase9\\stage7_seed101.log"
+  },
+  {
+   "name": "s7_seed202",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--match-seed",
+    "202",
+    "--out-dir",
+    "outputs/robustness/seed202"
+   ],
+   "started_utc": "2026-09-30T16:48:58+00:00",
+   "exit": 0,
+   "seconds": 81.8,
+   "peak_rss_mb": 1414.6,
+   "log": "docs\\evidence\\phase9\\stage7_seed202.log"
+  },
+  {
+   "name": "s7_smoke",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--caliper-sd",
+    "0.2",
+    "--out-dir",
+    "outputs/robustness/smoke"
+   ],
+   "started_utc": "2026-09-30T16:50:20+00:00",
+   "exit": 0,
+   "seconds": 37.5,
+   "peak_rss_mb": 1332.9,
+   "log": "docs\\evidence\\phase9\\stage7_smoke_caliper02.log"
+  },
+  {
+   "name": "s7_placebo90",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/match_controls.py",
+    "--placebo-shift-days",
+    "90",
+    "--out-dir",
+    "outputs/robustness/placebo90"
+   ],
+   "started_utc": "2026-09-30T16:50:58+00:00",
+   "exit": 0,
+   "seconds": 42.9,
+   "peak_rss_mb": 1385.4,
+   "log": "docs\\evidence\\phase9\\stage7_placebo90.log"
+  },
+  {
+   "name": "s8_validate",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "scripts/validation/stage8_validate.py",
+    "data/processed",
+    "outputs/robustness/placebo90"
+   ],
+   "started_utc": "2026-09-30T16:52:41+00:00",
+   "exit": 0,
+   "seconds": 40.1,
+   "peak_rss_mb": 912.2,
+   "log": "docs\\evidence\\phase9\\stage8_validate.out"
+  },
+  {
+   "name": "s8_canonical",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/build_causal_panel.py"
+   ],
+   "started_utc": "2026-09-30T16:53:35+00:00",
+   "exit": 0,
+   "seconds": 6.5,
+   "peak_rss_mb": 465.9,
+   "log": "docs\\evidence\\phase9\\stage8_canonical.log"
+  },
+  {
+   "name": "s8_placebo90",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/build_causal_panel.py",
+    "--pairs",
+    "outputs/robustness/placebo90/control_area_pairs.parquet",
+    "--out",
+    "outputs/robustness/placebo90/causal_panel.parquet"
+   ],
+   "started_utc": "2026-09-30T16:53:41+00:00",
+   "exit": 0,
+   "seconds": 8.2,
+   "peak_rss_mb": 537.3,
+   "log": "docs\\evidence\\phase9\\stage8_placebo90.log"
+  },
+  {
+   "name": "s8_shifted",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/features/build_causal_panel.py",
+    "--pre-window",
+    "shifted",
+    "--out",
+    "outputs/robustness/shifted/causal_panel.parquet"
+   ],
+   "started_utc": "2026-09-30T16:53:50+00:00",
+   "exit": 0,
+   "seconds": 6.6,
+   "peak_rss_mb": 469.7,
+   "log": "docs\\evidence\\phase9\\stage8_shifted.log"
+  },
+  {
+   "name": "s9_canonical",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/models/did_model.py",
+    "--out",
+    "outputs/robustness/phase9_stage9"
+   ],
+   "started_utc": "2026-09-30T16:54:13+00:00",
+   "exit": 0,
+   "seconds": 10.2,
+   "peak_rss_mb": 1719.6,
+   "log": "C:\\Users\\shrey\\AppData\\Local\\Temp\\claude\\c--Shreya-SIC-Capstone\\5d1ea6ff-7f2d-405c-88e1-b77903a8dc2e\\scratchpad\\p9\\logs\\stage9_canonical.log"
+  },
+  {
+   "name": "s10_canonical",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "src/models/event_study.py",
+    "--out",
+    "outputs/robustness/phase9_stage10"
+   ],
+   "started_utc": "2026-09-30T16:54:23+00:00",
+   "exit": 0,
+   "seconds": 8.0,
+   "peak_rss_mb": 578.0,
+   "log": "C:\\Users\\shrey\\AppData\\Local\\Temp\\claude\\c--Shreya-SIC-Capstone\\5d1ea6ff-7f2d-405c-88e1-b77903a8dc2e\\scratchpad\\p9\\logs\\stage10_canonical.log"
+  },
+  {
+   "name": "s9_validate",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "scripts/validation/stage9_validate.py",
+    "data/processed/causal_panel.parquet",
+    "data/processed/control_area_pairs.parquet",
+    "outputs/robustness/placebo90/causal_panel.parquet",
+    "outputs/robustness/shifted/causal_panel.parquet"
+   ],
+   "started_utc": "2026-09-30T16:54:31+00:00",
+   "exit": 0,
+   "seconds": 40.0,
+   "peak_rss_mb": 2076.4,
+   "log": "docs\\evidence\\phase9\\stage9_validate.out"
+  },
+  {
+   "name": "s10_validate",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "scripts/validation/stage10_validate.py",
+    "data/processed/causal_panel.parquet",
+    "outputs/robustness/placebo90/causal_panel.parquet",
+    "outputs/robustness/shifted/causal_panel.parquet"
+   ],
+   "started_utc": "2026-09-30T16:55:12+00:00",
+   "exit": 0,
+   "seconds": 46.8,
+   "peak_rss_mb": 1260.2,
+   "log": "docs\\evidence\\phase9\\stage10_validate.out"
+  },
+  {
+   "name": "c12_validate",
+   "cmd": [
+    "C:\\Shreya\\SIC\\Capstone\\.venv\\Scripts\\python.exe",
+    "scripts/validation/commit12_validate.py"
+   ],
+   "started_utc": "2026-09-30T16:55:59+00:00",
+   "exit": 0,
+   "seconds": 257.1,
+   "peak_rss_mb": 2358.9,
+   "log": "docs\\evidence\\phase9\\commit12_validate.out"
+  }
+ ],
+ "hashes": {
+  "inputs": {
+   "data/raw/streetlight_complaints.csv": "be0cb278dc9a7cc01f5caccc0f0e69925681e059367771d5e14fcbd463b4d7de",
+   "data/raw/nypd_crime.csv": "5e4ad83039310b3843261cef8739e4f3e5acd70480d0fcb742d466417d4cddbd",
+   "data/processed/clean_streetlights.parquet": "502a906f2733ef629a9877cc8fa4a86b8d60f94a923ef9d0ef1ad5329d29c948",
+   "data/processed/clean_crime.parquet": "51f1e8d53934a3f0ae6ab9bdb3f8a3b544743dbc6ee398a89dfa2975488c073d"
+  },
+  "stage7_canonical": {
+   "data/processed/control_area_pairs.parquet": "abb9869b94d517991778e55bb5b5952ad9a32a7edcf61457ead05a1fced314a4",
+   "data/processed/outage_sites.parquet": "9b349a620a3fbf9212eb98fe7f213474ef81754795318815f43dea0cea30112e",
+   "data/processed/unmatched_treatments.parquet": "b8fa10c3b83a1f87713f414e20552c28e8df0e3e144694e36708a99ea59e8947",
+   "data/processed/match_diagnostics.json": "c493c14b5cc4e05b1bc31ae3d69d47d122b92ef9b2a968dcfbaeb086f764e8d3"
+  },
+  "backups": {
+   "data/processed/control_area_pairs.pre_issue4.parquet": "59f742531a9e7325a67e24ad8d2f87bbaf1cc075f0311ee200ca237628d3b94b",
+   "data/processed/causal_panel.pre_issue4.parquet": "d4daa7de8b60136720fd911403e05600306537e1c8a699580b786cbe3ed23fe1"
+  },
+  "stage8": {
+   "data/processed/causal_panel.parquet": "eaa0cd74b75d5f99007ff36a96a562c6fde3c02e264d61cbd25aa652c08d1e35",
+   "outputs/robustness/placebo90/causal_panel.parquet": "b2662e469d29b84cf8b248d6e7590cc76f8194549db8eae0924c4bc5647003bf",
+   "outputs/robustness/shifted/causal_panel.parquet": "85f0eeb485eedceb187b590ce4000eb5a75df63ebc740809668fdf8140d9ba40"
+  },
+  "stage9_scratch": {
+   "outputs/robustness/phase9_stage9/did_summary.json": "b64d67844373763fb3f58161a390708e66eacbf93ee4f0ade071394e55ff3222",
+   "outputs/robustness/phase9_stage9/did_regression_results.txt": "5aab33df0848dcce8837e8e3b5b44900347368c051b3eb57d7bc8a3063b2f53f"
+  },
+  "stage10_scratch": {
+   "outputs/robustness/phase9_stage10/event_study_coefficients.csv": "3befc0b0a12c7922367852aab39fcef6d3e19ba1e6c4e8603b2719c7ecf73ffa",
+   "outputs/robustness/phase9_stage10/event_study_plot.png": "86c603b8c7da0dcd48b78eda385f9f344d26387c6582b8be7d61e0a51f93c0b6",
+   "outputs/robustness/phase9_stage10/event_study_summary.json": "ff9f592de666ce40a489808b2f1aed4a1842aff2b42b5dc007bd4a4022dcf596"
+  },
+  "legacy_outputs": {
+   "outputs/did_regression_results.txt": "fda5f08d2474f7f008db27270b51d93fa1e5ac19a48f8aabd4cf0a3c5389d113",
+   "outputs/did_summary.json": "75866cf9d853933d422ae0fbac529acabef838b10be2c19f1ef5e5dfcd511ebc",
+   "outputs/event_study_coefficients.csv": "d23a8cd0ed111aeba7b04a4f2513cd667a465ad66cc196866492417f6732ef67",
+   "outputs/event_study_plot.png": "6f4242243f8037b201ebb75b08ebc271c78d85e265583ee90b2abd64bfc6a178"
+  },
+  "stage7_canonical2": {
+   "outputs\\robustness\\canonical2\\control_area_pairs.parquet": "abb9869b94d517991778e55bb5b5952ad9a32a7edcf61457ead05a1fced314a4",
+   "outputs\\robustness\\canonical2\\outage_sites.parquet": "9b349a620a3fbf9212eb98fe7f213474ef81754795318815f43dea0cea30112e",
+   "outputs\\robustness\\canonical2\\unmatched_treatments.parquet": "b8fa10c3b83a1f87713f414e20552c28e8df0e3e144694e36708a99ea59e8947",
+   "outputs\\robustness\\canonical2\\match_diagnostics.json": "3e67b959f5d2083e67a4f4b65d6885747bb7fbaed3f50ef975feec104341064a"
+  },
+  "stage7_seed101": {
+   "outputs\\robustness\\seed101\\control_area_pairs.parquet": "96f9f9f13dedaf77ff900dd017597bf2fdfb22f9b39c224428dc6094fed32b29",
+   "outputs\\robustness\\seed101\\outage_sites.parquet": "641320df5c246e333b8ca2fbf1b9b747e0fdb16ea87e5180db1156e420bf909b",
+   "outputs\\robustness\\seed101\\unmatched_treatments.parquet": "29f51029a0507d9b4d16ce829381ac978af02ee1199a8e030024c194e9f130a9",
+   "outputs\\robustness\\seed101\\match_diagnostics.json": "ebba6ae9e67ff54a5e35c4250c76d91e7fb1e5fcc04bb945cc92b2929f82d67b"
+  },
+  "stage7_seed202": {
+   "outputs\\robustness\\seed202\\control_area_pairs.parquet": "15a6bd705588bae11550a7e842ffa8b35fda768f014d625a1aa872fd3576cb0d",
+   "outputs\\robustness\\seed202\\outage_sites.parquet": "fbd632296a952d0f49c2871a7b294dc14ff4975a8b52755282e5fe64472013da",
+   "outputs\\robustness\\seed202\\unmatched_treatments.parquet": "3dfc2540b4d35db3fbbd66e64cda0e6f8238b7966799582e5ddb057e34a50bb9",
+   "outputs\\robustness\\seed202\\match_diagnostics.json": "9ce823e469a249554cc32dd0a75ad3a369ac9be0e25929aabf473fc043a07da0"
+  },
+  "stage7_smoke": {
+   "outputs\\robustness\\smoke\\control_area_pairs.parquet": "af56e88ed07fca3afe1af674c7dc3d7ab38523a74dde6874c5dd61fc881b0f44",
+   "outputs\\robustness\\smoke\\outage_sites.parquet": "cbadcf99c5fa6bb30abc4ad67cd3e825756e8f10a5aa23960d5f1cc5d7706db9",
+   "outputs\\robustness\\smoke\\unmatched_treatments.parquet": "b4b0613d76744bada4fe232cb49ce7c3481deebdbbbd4aea81f69e6526901dfc",
+   "outputs\\robustness\\smoke\\match_diagnostics.json": "d1ec5c488dea9f1d93e82b1d0e471b1936abee24fde44d48d7c0c0b5d86177fc"
+  },
+  "stage7_placebo90": {
+   "outputs\\robustness\\placebo90\\control_area_pairs.parquet": "075e659f85351105f9e4ce6dd36ec34fbaa26c07d789e79ec21630e858c3747d",
+   "outputs\\robustness\\placebo90\\outage_sites.parquet": "6108b0c370d94b5fc991b47633792d2f103ae3adae612eec51da44b91ce21e86",
+   "outputs\\robustness\\placebo90\\unmatched_treatments.parquet": "10581cae34ac6dd2c66c28c9603af9c6798fb008eac477003a2c5d64a4e7db0a",
+   "outputs\\robustness\\placebo90\\match_diagnostics.json": "521cf1f6886bcce192f0d4a8604b7ea34a7d4e6e9f305f1bfa1718085a823958"
+  }
+ },
+ "backup_check": {
+  "control_area_pairs.pre_issue4 == original control_area_pairs": true,
+  "causal_panel.pre_issue4 == original causal_panel": true,
+  "legacy outputs/ unchanged": true,
+  "inputs unchanged": true,
+  "original_pairs_sha256": "59f742531a9e7325a67e24ad8d2f87bbaf1cc075f0311ee200ca237628d3b94b",
+  "original_panel_sha256": "d4daa7de8b60136720fd911403e05600306537e1c8a699580b786cbe3ed23fe1"
+ },
+ "item11": {
+  "canonical": {
+   "attributed_to_W_OUTSIDE_DARKNESS": 1589,
+   "also_fail_B_OUTSIDE_CRIME": 1589,
+   "removed_by_rule_2_alone": 0
+  },
+  "placebo90": {
+   "attributed_to_W_OUTSIDE_DARKNESS": 1242,
+   "also_fail_B_OUTSIDE_CRIME": 1242,
+   "removed_by_rule_2_alone": 0
+  }
+ },
+ "item9_top10_sites": [
+  {
+   "site_id": "E302934_N68372",
+   "n_complaints": 940,
+   "latitude": 40.7824,
+   "longitude": -73.9652,
+   "borough": "MANHATTAN",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E313332_N63942",
+   "n_complaints": 467,
+   "latitude": 40.7424,
+   "longitude": -73.8422,
+   "borough": "QUEENS",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E303181_N55126",
+   "n_complaints": 298,
+   "latitude": 40.6631,
+   "longitude": -73.9624,
+   "borough": "BROOKLYN",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E312460_N59514",
+   "n_complaints": 209,
+   "latitude": 40.7025,
+   "longitude": -73.8526,
+   "borough": "QUEENS",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E304161_N65357",
+   "n_complaints": 208,
+   "latitude": 40.7552,
+   "longitude": -73.9507,
+   "borough": "QUEENS",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E298206_N60841",
+   "n_complaints": 184,
+   "latitude": 40.7146,
+   "longitude": -74.0212,
+   "borough": "MANHATTAN",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E319753_N62174",
+   "n_complaints": 134,
+   "latitude": 40.7263,
+   "longitude": -73.7662,
+   "borough": "QUEENS",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E315295_N46144",
+   "n_complaints": 121,
+   "latitude": 40.5821,
+   "longitude": -73.8193,
+   "borough": "QUEENS",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E308715_N75168",
+   "n_complaints": 116,
+   "latitude": 40.8435,
+   "longitude": -73.8967,
+   "borough": "BRONX",
+   "is_artifact": true
+  },
+  {
+   "site_id": "E306614_N68060",
+   "n_complaints": 111,
+   "latitude": 40.7795,
+   "longitude": -73.9216,
+   "borough": "QUEENS",
+   "is_artifact": true
+  }
+ ],
+ "stage8_panel": {
+  "rows": 120306,
+  "columns": 27,
+  "pairs": 20051,
+  "units": 40102,
+  "locations": 24133,
+  "share_pairs_T_C_different_res7": 0.4942,
+  "reused_control_sites": 4167,
+  "reused_control_sites_spanning_gt1_primary_cluster": 2541,
+  "pairs_whose_control_site_spans_gt1_primary_cluster": 6270,
+  "sites_both_treatment_and_control": 5171,
+  "precinct_values_observed": 77,
+  "pairs_missing_precinct": 101,
+  "primary_clusters": 193
+ },
+ "stage9_structure": {
+  "status": "provisional (M8 open: exposure normalisation, baseline_crime_intensity, event-study -7..0 gap)",
+  "dataset": {
+   "rows": 120306,
+   "unique_pairs": 20051,
+   "unique_units": 40102,
+   "unique_locations": 24133,
+   "unique_treatment_sites": 14911,
+   "unique_control_sites": 14393,
+   "control_reuse_mean": 1.3931077607170153,
+   "control_reuse_max": 12,
+   "cluster_variable": "treatment_h3_res7",
+   "fixed_effects_unit": "unit_id",
+   "n_clusters": {
+    "treatment_h3_res7": 193,
+    "pair_id": 20051,
+    "twoway_treatment_control_h3_res7": [
+     193,
+     195
+    ],
+    "treatment_police_precinct": 78
+   }
+  }
+ },
+ "stage10_structure": {
+  "status": "provisional (M8 open; days [-7, 0) not covered by any week)",
+  "observations": 360918,
+  "units": 40102,
+  "pairs": 20051,
+  "fixed_effects": [
+   "unit_id",
+   "rel_week"
+  ],
+  "cluster_variable": "treatment_h3_res7",
+  "n_clusters": 193,
+  "reference_week": -1,
+  "week_windows_days": {
+   "-4": [
+    -35,
+    -28
+   ],
+   "-3": [
+    -28,
+    -21
+   ],
+   "-2": [
+    -21,
+    -14
+   ],
+   "-1": [
+    -14,
+    -7
+   ],
+   "0": [
+    0,
+    7
+   ],
+   "1": [
+    7,
+    14
+   ],
+   "2": [
+    14,
+    21
+   ],
+   "3": [
+    21,
+    28
+   ],
+   "4": [
+    28,
+    35
+   ]
+  }
+ },
+ "stage7_canonical": {
+  "provenance": {
+   "run_started_utc": "2026-09-30T16:46:48+00:00",
+   "platform": "Windows-11-10.0.26200-SP0",
+   "git": {
+    "sha": "6d252048bb9c4b3ebc8cca3b1793dfd01fc3c5f4",
+    "branch": "issue4-step1",
+    "dirty": false
+   },
+   "packages": {
+    "python": "3.14.4",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scipy": "1.18.1",
+    "geopandas": "1.1.4",
+    "shapely": "2.1.2",
+    "h3": "4.5.0",
+    "pyproj": "3.8.0",
+    "pyarrow": "25.0.1",
+    "psutil": "7.2.2"
+   },
+   "inputs": {
+    "raw_complaints": {
+     "path": "data/raw/streetlight_complaints.csv",
+     "size_bytes": 136324946,
+     "modified_utc": "2026-09-19T17:07:31+00:00",
+     "sha256": "be0cb278dc9a7cc01f5caccc0f0e69925681e059367771d5e14fcbd463b4d7de"
+    },
+    "treatments": {
+     "path": "data/processed/clean_streetlights.parquet",
+     "size_bytes": 10331206,
+     "modified_utc": "2026-09-19T17:51:16+00:00",
+     "sha256": "502a906f2733ef629a9877cc8fa4a86b8d60f94a923ef9d0ef1ad5329d29c948"
+    },
+    "crime": {
+     "path": "data/processed/clean_crime.parquet",
+     "size_bytes": 30075992,
+     "modified_utc": "2026-09-26T19:00:18+00:00",
+     "sha256": "51f1e8d53934a3f0ae6ab9bdb3f8a3b544743dbc6ee398a89dfa2975488c073d"
+    }
+   },
+   "python": "3.14.4 (tags/v3.14.4:23116f9, Apr  7 2026, 14:10:54) [MSC v.1944 64 bit (AMD64)]",
+   "argv": [
+    "--check-determinism"
+   ]
+  },
+  "coverage": {
+   "crime_min": "2019-11-01T00:00:00",
+   "crime_max": "2026-06-30T23:40:00",
+   "darkness_min": "2020-01-01T00:45:00",
+   "darkness_max": "2026-09-18T00:29:00",
+   "eligible_created_min": "2020-12-05T10:41:00",
+   "eligible_created_max": "2026-05-26T23:34:00"
+  },
+  "universe": {
+   "n_raw_complaints": 218465,
+   "n_with_coordinates": 182277,
+   "n_in_bbox": 182277,
+   "n_imputed": 74546,
+   "imputed_by_year": {
+    "2020": 17248,
+    "2021": 15043,
+    "2022": 24676,
+    "2023": 8248,
+    "2024": 2281,
+    "2025": 2367,
+    "2026": 4683
+   },
+   "n_sites": 46034,
+   "artifact_quantile_method": "higher",
+   "artifact_threshold": 44,
+   "artifact_threshold_is_maximum": false,
+   "n_artifact_sites": 44,
+   "n_artifact_complaints": 4735,
+   "n_episodes": 152656,
+   "episode_size_percentiles": {
+    "p50": 1.0,
+    "p90": 2.0,
+    "p99": 4.0,
+    "p100": 30.0
+   },
+   "episode_span_days_percentiles": {
+    "p50": 13.666666666666666,
+    "p90": 34.420138888888886,
+    "p99": 263.79378472222277,
+    "p100": 713.1395833333333
+   },
+   "episode_max_footprint_m": 44.20554673622685
+  },
+  "attrition": [
+   {
+    "step": 0,
+    "rule": "Stage 3 valid closures (H17)",
+    "remaining": 107731,
+    "dropped": 0
+   },
+   {
+    "step": 1,
+    "rule": "W_OUTSIDE_CRIME",
+    "remaining": 100895,
+    "dropped": 6836
+   },
+   {
+    "step": 2,
+    "rule": "W_OUTSIDE_DARKNESS",
+    "remaining": 99306,
+    "dropped": 1589
+   },
+   {
+    "step": 3,
+    "rule": "B_OUTSIDE_CRIME",
+    "remaining": 90885,
+    "dropped": 8421
+   },
+   {
+    "step": 4,
+    "rule": "ARTIFACT_SITE",
+    "remaining": 89118,
+    "dropped": 1767
+   },
+   {
+    "step": 5,
+    "rule": "NO_BOROUGH",
+    "remaining": 89115,
+    "dropped": 3
+   },
+   {
+    "step": 6,
+    "rule": "NOT_FIRST_OF_EPISODE",
+    "remaining": 72143,
+    "dropped": 16972
+   },
+   {
+    "step": 7,
+    "rule": "S4_PRE_DIRTY",
+    "remaining": 46621,
+    "dropped": 25522
+   },
+   {
+    "step": 8,
+    "rule": "S4_POST_DIRTY",
+    "remaining": 33152,
+    "dropped": 13469
+   },
+   {
+    "step": 9,
+    "rule": "NO_CANDIDATE_IN_BAND",
+    "remaining": 33148,
+    "dropped": 4
+   },
+   {
+    "step": 10,
+    "rule": "NO_CLEAN_CANDIDATE",
+    "remaining": 30352,
+    "dropped": 2796
+   },
+   {
+    "step": 11,
+    "rule": "NO_CANDIDATE_IN_CALIPER",
+    "remaining": 21796,
+    "dropped": 8556
+   },
+   {
+    "step": 12,
+    "rule": "REUSE_CONFLICT",
+    "remaining": 20051,
+    "dropped": 1745
+   }
+  ],
+  "unmatched_reasons": {
+   "W_OUTSIDE_CRIME": 6836,
+   "W_OUTSIDE_DARKNESS": 1589,
+   "B_OUTSIDE_CRIME": 8421,
+   "ARTIFACT_SITE": 1767,
+   "NO_BOROUGH": 3,
+   "NOT_FIRST_OF_EPISODE": 16972,
+   "S4_PRE_DIRTY": 25522,
+   "S4_POST_DIRTY": 13469,
+   "NO_CANDIDATE_IN_BAND": 4,
+   "NO_CLEAN_CANDIDATE": 2796,
+   "NO_CANDIDATE_IN_CALIPER": 8556,
+   "REUSE_CONFLICT": 1745
+  },
+  "reuse": {
+   "blocked_by_preregistration": 643,
+   "n_control_sites": 14393,
+   "control_reuse_max": 12,
+   "control_reuse_mean": 1.3931077607170153,
+   "treatment_treatment_overlaps": {
+    "n_treatment_pairs_overlapping": 935,
+    "n_sites_with_overlap": 876,
+    "n_treatments_in_overlap": 1831
+   },
+   "uses_per_control_site_histogram": {
+    "1": 10226,
+    "2": 3050,
+    "3": 835,
+    "4": 215,
+    "5": 51,
+    "6": 12,
+    "7": 3,
+    "12": 1
+   }
+  },
+  "determinism": {
+   "pair_list_sha256": "ab63c3773819247367c0a8261d06e7f0f9639d40525e817698950e85e516ee8b",
+   "order_hash": "b36524dc5113cea381dd1749d44b45969cf519ab3a97ad6fae93947666beb59a",
+   "check_determinism": true,
+   "second_pass": {
+    "second_pass_pair_list_sha256": "ab63c3773819247367c0a8261d06e7f0f9639d40525e817698950e85e516ee8b",
+    "second_pass_order_hash": "b36524dc5113cea381dd1749d44b45969cf519ab3a97ad6fae93947666beb59a",
+    "identical": true
+   }
+  },
+  "balance_matched": {
+   "log_base_100m": {
+    "smd": 0.00500711073986333,
+    "variance_ratio": 1.0210894191411533,
+    "pass": true
+   },
+   "log_base_250m": {
+    "smd": 0.016575977968724977,
+    "variance_ratio": 1.040089052622082,
+    "pass": true
+   }
+  },
+  "balance_only": {
+   "prior_episodes_250m": {
+    "smd": 0.34760880001083105,
+    "variance_ratio": 1.4922284534853465,
+    "pass": false
+   },
+   "h3r9_density": {
+    "smd": 0.040038754349733086,
+    "variance_ratio": 1.1003348300570677,
+    "pass": true
+   },
+   "pre_100m": {
+    "smd": 0.00992256389718615,
+    "variance_ratio": 1.423301921247714,
+    "pass": true
+   },
+   "pre_250m": {
+    "smd": 0.0411039479263859,
+    "variance_ratio": 1.1090831389860065,
+    "pass": true
+   },
+   "log_pre_100m": {
+    "smd": 0.0070052770620956046,
+    "variance_ratio": 1.0242517439059389,
+    "pass": true
+   },
+   "log_pre_250m": {
+    "smd": 0.04036861115809915,
+    "variance_ratio": 1.0407811020639135,
+    "pass": true
+   }
+  },
+  "representativeness_base_100m": {
+   "matched": {
+    "mean": 5.771682210363573,
+    "median": 3.0,
+    "p90": 15.0
+   },
+   "eligible": {
+    "mean": 8.399161438223938,
+    "median": 4.0,
+    "p90": 21.0
+   },
+   "smd_log1p": -0.18513771592343672
+  },
+  "contamination": {
+   "D1": {
+    "n_pairs": 14900,
+    "share": 0.743105082040796,
+    "above_review_share": true
+   },
+   "D2": {
+    "n_pairs": 17399,
+    "share": 0.867737269961598,
+    "above_review_share": true
+   },
+   "D3": {
+    "n_pairs": 18202,
+    "share": 0.9077851478729241,
+    "above_review_share": true
+   },
+   "D4": {
+    "mean": 0.05695476534836168,
+    "p50": 0.0,
+    "p90": 0.0,
+    "max": 11,
+    "share_zero": 0.9581567004139444
+   }
+  },
+  "contamination_D5": {
+   "n_episodes": 152656,
+   "episodes_over_100m": 0,
+   "episodes_over_365d": 222,
+   "max_footprint_m": 44.20554673622685
+  },
+  "recheck": {
+   "sample_n": 2000,
+   "seed": 20260927,
+   "n_s4_pre_own_episode_exempted": 36,
+   "h10": {
+    "treatment_key_not_in_universe": 0,
+    "treatment_coordinates_differ": 0,
+    "treatment_closed_missing": 0,
+    "created_date_differs": 0,
+    "closed_date_differs": 0,
+    "window_start_differs": 0,
+    "window_end_differs": 0,
+    "baseline_start_differs": 0,
+    "baseline_end_differs": 0,
+    "treatment_site_is_artifact": 0,
+    "control_site_not_rebuilt": 0,
+    "control_site_id_differs": 0,
+    "control_site_is_artifact": 0,
+    "s3_dark_control": 0,
+    "s4_pre_dirty": 0,
+    "s4_post_dirty": 0
+   },
+   "h11": {
+    "treatment_base_100m": 0,
+    "treatment_base_250m": 0,
+    "control_base_100m": 0,
+    "control_base_250m": 0
+   }
+  },
+  "hard_checks": {
+   "H0": "pass",
+   "H1": "pass",
+   "H16": "pass",
+   "H2": "pass",
+   "H17": "pass",
+   "H18": "pass",
+   "H3": "pass",
+   "H4": "pass",
+   "H15": "pass",
+   "H5": "pass",
+   "H6": "pass",
+   "H7": "pass",
+   "H8": "pass",
+   "H9": "pass",
+   "H12": "pass",
+   "H14": "pass",
+   "H10": "pass",
+   "H11": "pass",
+   "H13": "pass",
+   "H16_post": "pass"
+  },
+  "runtime": {
+   "total_seconds": 47.526,
+   "peak_mb": 1524.3
+  }
+ }
+}
