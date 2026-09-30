@@ -1,0 +1,37 @@
+PASS: treatment lat/lon = Stage 3 within 1e-6 deg
+PASS: created/closed = Stage 3 (canonical)
+PASS: outage_duration_hours vs Stage 3 column - max |diff| 0.00e+00 h
+PASS: control lat/lon/x/y = site
+PASS: H3 cells = site cells (both roles, U1)
+PASS: borough/precinct = site modal labels
+PASS: pair_id format
+PASS: control_reuse_count = value_counts
+PASS: windows and treatment baselines copied
+PASS: row order = match_order
+PASS: schema = PAIRS_DTYPES minus bal_*
+PASS: all checks pass (canonical) - {'H5': 0, 'H6': 0, 'H7': 0, 'H8': 0, 'H9': 0, 'H12': 0, 'H14': 0}
+  H9 treatment-treatment: {'n_treatment_pairs_overlapping': 935, 'n_sites_with_overlap': 876, 'n_treatments_in_overlap': 1831}
+PASS: negative H5 not first-of-episode - failed ['H5'], H5 violations 1 (expected 1); 1 treatment is not the first complaint of its episode: 62705870_E307829_N52485
+PASS: negative H5 artifact site - failed ['H5'], H5 violations 2 (expected 2); 2 treatment site is an artifact: 62705870_E307829_N52485, 53097605_E309244_N53373
+PASS: negative H6 crime coverage cut - failed ['H6'], H6 violations 1 (expected 1); 1 W ends after crime coverage: 69125818_E315087_N59619
+PASS: negative H7 corrupted control x - failed ['H7'], H7 violations 1 (expected 1); 1 distance_m differs from the recomputed distance: 62705870_E307829_N52485
+PASS: negative H7 borough mismatch - failed ['H7'], H7 violations 1 (expected 1); 1 treatment and control boroughs differ or are missing: 65076442_E283335_N41681
+PASS: negative H8 caliper - failed ['H8'], H8 violations 1 (expected 1); 1 pairs outside the 250m caliper: 64141716_E302398_N47642
+PASS: negative H9 overlapping control uses - failed ['H9'], H9 violations 2 (expected 2); 2 control intervals overlap another interval at their site: 62705870_E307829_N52485, 65076442_E307829_N52485
+PASS: negative H9 control over treatment W - failed ['H9'], H9 violations 1 (expected 1); 1 control intervals overlap another interval at their site: 56508183_E306266_N47142
+PASS: negative H9 never reuse - violations 9825
+PASS: negative H12 duplicate pair_id - failed ['H12'], H12 violations 2 (expected 2); 2 duplicated pair_id: 62705870_E307829_N52485, 62705870_E307829_N52485
+PASS: negative H12 null required column - failed ['H12'], H12 violations 1 (expected 1); nulls in required columns: {'control_h3_res9': 1}
+PASS: negative H12 wrong dtype - failed ['H12'], H12 violations 1 (expected 1); 1 wrong dtypes: ['match_order: int64 != int32']
+PASS: negative H12 extra column - failed ['H12'], H12 violations 1 (expected 1); columns differ from the schema (missing [], extra ['extra'], or order)
+PASS: negative H14 clean > band - failed ['H14'], H14 violations 1 (expected 1); 1 pairs with band < clean: 62705870_E307829_N52485
+PASS: negative H14 reuse_blocked = caliper - failed ['H14'], H14 violations 1 (expected 1); 1 pairs with reuse_blocked > caliper - 1: 62705870_E307829_N52485
+PASS: all checks pass (never) - 17,623 pairs; TT overlaps {'n_treatment_pairs_overlapping': 935, 'n_sites_with_overlap': 876, 'n_treatments_in_overlap': 1831}
+PASS: all checks pass (pre_only) - 27,341 pairs; TT overlaps {'n_treatment_pairs_overlapping': 935, 'n_sites_with_overlap': 876, 'n_treatments_in_overlap': 1831}
+PASS: all checks pass (placebo 90) - 25,720 pairs; TT overlaps {'n_treatment_pairs_overlapping': 3482, 'n_sites_with_overlap': 2897, 'n_treatments_in_overlap': 6373}
+PASS: H9 endpoints: control interval == [w_start_s, w_end_s] of its treatment
+PASS: pairs stage passes on valid data; 935 treatment-treatment overlaps reported - {'n_treatment_pairs_overlapping': 935, 'n_sites_with_overlap': 876, 'n_treatments_in_overlap': 1831}
+PASS: fix-up: unresolved control_site_id is 1 recorded H9 violation; all 7 checks recorded; run fails - 1 control_site_id not found in sites: 62705870_E307829_N52485
+PASS: fix-up: unresolved eligible treatment_key is 1 recorded H9 violation; run fails - 1 eligible treatment_key not found in complaints: -1
+
+FAILS: none

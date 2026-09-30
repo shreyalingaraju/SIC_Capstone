@@ -1,0 +1,17 @@
+PASS: brute-force bal_* prior (300 pairs x 2 roles) - 0 mismatches
+PASS: brute-force bal_* density (300 pairs x 2 roles) - 0 mismatches
+PASS: brute-force bal_* pre (300 pairs x 2 roles) - 0 mismatches
+PASS: control pre counts: ball query == site crime index (all pairs)
+PASS: SMD/VR independent recomputation
+PASS: zero-variance rules
+PASS: D1 brute force (300) - 211 flagged
+PASS: D2 brute force (300) - 256 flagged
+PASS: D3 brute force (300) - 274 flagged
+PASS: D4 per-pair counts brute force (300) - 0 mismatches
+  D1 nearest other-treatment distance among flagged pairs: p10 157, p50 360, p90 462; share of all pairs with one <= 350 m: 0.3331, <= 250 m: 0.1935
+  controls with any complaint within 350 m during W (must be 0 under full_window): 0
+PASS: pre_only: H12 phase 2 - 27,341 pairs; matched_pass True; D1 0.871, D2 0.890, D2b 0.590, D3 0.934
+PASS: placebo 90: H12 phase 2 - 25,720 pairs; matched_pass True; D1 0.859, D2 0.850, D3 0.938
+PASS: exclusion 500: H12 phase 2 - 7,419 pairs; matched_pass True; D1 0.320, D2 0.000, D3 0.840
+
+FAILS: none

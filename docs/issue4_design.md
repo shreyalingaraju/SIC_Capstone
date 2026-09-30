@@ -717,14 +717,19 @@ The Phases 3–5 commit structure (S7) is recorded under Q12 in the decision log
 
 ## 8. Validation scripts and evidence (current state)
 
+Usage, runtimes and optional scripts are in [scripts/validation/README.md](../scripts/validation/README.md).
+
 | Script | Checks | Evidence |
 |---|---|---|
+| `commit04_validate.py` … `commit11_validate.py` (Phase 8), with the shared [_pipeline.py](../scripts/validation/_pipeline.py) | Stage 7 Commits 4–11: sites/H18, episodes/H3/H4, indexes/A13, rules, baselines/H15, matching, pairs and negative tests, balance and contamination | [evidence/stage7_commits/](evidence/stage7_commits/) |
 | [scripts/validation/commit12_validate.py](../scripts/validation/commit12_validate.py) | Stage 7: 40 checks (H10/H11 plus negative tests, H13, H16_post, determinism, schemas, backups) | [evidence/commit12/](evidence/commit12/): `commit12_validate.out`, the canonical scratch log and diagnostics, and `self_review.md` |
 | [scripts/validation/stage8_validate.py](../scripts/validation/stage8_validate.py) | Stage 8: 11 checks | [evidence/stage8/](evidence/stage8/) |
 | [scripts/validation/stage9_validate.py](../scripts/validation/stage9_validate.py) | Stage 9: 12 checks | [evidence/stage9/](evidence/stage9/) |
 | [scripts/validation/stage10_validate.py](../scripts/validation/stage10_validate.py) | Stage 10: 10 checks | [evidence/stage10/](evidence/stage10/) |
 
-All the evidence so far comes from **scratch runs** (`--out-dir` / `--out` in a temporary folder). `data/processed` and `outputs/` have not been written by any Issue 4 stage. Phase 8 (validation migration) and Phase 9 (acceptance runs) will replace or extend this; see [issue4_acceptance.md](issue4_acceptance.md).
+All the evidence so far comes from **scratch runs** (`--out-dir` / `--out` in a temporary folder). `data/processed` and `outputs/` have not been written by any Issue 4 stage.
+
+Phase 8 moved the Commit 4–11 review validators into the repository and re-ran them against the current modules. Phase 9 (acceptance runs) will produce the canonical evidence; see [issue4_acceptance.md](issue4_acceptance.md).
 
 ---
 
@@ -771,7 +776,8 @@ The M1–M8 list is taken from the final release review. No message explicitly a
 | `outputs/robustness/` in `.gitignore` | Q8 | **Done** in Phase 7 |
 | Delete the four empty legacy source files (`src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py`, `src/spatial_linking.py`) | Q10 | **Done** in Phase 7 |
 | Move the legacy results to `outputs/legacy_pre_issue4/` | Original Phase 7 plan | Not part of the Phase 7 scope given on 2026-09-30; not yet scheduled |
-| Validation migration (hardening the stage validators) | Phase 8 plan | Phase 8 |
+| Validation scripts in the repository (Commit 4–11 validators, shared helper, README) | Phase 8 plan | **Done** in Phase 8 |
+| Hardening the Stage 8–10 validators (acceptance doc §5, gaps V-1 to V-11) | Phase 3–5 review | Not in the original Phase 8 scope; not yet scheduled |
 | Canonical acceptance runs into `data/processed` | Phase 9 plan | Phase 9 |
 | `docs/acceptance_report.md`, `docs/release_readiness_review.md` | Q11 | Phases 9 and 10 |
 | M8 fixes (exposure normalisation, `baseline_crime_intensity`, the −7..0 gap) | M8 | Deferred; results stay provisional |

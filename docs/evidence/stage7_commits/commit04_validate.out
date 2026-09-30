@@ -1,0 +1,14 @@
+PASS: complaint order unchanged by step 5 (still unique_key order)
+PASS: site columns = SITES_DTYPES without the later columns
+PASS: determinism: two builds give identical sites and site_idx - 3caac291f911438c
+PASS: placebo leaves the sites unchanged (real dates, C4)
+PASS: H18 passes on the canonical sites - violations 0
+PASS: artifact threshold and count (canonical T = 44, 44 sites) - T 44, 44 artifact sites
+PASS: negative H18: a site at T flagged as artifact (ties are not artifacts) - 3 violations; 1 sites whose is_artifact differs from n_complaints > T (T = 44)
+PASS: negative H18: an artifact site unflagged - 1 violations; 1 sites whose is_artifact differs from n_complaints > T (T = 44)
+PASS: negative H18: n_complaints + 1 - 1 violations; 1 sites with a wrong n_complaints
+PASS: negative H18: a complaint moved to another site - 5 violations; 1 complaints assigned to a site with different rounded coordinates
+PASS: negative H18: a no-borough site marked eligible - 1 violations; 1 sites whose eligible_control differs from (not artifact and borough present)
+PASS: _modal_label: alphabetical tie-break, all-missing -> <NA>, conflicts counted - ['BROOKLYN', None, 'BRONX', None], conflicts 2
+
+FAILS: none

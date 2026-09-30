@@ -1,0 +1,24 @@
+PASS: canonical: 2,000-treatment brute force matches every reason code - 0 mismatches; sample reasons 0-8: [608, 130, 30, 156, 33, 0, 311, 499, 233]
+PASS: placebo: 2,000-treatment brute force matches every reason code - 0 mismatches; sample reasons 0-8: [756, 56, 18, 175, 34, 0, 319, 423, 219]
+PASS: rules 4-6 inputs identical in both runs (site, borough, real first-of-episode)
+PASS: placebo windows are the canonical windows moved back exactly 90 days
+PASS: placebo S-4 pre: exemption on/off identical for every treatment reaching rule 7 (shift > lag proof) - 74,999 treatments reach rule 7; raw flags differ only for 2,490 non-first-of-episode rows removed by rule 6
+PASS: placebo S-4 post: the exemption changes only treatments whose real outage >= 69 days - 5,175 treatments differ; min duration 69.00 d
+PASS: placebo S-4 post: removing the exemption can only add dirt, never remove it
+PASS: synthetic: complaint at exactly 100 m is considered - reason 7, expected 7
+PASS: synthetic: complaint at 100 m + 1e-7 is ignored - reason 0, expected 0
+PASS: synthetic: pre: e = c - 35 d is dirty - reason 7, expected 7
+PASS: synthetic: pre: e = c - 35 d - 1 s is clean - reason 0, expected 0
+PASS: synthetic: pre: s = c - 1 s is dirty - reason 7, expected 7
+PASS: synthetic: pre: s = c is clean (during only) - reason 0, expected 0
+PASS: synthetic: post: e = closed + 1 s is dirty - reason 8, expected 8
+PASS: synthetic: post: e = closed is clean (during only) - reason 0, expected 0
+PASS: synthetic: post: s = W_end is dirty - reason 8, expected 8
+PASS: synthetic: post: s = W_end + 1 s is clean - reason 0, expected 0
+PASS: synthetic: canonical pre: own-episode duplicate is exempt - reason 0, expected 0
+PASS: synthetic: canonical post: own-episode duplicate is dirty (C2) - reason 8, expected 8
+PASS: synthetic: canonical: the treatment complaint alone is never counted - reason 0, expected 0
+PASS: synthetic: placebo post: real outage of exactly 69 d is dirty - reason 8, expected 8
+PASS: synthetic: placebo post: real outage of 69 d - 1 s is clean - reason 0, expected 0
+
+FAILS: none

@@ -1,0 +1,16 @@
+PASS: complaint order unchanged (still unique_key order)
+PASS: site columns = SITES_DTYPES without the two later columns; n_episodes int32
+PASS: determinism: episodes, episode_id and sites identical in two builds
+PASS: placebo: episodes identical (real dates, C4)
+PASS: artifact complaints are single-complaint episodes (A7) - 4,735 artifact complaints
+PASS: exactly one first complaint per episode
+PASS: H3 and H4 pass on the canonical episodes - H3 0, H4 0; 701,062 links
+PASS: negative: first flag moved to another member (H3) - H3 fail, H4 pass; 2 complaints whose is_first_of_episode differs from the smallest (created_date, 
+PASS: negative: member moved to another episode (H3 and H4) - H3 fail, H4 fail; 2 episodes with a wrong n_complaints
+PASS: negative: episode end_s + 1 (H3) - H3 fail, H4 pass; 1 episode start_s/end_s values that differ from their complaints
+PASS: negative: site n_episodes + 1 (H3) - H3 fail, H4 pass; 1 sites with a wrong n_episodes
+PASS: negative: episode split, new id for one member (H4) - 1 overlapping complaint pairs within 25 m are in different episodes (e.g. 452840
+PASS: negative: one link dropped (H4) - rebuilt pair count 701,062 differs from the episode links 701,061
+PASS: F6: Stage 3 treatments that are first of their episode = 88,388 - 88,388 of 107,731
+
+FAILS: none

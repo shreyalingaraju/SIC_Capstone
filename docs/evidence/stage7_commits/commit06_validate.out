@@ -1,0 +1,32 @@
+PASS: dirty flags, 20 sites x 50 windows vs brute force - 0 mismatches
+PASS: crime direct/ring counts, 20 sites x 25 windows x 2 closures - 0 mismatches
+PASS: crime cell counts, 20 cells vs brute force - 0 mismatches
+PASS: window ending exactly at an interval start is dirty
+PASS: window starting exactly at an interval end is dirty
+PASS: window starting 1 s after the last end is clean
+PASS: empty segment (ineligible sites) is clean - 47 sites
+PASS: empty window a > b is clean
+PASS: empty window a > b counts 0
+PASS: start == end, half-open counts 0
+PASS: group -1 counts 0
+PASS: half-open [a, b) equals closed [a, b - 1]
+PASS: per-element windows equal one-by-one calls
+PASS: scalar window equals broadcast array window
+PASS: site out of range raises ValueError - [invalid group id] site_idx must be in [0, 46034)
+PASS: negative time raises ValueError - [malformed query window] window start must be in [0, 2**34) 
+PASS: time >= 2**34 raises ValueError - [malformed query window] window end must be in [0, 2**34) se
+PASS: group < -1 raises ValueError - [invalid group id] group_idx must be in [0, 131072) or -1
+PASS: build guard: negative time - index guard [invalid time range]: times must be in [0, 2**34) seconds
+PASS: build guard: group >= 2**17 - index guard [invalid group id]: group ids must be in [0, 131072)
+PASS: build guard: end >= 2**34 - index guard [invalid time range]: interval ends must be in [0, 2**34) 
+PASS: start ties: window [350, 360] sees the longest tied interval
+PASS: start ties: window [401, 500] is clean
+PASS: running max resets per site
+PASS: complaint at exactly 350 m is dirty
+PASS: complaint 1e-7 m beyond 350 m is excluded (only 2 entries at site 0)
+PASS: crime at exactly 100 m is direct; 1e-7 m beyond is ring - direct 2 (100 m, 99.9999999 m), ring 2 (100.0000001 m, 250 m)
+PASS: crime 1e-7 m beyond 250 m is excluded
+PASS: determinism: two builds are byte-identical - 8e1926350c5c55ad
+PASS: placebo: indexes identical (real dates, C4)
+
+FAILS: none

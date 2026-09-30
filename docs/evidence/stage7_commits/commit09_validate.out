@@ -1,0 +1,30 @@
+pipeline 28.5 s, pairs 20051
+PASS: distance_m equals explicit formula
+PASS: 500 <= d <= 1500
+PASS: same borough
+PASS: control eligible
+PASS: caliper (H8 form)
+PASS: band >= clean >= caliper >= 1
+PASS: 0 <= reuse_blocked <= caliper - 1
+PASS: treatment_key unique, disjoint
+PASS: control site != treatment site
+PASS: no control interval overlaps another interval at its site - 0 violations
+PASS: reason codes 9-12 only
+PASS: reason matches counts
+PASS: brute-force band/clean/caliper/ranking (150 treatments) - 0 mismatches, 23 s
+PASS: independent greedy replay - 0 mismatches, 20051 pairs, 16 s
+PASS: determinism (seed 42 x2)
+  seed 42 again  eligible 33,152 pairs 20,051 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 2796, 'NO_CANDIDATE_IN_CALIPER': 8556, 'REUSE_CONFLICT': 1745} sites 14,393 max reuse 12 prereg 643
+  seed 101       eligible 33,152 pairs 20,011 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 2796, 'NO_CANDIDATE_IN_CALIPER': 8556, 'REUSE_CONFLICT': 1785} sites 14,416 max reuse 11 prereg 645
+  seed 202       eligible 33,152 pairs 19,996 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 2796, 'NO_CANDIDATE_IN_CALIPER': 8556, 'REUSE_CONFLICT': 1800} sites 14,380 max reuse 9 prereg 650
+PASS: replay never - 0 mismatches
+PASS: never: each control site once
+  never          eligible 33,152 pairs 17,623 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 2796, 'NO_CANDIDATE_IN_CALIPER': 8556, 'REUSE_CONFLICT': 4173} sites 17,623 max reuse 1 prereg 981
+PASS: replay pre_only - 0 mismatches
+PASS: brute force pre_only (40) - 0 mismatches
+  pre_only       eligible 33,152 pairs 27,341 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 408, 'NO_CANDIDATE_IN_CALIPER': 4560, 'REUSE_CONFLICT': 839} sites 18,951 max reuse 7 prereg 1542
+  caliper 0.2    eligible 33,152 pairs 12,154 reasons {'NO_CANDIDATE_IN_BAND': 4, 'NO_CLEAN_CANDIDATE': 2796, 'NO_CANDIDATE_IN_CALIPER': 17354, 'REUSE_CONFLICT': 844} sites 9,653 max reuse 7 prereg 328
+PASS: replay placebo 90 - 0 mismatches
+  placebo 90     eligible 39,882 pairs 25,720 reasons {'NO_CANDIDATE_IN_BAND': 7, 'NO_CLEAN_CANDIDATE': 1919, 'NO_CANDIDATE_IN_CALIPER': 9227, 'REUSE_CONFLICT': 3009} sites 17,328 max reuse 8 prereg 3205
+
+FAILS: none

@@ -165,15 +165,15 @@ The approved Step 2–4 asserts and design §12 hard check 7 ("The S8 panel inva
 
 ### 4.2 Not yet available (no phase assigned yet)
 
-- A permanent check of the item 11 "alone" condition. Only the Commit 7 scratchpad validator exists.
+- A permanent check of the item 11 "alone" condition. `scripts/validation/commit07_validate.py` (Phase 8) brute-forces every rule-1–8 reason code on 2,000 treatments, but it does not test the "alone" condition directly.
 - An independent check of the Stage 9 standard errors against LSDV or an external implementation. Only the coefficients and the paired-mean SE are checked.
 - A cross-stage test that the Stage 7 locked constants (radii, windows) equal the Stage 8 and 10 constants.
 
 ---
 
-## 5. Validation gaps (known, to be considered in Phase 8)
+## 5. Validation gaps (known; open)
 
-These come from the Phase 3–5 review. None of them blocks the documentation.
+These gaps come from the Phase 3–5 review. They are not part of the original Phase 8 scope, which moved the review validators into the repository ([scripts/validation/README.md](../scripts/validation/README.md)). They remain open and are not yet scheduled. None of them blocks the documentation.
 
 | # | Gap |
 |---|---|

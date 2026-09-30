@@ -1,0 +1,17 @@
+PASS: canonical: 2,000-treatment brute force matches base_100m and base_250m - 0 mismatched counts
+PASS: canonical: SDs equal an independent sample SD (pandas, ddof=1) - sd_100 1.104198578, sd_250 1.197277869
+PASS: canonical: z = log1p(count) / SD with no centring
+PASS: canonical: B is exactly 365 days for every treatment
+PASS: placebo: 2,000-treatment brute force matches base_100m and base_250m - 0 mismatched counts
+PASS: placebo: SDs equal an independent sample SD (pandas, ddof=1) - sd_100 1.094614785, sd_250 1.187580953
+PASS: placebo: z = log1p(count) / SD with no centring
+PASS: placebo: B is exactly 365 days for every treatment
+PASS: synthetic: d = 100 is direct; 100 + 1e-7 is ring; 250 is ring; 250 + 1e-7 excluded; t = b_start and b_end - 1 counted; b_end and b_start - 1 not - base_100m 3 (expect 3), base_250m 2 (expect 2)
+PASS: H15: valid scales pass
+PASS: H15: sd_100 = 0 fails - sd_100 must be finite and > 0 (got 0.0)
+PASS: H15: sd_250 = nan fails - sd_250 must be finite and > 0 (got nan)
+PASS: H15: sd_100 = inf fails - sd_100 must be finite and > 0 (got inf)
+PASS: H15: no eligible treatments fails - no eligible treatments
+PASS: H15: a single treatment gives a non-finite sample SD and fails
+
+FAILS: none
