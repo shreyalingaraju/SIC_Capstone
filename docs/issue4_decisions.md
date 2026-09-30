@@ -22,7 +22,7 @@ Written for: capstone reviewers checking what was decided, when, by whom and whe
 - **Documented:** a documentation requirement, met by this Phase 6 documentation.
 - **Not implemented:** for example D11 = No.
 - **Pending:** approved but not yet done.
-- **Needs sign-off:** implemented but never explicitly approved.
+- **Needs sign-off:** implemented but never explicitly approved. The only such items, S1–S7, were approved on 2026-09-30 (§11).
 
 **Rationale** is quoted or closely paraphrased from the proposal or approval. Where the record gives none, the entry says **"not recorded"**.
 
@@ -78,11 +78,11 @@ All approved together (T1 L224, **2026-09-26T17:16:51Z**). They were implemented
 | D13 | Primary clustering on the H3 res-7 cell of the treatment site. Review verdict: robustness by pair, two-way (T cell, C cell) and precinct; report cluster counts | Both pair members and reused sites were meant to share clusters (§10). The review found that many controls fall in another cell | Implemented | `25cc596`, `f804a78`; columns `e273ffb` | [did_model.py](../src/models/did_model.py) `cluster_schemes`; [event_study.py](../src/models/event_study.py) `CLUSTER_COLUMN` |
 | D14 | Remove the duplicate `event_study.py` copy, as its own commit | Otherwise every edit has to be made twice | Implemented | `5c4fca1` | [event_study.py](../src/models/event_study.py) |
 | D15 | Stage 9 FE unit = `unit_id` (pair × role) | Each unit then has 3 periods and constant treatment, as the demeaning assumes | Implemented | `9624b45`, `25cc596`, `f804a78` | `two_way_demean`; `estimate` |
-| D16 | Realign notebooks 05–08 after `src/` is validated | As Issue 1–3 D5 | Pending: banners in Phase 7 (phase plan Q7); full realignment deferred | none | notebooks |
+| D16 | Realign notebooks 05–08 after `src/` is validated | As Issue 1–3 D5 | Pending: banners (phase plan Q7) not yet scheduled; full realignment deferred | none | notebooks |
 | D17 | Episodes merge sites within 25 m; sites above the 0.999 quantile of complaints are artifacts, excluded from both roles | 1 m rounding splits one pole into several sites; geocoder fallback points (for example 940 complaints in Central Park) are not streetlights | Implemented | `4007672`, `7fc8065` | `build_sites`, `build_episodes` |
 | D18 | Placebo re-matches on shifted dates, with W, B and the clean rules all shifted | A placebo inside B, where matching equalised crime, would be biased toward a null | Implemented (Stage 7); the runner is deferred | `e2d88fa`, `7039dcf`, `6cae561`, `9ce8542` | `--placebo-shift-days`; `H16`, `H16_post` |
 | D19 | Robustness set, one change at a time: exclusion 250/500; band max 2,000; caliper 0.2; never-reuse; pre-buffer 0; imputed duration 50/720 h; ITT controls; S8 pre = [−21, −7); 5 seeds | A full grid is 96+ runs (hours) | Parameters implemented (Stage 7 CLI; Stage 8 `--pre-window shifted`); the grid runner is deferred (phase plan Q6) | `a740307`, `9624b45` | `SENSITIVITY_FIELDS`; `--pre-window` |
-| D20 | Add the paired-difference estimate and effects by baseline tercile and by year to Stage 9 | Each pair shares identical windows, so a simple mean cross-checks the regression; the estimand changes | Implemented. The tercile and year **definitions need sign-off** (§11) | `25cc596` | `paired_differences`, `paired_estimates` |
+| D20 | Add the paired-difference estimate and effects by baseline tercile and by year to Stage 9 | Each pair shares identical windows, so a simple mean cross-checks the regression; the estimand changes | Implemented. The tercile and year definitions were approved as S4 and S5 (§11) | `25cc596` | `paired_differences`, `paired_estimates` |
 
 ---
 
@@ -294,10 +294,10 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 | Q4 | Full Step 4 scope, D14 as its own commit, `unit_id` FE, H3 res-7 clustering | Implemented | `5c4fca1`, `f804a78` |
 | **Q5** | **Stage 7 pair columns are the authoritative treatment geometry source.** "Record as a documented deviation from Design §9 with rationale (single source of truth, H1 already guarantees agreement)." | Implemented; documented ([issue4_design.md §7.1](issue4_design.md)) | `9624b45` |
 | Q6 | Step 5 (`robustness.py`, D18/D19 grid) out of scope; record it as open | Deferred | none |
-| Q7 | Stale banners on notebooks 05–08 only | Pending (Phase 7) | none |
-| Q8 | Add `outputs/robustness/` to `.gitignore` | **Pending: not yet done** | none |
+| Q7 | Stale banners on notebooks 05–08 only | Pending: not part of the Phase 7 scope given on 2026-09-30, and not yet scheduled | none |
+| Q8 | Add `outputs/robustness/` to `.gitignore` | Implemented in Phase 7; all existing rules kept | Phase 7 commit; [.gitignore](../.gitignore) |
 | **Q9** | **Back up `causal_panel.parquet` exactly as proposed**, with hash verification and no overwrite | Implemented | `9624b45` (`preserve_legacy_panel`) |
-| Q10 | Delete the four empty legacy source files and mention it in the implementation report | **Pending: not yet done** | none |
+| Q10 | Delete the four empty legacy source files and mention it in the implementation report | Implemented in Phase 7. Deleted `src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py` and `src/spatial_linking.py`. Each was 0 bytes and unchanged since the initial scaffold (`aa04120`), with no imports or references in `src/`, `scripts/`, notebooks or tests. `src/__init__.py` and `src/data/__init__.py` are empty package markers, not stubs, and were kept. The live module `src/features/spatial_linking.py` (S6) is unaffected | Phase 7 commit |
 | Q11 | Reports at `docs/acceptance_report.md` and `docs/release_readiness_review.md` | Pending (Phases 9, 10) | none |
 | Q12 | One commit per phase; review stops after Phases 2, 5 and 9; no push or merge to `main` until acceptance is complete | In force | none |
 
@@ -307,7 +307,21 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 3. Do not regenerate Stage 9/10 results for publication while M8 is open.
 4. Write the Stage 8–10 migration note before modifying those stages. Done in `a4a9b89`.
 
-**Q12 wording:** the proposal said "one commit per phase (5a/5b split)". The approval says "One commit per phase". Phases 3–5 were delivered as five commits (`a4a9b89`, `9624b45`, `25cc596`, `5c4fca1`, `f804a78`), because Q4 requires D14 in its own commit. Whether this satisfies Q12 **needs verification** by the reviewer.
+**Q12 interpretation (approved as S7, 2026-09-30T16:01:39Z):**
+- Q12 says "one commit per phase". The proposal also mentioned a "5a/5b split", which the approval did not repeat.
+- Phases 3–5 were delivered as **five commits**, and **this was intentional**:
+
+  | Commit | Content |
+  |---|---|
+  | `a4a9b89` | Migration note |
+  | `9624b45` | Stage 8 |
+  | `25cc596` | Stage 9 |
+  | `5c4fca1` | D14 deletion |
+  | `f804a78` | Stage 10 |
+
+- **Why:** the separately approved Q4 requires D14 (the `event_study.py` duplicate removal) to be its own commit. Phase 5 therefore needs at least two commits. Additional instruction 4 required the migration note to exist before Stage 8–10 were modified.
+- The five commits are accepted in substance as satisfying Q12. **Git history is not rewritten, squashed or restructured.**
+- From Phase 6 on, each phase is one commit (Phase 6 = `932b374`).
 
 ---
 
@@ -320,7 +334,7 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 | Stage 9 migration | Design §10 + D13 (review form) + D15 + D20 | Implemented | `25cc596` |
 | Stage 10 D14 deletion | Its own commit (Q4) | Implemented | `5c4fca1` |
 | Stage 10 migration | Design §11 + D13 + D15; week labels corrected (F5); −7..0 gap flagged, not fixed | Implemented | `f804a78` |
-| Phase 3–5 approval | **No approval in T3** (the package at T3 L1085, 2026-09-28T18:22:05Z, has no reply). In T4 (**2026-09-30T15:21:49Z**) the user reports: "The Phase 3–5 independent review has been completed. Its verdict is: No blocking issues found. Stage 8, Stage 9 and Stage 10 are considered implementation-correct." | Accepted by the user as implementation-correct; the items in §11 remain open | none |
+| Phase 3–5 approval | **No approval in T3** (the package at T3 L1085, 2026-09-28T18:22:05Z, has no reply). In T4 (**2026-09-30T15:21:49Z**) the user reports: "The Phase 3–5 independent review has been completed. Its verdict is: No blocking issues found. Stage 8, Stage 9 and Stage 10 are considered implementation-correct." | Accepted by the user as implementation-correct. The §11 sign-off items were approved on 2026-09-30T16:01:39Z | none |
 
 ---
 
@@ -332,19 +346,19 @@ Proposed in the final release review (T3 L631, 2026-09-28T17:22:24Z; text in [is
 
 ---
 
-## 11. Open items requiring explicit sign-off
+## 11. Sign-off items S1–S7 (approved)
 
-These are implemented, but no approval exists in the record. They are **not** frozen decisions.
+These items were implemented in Phases 3–5 before any approval existed. The user approved all seven in T4 at **2026-09-30T16:01:39Z** ("The following S1–S7 items … are now approved"). They are now frozen decisions. No code changed as a result: the approved form of each is what was already implemented.
 
-| # | Item | Implemented as | Source of the gap |
-|---|---|---|---|
-| S1 | Two-way clustering form | (`treatment_h3_res7`, `control_h3_res7`), following the D13 review verdict. The design D13 table and §10 say "(treatment site, control site)". Confirm the review form | Design/review discrepancy |
-| S2 | Missing precinct | One `<missing>` cluster (101 canonical pairs) | Implementation detail, not separately approved |
-| S3 | Minimum primary clusters | A hard stop below 50. The review said "it must be at least 50" (reporting) | Stricter than the original requirement |
-| S4 | D20 "by year" | Calendar year of `created_date` | Not specified in the approved text |
-| S5 | D20 terciles | Quantile edges (1/3, 2/3) of the treatment's log1p(`base_100m`); ties at an edge go to the lower tercile | Not specified in the approved text |
-| S6 | Stage 10 additional outputs | `event_study_summary.json`, "(provisional)" plot title, byte-reproducible PNG | §11 said outputs unchanged |
-| S7 | Q12 commit rhythm for Phases 3–5 | Five commits (§8) | Wording of Q12 |
+| # | Item | Approved decision (T4, 2026-09-30T16:01:39Z) | Implementation | Commit(s) |
+|---|---|---|---|---|
+| S1 | Two-way clustering form | Use (`treatment_h3_res7`, `control_h3_res7`). The user states that this **is** the "(treatment site, control site)" form, read as the H3 res-7 cells of the two sites. This resolves the design-table/review-verdict discrepancy. "Do not change this." | `cluster_schemes`, scheme `twoway_treatment_control_h3_res7` | `25cc596` |
+| S2 | Missing precinct | Every missing-precinct observation goes into one `<missing>` cluster; the documented canonical count is 101 pairs. There are never several missing clusters. | `cluster_schemes` (`fill="<missing>"`) | `25cc596` |
+| S3 | Minimum primary clusters | A hard stop below 50 primary clusters: the analysis fails rather than proceeding silently | `MIN_CLUSTERS = 50`; `main` raises `ValueError` | `25cc596` |
+| S4 | D20 "by year" | Calendar year of `created_date`; no other year definition | `paired_differences` (`year`) | `25cc596` |
+| S5 | D20 baseline terciles | The treatment observations' log1p(`base_100m`); quantile edges at 1/3 and 2/3; a value exactly on an edge goes to the **lower** tercile. No equal-width bins and no other baseline variable. | `paired_estimates` (`<= q1` → T1, `<= q2` → T2) | `25cc596` |
+| S6 | Stage 10 additional outputs | `event_study_summary.json` and the "(provisional)" plot title are accepted; the PNG stays byte-reproducible. These are output and diagnostic requirements only and do not change the estimand or the methodology. | `build_event_study_data`, `save_plot` | `f804a78` |
+| S7 | Phases 3–5 commit structure | The five commits `a4a9b89`, `9624b45`, `25cc596`, `5c4fca1`, `f804a78` are accepted in substance, because Q4 required D14 in its own commit. No history rewrite, squash or re-structuring. See the Q12 note in §8. | none | see §8 |
 
 ---
 

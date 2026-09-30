@@ -225,6 +225,6 @@ Full descriptions and evidence are in [docs/issue4_design.md §9](docs/issue4_de
 - **`outputs/`** (`did_summary.json`, `did_regression_results.txt`, `event_study_coefficients.csv`, `event_study_plot.png`) holds **pre-Issue-4 results**.
   - They were produced with the old control design, in which every control was itself a treated outage.
   - They are **not current results**. They must not be cited or compared with Issue 4 standard errors.
-  - They stay in place during Phase 6; Phase 7 will move them to `outputs/legacy_pre_issue4/`.
+  - They stay in place for now. Moving them to `outputs/legacy_pre_issue4/` is planned but not yet scheduled; it was not part of the Phase 7 scope.
 - **`data/processed/`** (git-ignored) still holds the pre-Issue-4 `control_area_pairs.parquet` and `causal_panel.parquet`. Stages 9 and 10 reject that panel because it has no `unit_id`. The first canonical Issue 4 runs (Phase 9) will back them up as `*.pre_issue4.parquet`.
-- **Notebooks 05–08** show the old schema and stale outputs. Stale banners are planned for Phase 7 and full realignment is deferred. The pipeline runs from `src/`, not from the notebooks.
+- **Notebooks 05–08** show the old schema and stale outputs. Stale banners (Q7) are approved but not yet scheduled, and full realignment is deferred. The pipeline runs from `src/`, not from the notebooks.

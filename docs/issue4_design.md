@@ -15,7 +15,7 @@ Written for: capstone reviewers and anyone who will run, check or extend the Iss
 | **[FROZEN]** | An approved design decision. It changes only through a new, explicit approval. |
 | **[IMPL]** | An implementation detail that follows from frozen decisions, or that was approved as an implementation choice. |
 | **[DEVIATION]** | Differs from the written design. The authorisation is stated, or it is marked as needing sign-off. |
-| **[SIGN-OFF]** | Implemented, but never explicitly approved. It is not a frozen decision until someone approves it. |
+| **[SIGN-OFF]** | Implemented, but never explicitly approved. It is not a frozen decision until someone approves it. (The S1–S7 items were approved on 2026-09-30; none remain.) |
 | **[LIMITATION]** | A known weakness that is recorded, not fixed. |
 | **[DEFERRED]** | Approved or identified work that has not been done. |
 
@@ -92,7 +92,7 @@ Stage 7 is the only place where the control universe, darkness, eligibility and 
 | S8 | The 29 pair columns in `PAIR_COLUMNS` ([build_causal_panel.py:78](../src/features/build_causal_panel.py#L78)) | `ValueError`: "is not an Issue 4 Stage 7 pairs file" |
 | S9 | Panel columns in `REQUIRED_COLUMNS` ([did_model.py:69](../src/models/did_model.py#L69)); exactly 3 rows per `unit_id` | `ValueError` |
 | S10 | Panel columns in `UNIT_COLUMNS` ([event_study.py:100](../src/models/event_study.py#L100)); unit geometry present | `ValueError` |
-| Notebooks 05–08 | Old pair and panel schemas | Stale. Banners are Phase 7 (Q7); full realignment is deferred (D16). |
+| Notebooks 05–08 | Old pair and panel schemas | Stale. Banners (Q7) are approved but not yet scheduled; full realignment is deferred (D16). |
 | `dashboard/`, `paper/` | No references to the S7–S10 outputs were found (`git grep`) | none |
 
 **[IMPL] Cross-stage contracts** are locked constants in Stage 7 and checked by H0: `DIRECT_RADIUS_M = 100`, `OUTCOME_RADIUS_M = 250`, `S8_PRE_WINDOW_DAYS = 14`, `POST_WINDOW_DAYS = 14`, `EVENT_WINDOW_DAYS = 35`, and the Stage 3 validity rule 0.5–8,760 h. Stages 8 and 10 repeat the same values as their own constants.
@@ -579,7 +579,7 @@ All Stage 9 standard errors use statsmodels' cluster-robust estimator (`cov_type
 | Precinct | `treatment_police_precinct`; a missing precinct becomes one `<missing>` cluster | Robustness: basic OLS and FE DiD | 78 = 77 observed precinct values + 1 `<missing>` cluster (101 pairs) |
 
 - **Minimum:** the primary scheme must have at least 50 clusters, **otherwise the run stops** (§7.2 item 4). Cluster counts for every scheme are written to `did_summary.json` (`dataset.n_clusters`) and to the results text.
-- **Two-way form:** see §7.2 item 2 for the design/review discrepancy.
+- **Two-way form:** approved as S1; see §7.2 item 2.
 
 **Observed cluster structure** (canonical scratch panel). These are properties of the implemented, approved clustering, not recommendations:
 - **49.4%** of pairs have their treatment and control in different primary H3 res-7 cells.
@@ -594,7 +594,7 @@ All Stage 9 standard errors use statsmodels' cluster-robust estimator (`cov_type
 
 Evidence status: the cluster counts are in [evidence/stage9/stage9_validate.out](evidence/stage9/stage9_validate.out). The share and reuse figures above were computed during the Phase 3–5 independent review on the canonical scratch panel (sha256 `eaa0cd74…`). They are **not yet stored as repository evidence**; Phase 9 is to regenerate and store them.
 
-### 5.5 Paired-difference estimate [FROZEN: D20; details marked SIGN-OFF]
+### 5.5 Paired-difference estimate [FROZEN: D20; subgroup details approved as S4, S5]
 
 - **Per pair:**
   - dd_during = (T_during − T_pre) − (C_during − C_pre)
@@ -602,7 +602,7 @@ Evidence status: the cluster counts are in [evidence/stage9/stage9_validate.out]
 - Computed for both outcomes. Each estimate is the mean over pairs, with the CR1 SE clustered on `treatment_h3_res7`.
 - **Equivalence** [IMPL, asserted]: in the balanced 1:1 panel the overall mean equals the two-way FE coefficient. The run stops if they differ by more than 1e-9.
   - This assertion does not detect a NaN mean; see [issue4_acceptance.md](issue4_acceptance.md), Validation gaps.
-- **Subgroups** [SIGN-OFF, §7.2 item 5]:
+- **Subgroups** [FROZEN: S4, S5; §7.2 item 5]:
   - **By baseline tercile:** tercile of the treatment's log1p(`base_100m`), with edges at the 1/3 and 2/3 quantiles (`numpy.quantile` defaults) and ties at an edge going to the lower tercile. Canonical edges are log 2 and log 6 (`base_100m` = 1 and 5). The group sizes are unequal: 6,845 / 6,911 / 6,295 pairs.
   - **By year:** the calendar year of the pair's `created_date`.
   - Each subgroup gets its own cluster count. Subgroups with fewer than 2 clusters report the mean without an SE.
@@ -622,7 +622,7 @@ python src/models/did_model.py [--panel PATH] [--out DIR]
   - the cluster variable, the FE unit and the cluster counts per scheme;
   - every model's interaction terms;
   - `robustness_clustering` and `paired_difference`.
-- **[LIMITATION] The default `--out` overwrites the tracked legacy files in `outputs/`,** which have no backup. Until Phase 7 moves the legacy outputs, run Stage 9 only with a scratch `--out`.
+- **[LIMITATION] The default `--out` overwrites the tracked legacy files in `outputs/`,** which have no backup. Until the legacy outputs are moved (not yet scheduled), run Stage 9 only with a scratch `--out`.
 
 ---
 
@@ -683,7 +683,7 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
   - `event_study_summary.json` (strict JSON).
 - **The summary contains:** status, panel path, observations, units, pairs, FE, cluster variable and count, week windows, the pre-trend test and the coefficients.
   - It records the panel **path only**, with no sha256, unlike Stage 9.
-- **[LIMITATION]** As with Stage 9, the default `--out` overwrites the tracked legacy files in `outputs/`. Use a scratch `--out` until Phase 7.
+- **[LIMITATION]** As with Stage 9, the default `--out` overwrites the tracked legacy files in `outputs/`. Use a scratch `--out` until the legacy outputs are moved.
 
 ---
 
@@ -699,17 +699,19 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 | 9 | **Additional Stage 8 panel columns** beyond design §7: `role`, `location_x_m/y_m`, `treatment_h3_res7`, `control_h3_res7`, `treatment_police_precinct`. They are additive and support D13 and §11. The design §7 columns are all present. | Additive implementation detail |
 | 10 | **The shifted pre-window changes `baseline_crime_intensity`.** It is defined as the unit's pre-window 100 m count, so with `--pre-window shifted` it follows the shifted window on every row. This is a consequence of the unchanged definition (M8), not a new rule. | Follows the frozen definition |
 
-### 7.2 Deviations and details that need explicit sign-off
+### 7.2 Deviations approved by sign-off (S1–S6, 2026-09-30)
 
-These are implemented as described. **They are not frozen design decisions** until they are explicitly approved.
+These items were implemented in Phases 3–5 without an explicit approval. All of them were approved on **2026-09-30** (decision log §11, S1–S6) exactly as implemented, and are now **[FROZEN]**. No code changed.
 
-| # | Item | What the approved text says | What is implemented | Status |
+| # | Item | Earlier approved text | Implemented and approved | Sign-off |
 |---|---|---|---|---|
-| 2 | **Two-way clustering form** | The design D13 row and §10: "two-way clustering by (treatment site, control site) for the OLS models". The review verdict approved with D13: "robustness by pair, two-way (T cell, C cell) and precinct; report cluster counts". The phase plan (Q3) follows the review form. | (`treatment_h3_res7`, `control_h3_res7`) for basic OLS and FE DiD | The implementation follows the review verdict. The **discrepancy** between the design table and the review verdict is recorded here; confirm the review form is the approved one. |
-| 3 | **Missing precinct** | "police precinct as robustness" (review C, D13 verdict). Nothing on missing values. | A missing `treatment_police_precinct` is one `<missing>` cluster (101 pairs) | **Implementation detail, not separately approved. Needs sign-off.** |
-| 4 | **Minimum 50 primary clusters** | "Report the number of clusters (it must be at least 50)" (review C) | Fewer than 50 raises `ValueError` and stops the run | **Stricter than the original requirement** (a hard stop). Needs sign-off. |
-| 5 | **D20 subgroup definitions** | "effects by baseline tercile and by year" (review C, D20) | "Year" = the calendar year of `created_date`. Terciles = quantile edges of the **treatment's** log1p(`base_100m`), ties to the lower tercile. | **Implementation details requiring explicit sign-off.** Not specified in the approved text. |
-| 7 | **Stage 10 extra outputs** | §11: "Unchanged: … the outputs" | Adds `event_study_summary.json`, the "(provisional)" plot title, the `Agg` backend and a PNG with no Software tag | Additive implementation behaviour. Needs sign-off if outputs must be strictly unchanged. |
+| 2 | **Two-way clustering form** | Design D13 row and §10: "(treatment site, control site)"; review verdict: "two-way (T cell, C cell)" | (`treatment_h3_res7`, `control_h3_res7`) for basic OLS and FE DiD. The sign-off states that this is the "(treatment site, control site)" form, read as the sites' res-7 cells, which resolves the discrepancy. | S1 |
+| 3 | **Missing precinct** | "police precinct as robustness"; nothing on missing values | Every missing `treatment_police_precinct` goes into one `<missing>` cluster (101 canonical pairs); there are never several | S2 |
+| 4 | **Minimum 50 primary clusters** | "it must be at least 50" | A hard stop: fewer than 50 raises `ValueError`, and the analysis fails rather than proceeding | S3 |
+| 5 | **D20 subgroup definitions** | "by baseline tercile and by year" | Year = the calendar year of `created_date`. Terciles = the treatment observations' log1p(`base_100m`), quantile edges at 1/3 and 2/3, a value on an edge going to the lower tercile | S4, S5 |
+| 7 | **Stage 10 extra outputs** | §11: "Unchanged: … the outputs" | `event_study_summary.json` and the "(provisional)" plot title are accepted; the PNG stays byte-reproducible. Output and diagnostic behaviour only; the estimand and methodology are unchanged | S6 |
+
+The Phases 3–5 commit structure (S7) is recorded under Q12 in the decision log §8.
 
 ---
 
@@ -765,10 +767,10 @@ The M1–M8 list is taken from the final release review. No message explicitly a
 | Item | Source | Status |
 |---|---|---|
 | Step 5 `src/models/robustness.py`: the D18/D19 grid through S7 → S8 → S9 into `outputs/robustness/<run_id>/` | Q6 | Out of scope for this cycle; open item for the release documents |
-| Notebooks 05–08 | D16, Q7 | Stale banners in Phase 7; full realignment deferred |
-| `outputs/robustness/` in `.gitignore` | Q8 | Approved; **not yet done** |
-| Delete the four empty legacy source files (`src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py`, `src/spatial_linking.py`) | Q10 | Approved; **not yet done** |
-| Move the legacy results to `outputs/legacy_pre_issue4/` | Phase 7 plan | Phase 7 |
+| Notebooks 05–08 | D16, Q7 | Stale banners approved but not yet scheduled; full realignment deferred |
+| `outputs/robustness/` in `.gitignore` | Q8 | **Done** in Phase 7 |
+| Delete the four empty legacy source files (`src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py`, `src/spatial_linking.py`) | Q10 | **Done** in Phase 7 |
+| Move the legacy results to `outputs/legacy_pre_issue4/` | Original Phase 7 plan | Not part of the Phase 7 scope given on 2026-09-30; not yet scheduled |
 | Validation migration (hardening the stage validators) | Phase 8 plan | Phase 8 |
 | Canonical acceptance runs into `data/processed` | Phase 9 plan | Phase 9 |
 | `docs/acceptance_report.md`, `docs/release_readiness_review.md` | Q11 | Phases 9 and 10 |

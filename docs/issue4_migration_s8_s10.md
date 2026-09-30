@@ -82,5 +82,5 @@ The new Stage 7 writes `control_area_pairs.parquet` with a different unit of ana
 ## Out of scope (recorded as open)
 
 - Step 5 `robustness.py` (the D18/D19 grid through S7→S8→S9).
-- Full realignment of notebooks 05–08 (only stale banners, Phase 7).
+- Full realignment of notebooks 05–08 (only stale banners are approved, Q7; not yet scheduled).
 - M8 defects: S8 exposure normalisation, `baseline_crime_intensity`, the −7…0 gap.

@@ -28,6 +28,8 @@ Written for: the Issue 4 reviewer and whoever runs Phase 9. It is the authoritat
 - Commit 12 was approved (decision log §5.1) with the status "X1–X3, R1–R4, E1–E3, H10, H11, H13, H16_post, determinism, diagnostics, safe output writing, backup handling, validation package: PASS".
 - Commit 11 was reviewed with no blocking defects, but there is no standalone approval message.
 - Phases 3–5 were independently reviewed with no blocking issues (decision log §9).
+- The S1–S7 sign-off items were approved on 2026-09-30 (decision log §11).
+- Phase 7 (Q8 `.gitignore`, Q10 stub deletion) is done.
 
 ---
 
@@ -109,6 +111,11 @@ Phase 9 must re-report the balance-only table and confirm that no other flag fai
 - The single-commit requirement of item 20 is replaced by the approved 12-commit rollout plan.
 - The **`baseline-pre-issue4` tag requirement remains**, and it is satisfied.
 
+**Q12 commit rhythm (after Step 1).**
+- Q12 asks for one commit per phase.
+- Phases 3–5 were intentionally delivered as five commits, because Q4 required D14 in its own commit and the migration note had to come first.
+- This interpretation was approved as S7 on 2026-09-30. Git history is left as it is (decision log §8).
+
 ### 2.4 Determinism failure behaviour (item 14; approved 2026-09-28, Phase 6 request D1)
 
 With `--check-determinism`, Stage 7 re-runs steps 12–13 (a fresh reuse registry, band lists and matching) and compares them with the first pass. Any of the following is a **hard failure**:
@@ -135,7 +142,8 @@ The approved Step 2–4 asserts and design §12 hard check 7 ("The S8 panel inva
 | Step 3: FE on `unit_id`; D13 clustering with cluster counts; D20 | **Met (scratch)**: 193 primary clusters (≥ 50); paired mean = FE (4 terms) | stage9_validate | `25cc596` |
 | Step 4: D14 as its own commit; `unit_id` FE; H3 res-7 clustering; week-label docs | **Met**: D14 verified as a pure deletion reproducing the legacy CSV (Phase 3–5 review) | stage10_validate; review | `5c4fca1`, `f804a78` |
 | Phase 3–5 independent review | **No blocking issues found** (reported 2026-09-30) | decision log §9 | none |
-| Sign-off items S1–S7 (decision log §11) | **Open**: need explicit approval | [issue4_design.md §7.2](issue4_design.md) | none |
+| Sign-off items S1–S7 (decision log §11) | **Approved** 2026-09-30T16:01:39Z, as implemented; no code change | [issue4_design.md §7.2](issue4_design.md) | `25cc596`, `f804a78` |
+| Phases 3–5 commit structure (Q12, S7) | **Accepted.** The five commits were intentional: Q4 required D14 in its own commit. History is not rewritten or squashed (decision log §8) | `git log` | `a4a9b89`, `9624b45`, `25cc596`, `5c4fca1`, `f804a78` |
 
 **No Stage 9 or 10 estimate is an acceptance criterion or a result.** They stay provisional while M8 is open.
 
