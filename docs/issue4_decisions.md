@@ -11,7 +11,8 @@ Written for: capstone reviewers checking what was decided, when, by whom and whe
 | T1 | `60e09e94` | Issues 1–3 |
 | T2 | `94c2dae9` | Design freeze, blueprint, Commits 1–8 |
 | T3 | `2fbabb3f` | Commits 8–12, the phase plan, Phases 1–5 |
-| T4 | `5d1ea6ff` | Phase 3–5 review and Phase 6 |
+| T4 | `5d1ea6ff` | Phase 3–5 review, Phase 6, the S1–S7 sign-off, Phases 7–9 |
+| T5 | `95e74547` | Phase 9 approval and Phase 10 |
 
 `T2 L74` means line 74 (0-based) of that transcript's `.jsonl` file.
 
@@ -22,7 +23,7 @@ Written for: capstone reviewers checking what was decided, when, by whom and whe
 - **Documented:** a documentation requirement, met by this Phase 6 documentation.
 - **Not implemented:** for example D11 = No.
 - **Pending:** approved but not yet done.
-- **Needs sign-off:** implemented but never explicitly approved. The only such items, S1–S7, were approved on 2026-09-30 (§11).
+- **Needs sign-off:** implemented but never explicitly approved. The Phase 6 commit `932b374` used this status for the items later numbered S1–S7. All seven were approved afterwards, at 2026-09-30T16:01:39Z (§11). No entry carries this status now.
 
 **Rationale** is quoted or closely paraphrased from the proposal or approval. Where the record gives none, the entry says **"not recorded"**.
 
@@ -99,7 +100,7 @@ All approved together (T1 L224, **2026-09-26T17:16:51Z**). They were implemented
 | C5 | The band minimum stays 500 m in the exclusion-250 run | Zone disjointness is a hard rule | Implemented | `e2d88fa` | `MATCH_BAND_MIN_M` (locked) |
 | C6 | 311 coverage guard: W inside the 311 coverage, with the lag | Consistency check. Expected to remove 0, but see the item 11 amendment | Implemented | `6cae561` | rule 2 `W_OUTSIDE_DARKNESS` |
 | Artifact threshold rule | T = quantile(n_complaints, 0.999, "higher") over all sites; artifact if n > T; ties not artifacts; recorded in `universe` | Deterministic integer threshold | Implemented | `4007672` | `build_sites`; H18 |
-| Seed-stability rule | deviation(s) = \|N_s − N_42\| / N_42 ≤ 0.02 for s = 101 and 202, each; balance must also pass per seed | Unambiguous acceptance | Acceptance criterion (item 15); evidence partly pending (see [issue4_acceptance.md](issue4_acceptance.md)) | none | [issue4_acceptance.md](issue4_acceptance.md) |
+| Seed-stability rule | deviation(s) = \|N_s − N_42\| / N_42 ≤ 0.02 for s = 101 and 202, each; balance must also pass per seed | Unambiguous acceptance | Acceptance criterion (item 15). Passed in Phase 9 with per-seed balance ([acceptance_report.md §3](acceptance_report.md)) | `9d44ce3` (evidence) | [issue4_acceptance.md](issue4_acceptance.md) |
 | 12-commit plan | Step 1 in 12 commits on `issue4-step1`, with `baseline-pre-issue4` on main | Smallest reviewable steps | Implemented (`e2d88fa` … `9ce8542` plus fix-ups) | see `git log` | acceptance amendment A3 |
 | Conventions A1–A12 | As in [issue4_design.md §3.9](issue4_design.md) | Pin down time, overlap and distance semantics | Implemented | `e2d88fa` (text); per-commit use | `CONVENTIONS` |
 | `artifact_threshold_is_maximum` logging | Optional logging addition | No methodology change | Implemented | `4007672` | `universe` |
@@ -298,7 +299,7 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 | Q8 | Add `outputs/robustness/` to `.gitignore` | Implemented in Phase 7; all existing rules kept | Phase 7 commit; [.gitignore](../.gitignore) |
 | **Q9** | **Back up `causal_panel.parquet` exactly as proposed**, with hash verification and no overwrite | Implemented | `9624b45` (`preserve_legacy_panel`) |
 | Q10 | Delete the four empty legacy source files and mention it in the implementation report | Implemented in Phase 7. Deleted `src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py` and `src/spatial_linking.py`. Each was 0 bytes and unchanged since the initial scaffold (`aa04120`), with no imports or references in `src/`, `scripts/`, notebooks or tests. `src/__init__.py` and `src/data/__init__.py` are empty package markers, not stubs, and were kept. The live module `src/features/spatial_linking.py` (S6) is unaffected | Phase 7 commit |
-| Q11 | Reports at `docs/acceptance_report.md` and `docs/release_readiness_review.md` | Pending (Phases 9, 10) | none |
+| Q11 | Reports at `docs/acceptance_report.md` and `docs/release_readiness_review.md` | Implemented: the acceptance report in Phase 9; the release-readiness review in Phase 10 (a self-review, conclusion A) | `9d44ce3`, `f79af97` |
 | Q12 | One commit per phase; review stops after Phases 2, 5 and 9; no push or merge to `main` until acceptance is complete | In force | none |
 
 **Additional instructions** (T3 L678), all in force:
@@ -334,7 +335,10 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 | Stage 9 migration | Design §10 + D13 (review form) + D15 + D20 | Implemented | `25cc596` |
 | Stage 10 D14 deletion | Its own commit (Q4) | Implemented | `5c4fca1` |
 | Stage 10 migration | Design §11 + D13 + D15; week labels corrected (F5); −7..0 gap flagged, not fixed | Implemented | `f804a78` |
-| Phase 3–5 approval | **No approval in T3** (the package at T3 L1085, 2026-09-28T18:22:05Z, has no reply). In T4 (**2026-09-30T15:21:49Z**) the user reports: "The Phase 3–5 independent review has been completed. Its verdict is: No blocking issues found. Stage 8, Stage 9 and Stage 10 are considered implementation-correct." | Accepted by the user as implementation-correct. The §11 sign-off items were approved on 2026-09-30T16:01:39Z | none |
+| Phase 3–5 approval | **No approval in T3** (the package at T3 L1085, 2026-09-28T18:22:05Z, has no reply). In T4 (**2026-09-30T15:21:49Z**) the user reports: "The Phase 3–5 independent review has been completed. Its verdict is: No blocking issues found. Stage 8, Stage 9 and Stage 10 are considered implementation-correct." | Accepted by the user as implementation-correct. The §11 sign-off items were approved separately, later, on 2026-09-30T16:01:39Z | none |
+| Phase 6 | Documentation committed at 2026-09-30T15:55:45Z. It recorded §11's items as needing sign-off | Done; reconciled 2026-10-01 (status text, chronology, Phase 9 evidence links) | `932b374` |
+| Phase 9 approval | T5 L2, **2026-09-30T17:14:01Z**: "Phase 9 has been reviewed and **APPROVED**" and "The Phase 9 acceptance review has already been completed." | Approved. Whether this is also the formal acceptance decision on Step 1 and Stages 8–10 is not stated: **needs verification** | `9d44ce3` |
+| Phase 10 | Release-readiness self-review (G11) | Done; conclusion **A. Not ready for release**. This is a review finding, not a decision | `f79af97` |
 
 ---
 
@@ -349,6 +353,17 @@ Proposed in the final release review (T3 L631, 2026-09-28T17:22:24Z; text in [is
 ## 11. Sign-off items S1–S7 (approved)
 
 These items were implemented in Phases 3–5 before any approval existed. The user approved all seven in T4 at **2026-09-30T16:01:39Z** ("The following S1–S7 items … are now approved"). They are now frozen decisions. No code changed as a result: the approved form of each is what was already implemented.
+
+**Chronology:**
+
+| Stage | What the record shows |
+|---|---|
+| Original design and Phase 3–5 review | The approved text does not specify S2 (missing precinct), S3 (hard stop at 50), S4 (year) or S5 (tercile variable, edges, ties). S1 was a discrepancy between the design table and the review verdict. S6 conflicted with design §11 "Unchanged: … the outputs" |
+| Phase 6, `932b374` (2026-09-30T15:55:45Z) | All of these are recorded as "needs sign-off" (design §7.2 items 2, 3, 4, 5, 7) and are not treated as frozen |
+| Sign-off, T4 L578 (2026-09-30T16:01:39Z) | An explicit approval of each item, quoted below. It came after the Phase 6 commit |
+| Phase 7, `57f4cb4` | The decision log, design and acceptance documents updated to record the approval |
+
+For S2–S5 the approval message itself states the rule (S2 "a single `<missing>` cluster … 101"; S3 "a hard stop below 50 clusters"; S4 "calendar year of created_date"; S5 "log1p(base_100m) … quantile edges at 1/3, 2/3 … exactly on an edge … lower tercile"). The approval is therefore explicit and directly covers these exact items. **Rationale:** the message gives none beyond the rule itself, so it is **not recorded**.
 
 | # | Item | Approved decision (T4, 2026-09-30T16:01:39Z) | Implementation | Commit(s) |
 |---|---|---|---|---|

@@ -2,11 +2,14 @@
 
 Written for: the Issue 4 reviewer and whoever runs Phase 9. It is the authoritative 20-item Step 1 checklist, with its amendments, the evidence so far and what is still missing.
 
-**Status (2026-09-30): Step 1 is not yet accepted; the Phase 9 acceptance runs are done and await review.**
+**Status (reconciled 2026-10-01): the Phase 9 acceptance runs are done and Phase 9 was approved. Whether that is the formal Step 1 acceptance decision is not recorded.**
 - The 20 items were approved with the Step 1 blueprint (decision log §3).
 - Commit 12 was approved on 2026-09-28 on the basis of scratch-run evidence.
 - The Phase 9 acceptance runs (canonical into `data/processed`) are done. The per-item results, evidence and hashes are in [acceptance_report.md](acceptance_report.md) (Q11), which supersedes the "Pending Phase 9" statuses below.
-- The statuses in this checklist are kept as they were before Phase 9, for the record.
+  - Phase 9 result: 18 of 20 items pass, or pass under an approved amendment. Item 9 is partly met (the hand check was not repeated). Item 19 is met, but its never-overwrite path relied on earlier evidence.
+- Phase 9 was "reviewed and **APPROVED**" by the user (2026-09-30T17:14:01Z; decision log §9). The record does not say whether this is also the formal acceptance decision on Step 1 and Stages 8–10: **needs verification**.
+- The Phase 10 self-review concludes **A. Not ready for release** ([release_readiness_review.md](release_readiness_review.md)). That conclusion concerns release, not the checklist results.
+- The status column in §1 is kept as it was before Phase 9, for the record.
 
 ## Evidence status
 
@@ -28,8 +31,11 @@ Written for: the Issue 4 reviewer and whoever runs Phase 9. It is the authoritat
 - Commit 12 was approved (decision log §5.1) with the status "X1–X3, R1–R4, E1–E3, H10, H11, H13, H16_post, determinism, diagnostics, safe output writing, backup handling, validation package: PASS".
 - Commit 11 was reviewed with no blocking defects, but there is no standalone approval message.
 - Phases 3–5 were independently reviewed with no blocking issues (decision log §9).
-- The S1–S7 sign-off items were approved on 2026-09-30 (decision log §11).
+- The S1–S7 sign-off items were approved on 2026-09-30T16:01:39Z (decision log §11). This was after the Phase 6 commit `932b374`, which had recorded them as needing sign-off.
 - Phase 7 (Q8 `.gitignore`, Q10 stub deletion) is done.
+- Phase 8 (`6d25204`) moved the Commit 4–11 validators into the repository; all report `FAILS: none` ([evidence/stage7_commits/](evidence/stage7_commits/)).
+- Phase 9 (`9d44ce3`) was approved on 2026-09-30T17:14:01Z.
+- Phase 10 (`f79af97`) is a self-review (G11), not an independent review.
 
 ---
 
@@ -151,17 +157,22 @@ The approved Step 2–4 asserts and design §12 hard check 7 ("The S8 panel inva
 
 ## 4. Evidence still pending
 
-### 4.1 Expected from Phase 9 (acceptance runs)
+### 4.1 Expected from Phase 9 (acceptance runs), with the Phase 9 outcome
 
-- The canonical Stage 7 run into `data/processed`. It is authoritative for items 1–14 and 17–19 and replaces the scratch hashes. The first write will create `control_area_pairs.pre_issue4.parquet` (item 19).
-- Seeds 101 and 202 as end-to-end runs: pair counts **and** per-seed balance (item 15).
-- The caliper 0.2 CLI smoke run into a non-canonical directory (item 16).
-- Re-confirming the item 11 "alone" condition on the canonical and placebo runs.
-- Re-attaching the item 9 top-artifact table with coordinates.
-- The canonical Stage 8 panel into `data/processed`. The first write will create `causal_panel.pre_issue4.parquet` (Q9).
-- The Stage 9 and 10 runs, **into a scratch or non-published location** (instruction 3: no results for publication while M8 is open).
-- Storing the Phase 3–5 review's cluster-structure figures as repository evidence: 49.4% cross-cell pairs; 2,541 of 4,167 reused control sites spanning several primary clusters (6,270 pairs); 5,171 dual-role sites; precinct 77 + `<missing>` (101 pairs).
-- `docs/acceptance_report.md` (Q11): pass/fail for every item, evidence, hashes, runtime, platform and environment.
+The list below is the pre-Phase-9 expectation. The outcome column records what [acceptance_report.md](acceptance_report.md) and [evidence/phase9/](evidence/phase9/) show. It adds no evidence of its own.
+
+| Expected evidence | Phase 9 outcome |
+|---|---|
+| The canonical Stage 7 run into `data/processed`, authoritative for items 1–14 and 17–19; the first write creates `control_area_pairs.pre_issue4.parquet` (item 19) | **Produced.** Exit 0, 20 of 20 checks; backup byte-identical (report §3, §4) |
+| Seeds 101 and 202 end to end: pair counts **and** per-seed balance (item 15) | **Produced.** Both pass (report §3) |
+| The caliper 0.2 CLI smoke run into a non-canonical directory (item 16) | **Produced.** Pass |
+| Re-confirming the item 11 "alone" condition, canonical and placebo | **Produced** from the unmatched tables (`acceptance_summary.json` `item11`). There is still no permanent check (§4.2) |
+| Re-attaching the item 9 top-artifact table with coordinates | **Table re-attached** (report §3). The hand check of the coordinates was **not repeated**, so item 9 stays partly met |
+| The canonical Stage 8 panel into `data/processed`; the first write creates `causal_panel.pre_issue4.parquet` (Q9) | **Produced.** Backup byte-identical |
+| The never-overwrite path of both backups | **Not re-exercised** in Phase 9. It relies on the earlier scratch evidence |
+| The Stage 9 and 10 runs, **into a scratch or non-published location** (instruction 3) | **Produced** into `outputs/robustness/` only. Structural results only; no estimate is reported (M8) |
+| The Phase 3–5 cluster-structure figures stored as repository evidence | **Stored** in `acceptance_summary.json` `stage8_panel` ([issue4_design.md §5.4](issue4_design.md)). The cluster-size figures (median, max, min, top-five share) are not stored |
+| `docs/acceptance_report.md` (Q11) | **Produced** (`9d44ce3`) |
 
 ### 4.2 Not yet available (no phase assigned yet)
 

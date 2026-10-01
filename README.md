@@ -2,18 +2,20 @@
 
 Streetlight outages and night-time crime in New York City: a causal pipeline that matches each reported streetlight outage to a nearby location that was not dark, and compares crime before, during and after the outage.
 
-## Project status (2026-09-30)
+## Project status (reconciled 2026-10-01)
 
-> **Results are not final. Do not treat any Stage 9 or Stage 10 estimate as a result until Phase 9 acceptance is complete, and not before the M8 limitations are resolved or disclosed.**
+> **Results are not final. Every Stage 9 and Stage 10 estimate is provisional while the M8 limitations are open. No Stage 9 or 10 estimate has been produced for publication.**
 
 - **Issue 4** (control redesign) has migrated the Stage 7–10 implementation, on branch `issue4-step1`:
   - Stage 7 is rewritten.
   - Stages 8–10 are migrated to the new pair schema.
   - An independent review of the Stage 8–10 migration found no blocking issues.
-- **Phase 6 (documentation)** is complete: this README and [docs/issue4_design.md](docs/issue4_design.md), [docs/issue4_decisions.md](docs/issue4_decisions.md) and [docs/issue4_acceptance.md](docs/issue4_acceptance.md).
-- **The Phase 9 acceptance runs are done; the acceptance decision is pending review.** Results are in [docs/acceptance_report.md](docs/acceptance_report.md).
+- **Phase 6 (documentation)** is complete (`932b374`, reconciled 2026-10-01): this README and [docs/issue4_design.md](docs/issue4_design.md), [docs/issue4_decisions.md](docs/issue4_decisions.md) and [docs/issue4_acceptance.md](docs/issue4_acceptance.md).
+- **The Phase 9 acceptance runs are done, and Phase 9 was approved** on 2026-09-30. Results are in [docs/acceptance_report.md](docs/acceptance_report.md).
+  - Whether that approval is also the formal acceptance decision on Step 1 and Stages 8–10 is not recorded (needs verification).
   - The canonical Stage 7 and Stage 8 outputs are now in `data/processed/`.
   - Stages 9 and 10 were run only into the git-ignored `outputs/robustness/`, so `outputs/` itself is unchanged.
+- **The Phase 10 release-readiness self-review** ([docs/release_readiness_review.md](docs/release_readiness_review.md)) concludes **not ready for release**.
 - **Legacy results** in `outputs/` are pre-Issue-4 and are **not** current results (see [Stale and legacy results](#stale-and-legacy-results)).
 - Nothing on `issue4-step1` has been pushed or merged to `main`.
 
@@ -169,9 +171,15 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 
 ### Validation scripts
 
-In [scripts/validation/](scripts/validation/): `commit12_validate.py` (Stage 7), `stage8_validate.py`, `stage9_validate.py` and `stage10_validate.py`.
+In [scripts/validation/](scripts/validation/) (usage and runtimes in its [README](scripts/validation/README.md)):
+- `commit04_validate.py` … `commit11_validate.py` and the shared `_pipeline.py`: Stage 7, Commits 4–11.
+- `commit12_validate.py`: Stage 7, Commit 12.
+- `stage8_validate.py`, `stage9_validate.py` and `stage10_validate.py`.
+
+How they work:
 - Each script's docstring gives its usage and checks.
 - They write to temporary directories, and the expected last line is `FAILS: none`.
+- **Exception:** while `data/processed/` holds the Issue 4 outputs, `commit12_validate.py` reports 38/40, with two fixture-dependent legacy-backup failures. These are not X3 defects (gap V-10; [docs/acceptance_report.md §5](docs/acceptance_report.md)).
 - Their outputs are in [docs/evidence/](docs/evidence/).
 
 ## Environment

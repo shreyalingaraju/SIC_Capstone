@@ -2,11 +2,12 @@
 
 Written for: capstone reviewers and anyone who will run, check or extend the Issue 4 pipeline. It assumes you know what a difference-in-differences panel is. It does not assume you followed the design discussion.
 
-**Status (2026-09-30):**
+**Status (reconciled 2026-10-01):**
 - Stages 7–10 are implemented on branch `issue4-step1`.
 - The Phase 3–5 independent review reported **no blocking issues**.
-- The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)); the acceptance decision is pending review. Nothing here is a final result.
-- Every Stage 9 and 10 estimate is provisional while M8 (§9) is open.
+- The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)). The user reported Phase 9 "reviewed and **APPROVED**" on 2026-09-30T17:14:01Z (decision log §9). The repository does not record whether that approval is also the formal acceptance decision on Step 1 and Stages 8–10: **needs verification**.
+- The Phase 10 self-review ([release_readiness_review.md](release_readiness_review.md), `f79af97`) concludes **A. Not ready for release**.
+- Nothing here is a final result. Every Stage 9 and 10 estimate is provisional while M8 (§9) is open.
 
 **How to read this document.** Each statement carries one of these labels:
 
@@ -15,7 +16,7 @@ Written for: capstone reviewers and anyone who will run, check or extend the Iss
 | **[FROZEN]** | An approved design decision. It changes only through a new, explicit approval. |
 | **[IMPL]** | An implementation detail that follows from frozen decisions, or that was approved as an implementation choice. |
 | **[DEVIATION]** | Differs from the written design. The authorisation is stated, or it is marked as needing sign-off. |
-| **[SIGN-OFF]** | Implemented, but never explicitly approved. It is not a frozen decision until someone approves it. (The S1–S7 items were approved on 2026-09-30; none remain.) |
+| **[SIGN-OFF]** | Implemented, but never explicitly approved. It is not a frozen decision until someone approves it. The Phase 6 commit `932b374` gave this status to §7.2 items 2, 3, 4, 5 and 7. They were approved afterwards as S1–S6 (2026-09-30T16:01:39Z), so no item carries it now. §7.2 keeps that history. |
 | **[LIMITATION]** | A known weakness that is recorded, not fixed. |
 | **[DEFERRED]** | Approved or identified work that has not been done. |
 
@@ -592,7 +593,15 @@ All Stage 9 standard errors use statsmodels' cluster-robust estimator (`cov_type
   - On the canonical scratch run the relative sizes of the primary, pair, two-way and precinct SEs differ by outcome and term.
   - Legacy (`location_key`) and Issue 4 standard errors are not comparable.
 
-Evidence status: the cluster counts are in [evidence/stage9/stage9_validate.out](evidence/stage9/stage9_validate.out). The share and reuse figures above were computed during the Phase 3–5 independent review on the canonical scratch panel (sha256 `eaa0cd74…`). They are **not yet stored as repository evidence**; Phase 9 is to regenerate and store them.
+Evidence status:
+- The cluster counts are in [evidence/stage9/stage9_validate.out](evidence/stage9/stage9_validate.out).
+- The share and reuse figures were first computed during the Phase 3–5 independent review on the canonical scratch panel (sha256 `eaa0cd74…`).
+- Phase 9 regenerated and stored them on the canonical panel (the same sha256): [evidence/phase9/acceptance_summary.json](evidence/phase9/acceptance_summary.json), `stage8_panel`:
+  - `share_pairs_T_C_different_res7` 0.4942;
+  - `reused_control_sites` 4,167, of which 2,541 span more than one primary cluster, involving 6,270 pairs;
+  - `sites_both_treatment_and_control` 5,171;
+  - `precinct_values_observed` 77 and `pairs_missing_precinct` 101.
+- The primary cluster-size figures (median, max, min, top-five share) come from the Phase 3–5 review only. They are not in the stored evidence.
 
 ### 5.5 Paired-difference estimate [FROZEN: D20; subgroup details approved as S4, S5]
 
@@ -701,15 +710,20 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 
 ### 7.2 Deviations approved by sign-off (S1–S6, 2026-09-30)
 
-These items were implemented in Phases 3–5 without an explicit approval. All of them were approved on **2026-09-30** (decision log §11, S1–S6) exactly as implemented, and are now **[FROZEN]**. No code changed.
+These items were implemented in Phases 3–5 without an explicit approval. Each one has three stages in the record, and the table keeps all three apart:
+1. **Original approved text** (design, review verdict, phase plan). It does not specify the implemented detail.
+2. **Phase 6** (`932b374`, committed 2026-09-30T15:55:45Z). The item was recorded as **needing sign-off**, not as a frozen decision.
+3. **Later approval.** The user approved each item explicitly in T4 at **2026-09-30T16:01:39Z** (decision log §11, S1–S6), exactly as implemented. The documents were updated in `57f4cb4` (Phase 7). The items are now **[FROZEN]**, and no code changed.
 
-| # | Item | Earlier approved text | Implemented and approved | Sign-off |
-|---|---|---|---|---|
-| 2 | **Two-way clustering form** | Design D13 row and §10: "(treatment site, control site)"; review verdict: "two-way (T cell, C cell)" | (`treatment_h3_res7`, `control_h3_res7`) for basic OLS and FE DiD. The sign-off states that this is the "(treatment site, control site)" form, read as the sites' res-7 cells, which resolves the discrepancy. | S1 |
-| 3 | **Missing precinct** | "police precinct as robustness"; nothing on missing values | Every missing `treatment_police_precinct` goes into one `<missing>` cluster (101 canonical pairs); there are never several | S2 |
-| 4 | **Minimum 50 primary clusters** | "it must be at least 50" | A hard stop: fewer than 50 raises `ValueError`, and the analysis fails rather than proceeding | S3 |
-| 5 | **D20 subgroup definitions** | "by baseline tercile and by year" | Year = the calendar year of `created_date`. Terciles = the treatment observations' log1p(`base_100m`), quantile edges at 1/3 and 2/3, a value on an edge going to the lower tercile | S4, S5 |
-| 7 | **Stage 10 extra outputs** | §11: "Unchanged: … the outputs" | `event_study_summary.json` and the "(provisional)" plot title are accepted; the PNG stays byte-reproducible. Output and diagnostic behaviour only; the estimand and methodology are unchanged | S6 |
+Items 3, 4 and 5 were not approved in the original design or the Phase 3–5 review. Their only approval is the later S2–S5 message.
+
+| # | Item | 1. Original approved text | 2. Phase 6 status (`932b374`) | 3. Implemented and later approved | Sign-off |
+|---|---|---|---|---|---|
+| 2 | **Two-way clustering form** | Design D13 row and §10: "(treatment site, control site)"; review verdict: "two-way (T cell, C cell)" | Discrepancy recorded; "confirm the review form is the approved one" | (`treatment_h3_res7`, `control_h3_res7`) for basic OLS and FE DiD. The sign-off states that this is the "(treatment site, control site)" form, read as the sites' res-7 cells, which resolves the discrepancy. | S1 |
+| 3 | **Missing precinct** | "police precinct as robustness"; nothing on missing values | "Implementation detail, not separately approved. Needs sign-off." | Every missing `treatment_police_precinct` goes into one `<missing>` cluster (101 canonical pairs); there are never several | S2 |
+| 4 | **Minimum 50 primary clusters** | "it must be at least 50" | "Stricter than the original requirement (a hard stop). Needs sign-off." | A hard stop: fewer than 50 raises `ValueError` (`MIN_CLUSTERS = 50`), and the analysis fails rather than proceeding | S3 |
+| 5 | **D20 subgroup definitions** | "by baseline tercile and by year" | "Implementation details requiring explicit sign-off. Not specified in the approved text." | Year = the calendar year of `created_date`. Terciles = the treatment observations' log1p(`base_100m`), quantile edges at 1/3 and 2/3, a value on an edge going to the lower tercile (`<= q1` → T1, `<= q2` → T2) | S4, S5 |
+| 7 | **Stage 10 extra outputs** | §11: "Unchanged: … the outputs" | "Additive implementation behaviour. Needs sign-off if outputs must be strictly unchanged." | `event_study_summary.json` and the "(provisional)" plot title are accepted; the PNG stays byte-reproducible. Output and diagnostic behaviour only; the estimand and methodology are unchanged | S6 |
 
 The Phases 3–5 commit structure (S7) is recorded under Q12 in the decision log §8.
 
@@ -779,6 +793,6 @@ The M1–M8 list is taken from the final release review. No message explicitly a
 | Validation scripts in the repository (Commit 4–11 validators, shared helper, README) | Phase 8 plan | **Done** in Phase 8 |
 | Hardening the Stage 8–10 validators (acceptance doc §5, gaps V-1 to V-11) | Phase 3–5 review | Not in the original Phase 8 scope; not yet scheduled |
 | Canonical acceptance runs into `data/processed` | Phase 9 plan | **Done** in Phase 9 ([acceptance_report.md](acceptance_report.md)) |
-| `docs/acceptance_report.md`, `docs/release_readiness_review.md` | Q11 | Phases 9 and 10 |
+| `docs/acceptance_report.md`, `docs/release_readiness_review.md` | Q11 | **Done**: `9d44ce3` (Phase 9) and `f79af97` (Phase 10; conclusion A, not ready for release) |
 | M8 fixes (exposure normalisation, `baseline_crime_intensity`, the −7..0 gap) | M8 | Deferred; results stay provisional |
 | Commit 6 fix-up P3 (group-id guard in `_build_sorted_index`) | P3 | Deferred by decision |
