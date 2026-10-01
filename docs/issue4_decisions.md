@@ -13,6 +13,7 @@ Written for: capstone reviewers checking what was decided, when, by whom and whe
 | T3 | `2fbabb3f` | Commits 8–12, the phase plan, Phases 1–5 |
 | T4 | `5d1ea6ff` | Phase 3–5 review, Phase 6, the S1–S7 sign-off, Phases 7–9 |
 | T5 | `95e74547` | Phase 9 approval and Phase 10 |
+| T6 | `238353af` | Phase 6 reconciliation and review, the formal acceptance decision |
 
 `T2 L74` means line 74 (0-based) of that transcript's `.jsonl` file.
 
@@ -337,7 +338,8 @@ All approved at T3 L678 (**2026-09-28T17:31:28Z**).
 | Stage 10 migration | Design §11 + D13 + D15; week labels corrected (F5); −7..0 gap flagged, not fixed | Implemented | `f804a78` |
 | Phase 3–5 approval | **No approval in T3** (the package at T3 L1085, 2026-09-28T18:22:05Z, has no reply). In T4 (**2026-09-30T15:21:49Z**) the user reports: "The Phase 3–5 independent review has been completed. Its verdict is: No blocking issues found. Stage 8, Stage 9 and Stage 10 are considered implementation-correct." | Accepted by the user as implementation-correct. The §11 sign-off items were approved separately, later, on 2026-09-30T16:01:39Z | none |
 | Phase 6 | Documentation committed at 2026-09-30T15:55:45Z. It recorded §11's items as needing sign-off | Done; reconciled 2026-10-01 (status text, chronology, Phase 9 evidence links) | `932b374` |
-| Phase 9 approval | T5 L2, **2026-09-30T17:14:01Z**: "Phase 9 has been reviewed and **APPROVED**" and "The Phase 9 acceptance review has already been completed." | Approved. Whether this is also the formal acceptance decision on Step 1 and Stages 8–10 is not stated: **needs verification** | `9d44ce3` |
+| Phase 9 approval | T5 L2, **2026-09-30T17:14:01Z**: "Phase 9 has been reviewed and **APPROVED**" and "The Phase 9 acceptance review has already been completed." | Approved. The statement does not itself say that Step 1 and Stages 8–10 are formally accepted; that question stayed open until the formal acceptance decision below | `9d44ce3` |
+| **Formal acceptance: Step 1 and the Stage 8–10 migration** | T6 L490, **2026-10-01T14:07:40Z**, project-owner decision: "Step 1 and the Stage 8–10 migration are formally accepted on the basis of the completed acceptance review and `docs/acceptance_report.md` at commit `9d44ce3`. Item 9, which the acceptance report records as partly met, is accepted as partly met and remains a documented limitation. This formal acceptance satisfies Q12's requirement that acceptance be complete." and "This acceptance does not constitute release-readiness approval and does not, by itself, authorize a push or merge to `main`." | **Accepted.** Scope: Step 1 (Stage 7) and the Stage 8–10 migration, on the acceptance basis at `9d44ce3`. Item 9 stays partly met, as a documented limitation. Q12's "acceptance is complete" is satisfied. **Not** a release-readiness approval: the Phase 10 conclusion "not ready for release" and its findings stand. **Not** an authorisation to push or merge. The acceptance report is unchanged; it did not make this decision | acceptance basis `9d44ce3`; recorded in the documentation-only commit that adds this row |
 | Phase 10 | Release-readiness self-review (G11) | Done; conclusion **A. Not ready for release**. This is a review finding, not a decision | `f79af97` |
 
 ---

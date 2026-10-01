@@ -5,7 +5,7 @@ Written for: capstone reviewers and anyone who will run, check or extend the Iss
 **Status (reconciled 2026-10-01):**
 - Stages 7–10 are implemented on branch `issue4-step1`.
 - The Phase 3–5 independent review reported **no blocking issues**.
-- The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)). The user reported Phase 9 "reviewed and **APPROVED**" on 2026-09-30T17:14:01Z (decision log §9). The repository does not record whether that approval is also the formal acceptance decision on Step 1 and Stages 8–10: **needs verification**.
+- The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)). The user reported Phase 9 "reviewed and **APPROVED**" on 2026-09-30T17:14:01Z (decision log §9). That statement did not itself declare formal acceptance. A subsequent project-owner decision (2026-10-01T14:07:40Z; decision log §9) formally accepts Step 1 and the Stage 8–10 migration on the basis of the acceptance report at `9d44ce3`, with item 9 accepted as partly met. That decision satisfies Q12's acceptance condition. It is not a release-readiness approval, and it does not by itself authorise a push or merge.
 - The Phase 10 self-review ([release_readiness_review.md](release_readiness_review.md), `f79af97`) concludes **A. Not ready for release**.
 - Nothing here is a final result. Every Stage 9 and 10 estimate is provisional while M8 (§9) is open.
 

@@ -12,7 +12,7 @@ Streetlight outages and night-time crime in New York City: a causal pipeline tha
   - An independent review of the Stage 8–10 migration found no blocking issues.
 - **Phase 6 (documentation)** is complete (`932b374`, reconciled 2026-10-01): this README and [docs/issue4_design.md](docs/issue4_design.md), [docs/issue4_decisions.md](docs/issue4_decisions.md) and [docs/issue4_acceptance.md](docs/issue4_acceptance.md).
 - **The Phase 9 acceptance runs are done, and Phase 9 was approved** on 2026-09-30. Results are in [docs/acceptance_report.md](docs/acceptance_report.md).
-  - Whether that approval is also the formal acceptance decision on Step 1 and Stages 8–10 is not recorded (needs verification).
+  - **Formal acceptance:** on 2026-10-01 the project owner formally accepted Step 1 and the Stage 8–10 migration, on the basis of the acceptance report at `9d44ce3`. Item 9 is accepted as partly met. This satisfies the acceptance condition for push/merge (Q12), but it is **not** a release-readiness approval and does not by itself authorise a push or merge ([decision log §9](docs/issue4_decisions.md)).
   - The canonical Stage 7 and Stage 8 outputs are now in `data/processed/`.
   - Stages 9 and 10 were run only into the git-ignored `outputs/robustness/`, so `outputs/` itself is unchanged.
 - **The Phase 10 release-readiness self-review** ([docs/release_readiness_review.md](docs/release_readiness_review.md)) concludes **not ready for release**.

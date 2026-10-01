@@ -2,12 +2,18 @@
 
 Written for: the Issue 4 reviewer and whoever runs Phase 9. It is the authoritative 20-item Step 1 checklist, with its amendments, the evidence so far and what is still missing.
 
-**Status (reconciled 2026-10-01): the Phase 9 acceptance runs are done and Phase 9 was approved. Whether that is the formal Step 1 acceptance decision is not recorded.**
+**Status (2026-10-01): Step 1 and the Stage 8–10 migration are formally accepted (project-owner decision, 2026-10-01T14:07:40Z), with item 9 accepted as partly met. Not release-ready; no push or merge is authorised by this acceptance.**
 - The 20 items were approved with the Step 1 blueprint (decision log §3).
 - Commit 12 was approved on 2026-09-28 on the basis of scratch-run evidence.
 - The Phase 9 acceptance runs (canonical into `data/processed`) are done. The per-item results, evidence and hashes are in [acceptance_report.md](acceptance_report.md) (Q11), which supersedes the "Pending Phase 9" statuses below.
   - Phase 9 result: 18 of 20 items pass, or pass under an approved amendment. Item 9 is partly met (the hand check was not repeated). Item 19 is met, but its never-overwrite path relied on earlier evidence.
-- Phase 9 was "reviewed and **APPROVED**" by the user (2026-09-30T17:14:01Z; decision log §9). The record does not say whether this is also the formal acceptance decision on Step 1 and Stages 8–10: **needs verification**.
+- Phase 9 was "reviewed and **APPROVED**" by the user (2026-09-30T17:14:01Z; decision log §9). That statement did not itself declare formal acceptance.
+- **Formal acceptance (2026-10-01T14:07:40Z, project-owner decision; decision log §9):**
+  - **Scope:** Step 1 (Stage 7) and the Stage 8–10 migration are formally accepted.
+  - **Basis:** the completed acceptance review and [acceptance_report.md](acceptance_report.md) at `9d44ce3`. The report itself left the decision to the reviewer and is unchanged.
+  - **Item 9** stays **partly met** and is accepted as a documented limitation.
+  - **Q12:** this satisfies Q12's requirement that acceptance be complete.
+  - **What it is not:** a release-readiness approval, or by itself an authorisation to push or merge to `main`. M8, V-1 to V-11 and the other open items below remain open.
 - The Phase 10 self-review concludes **A. Not ready for release** ([release_readiness_review.md](release_readiness_review.md)). That conclusion concerns release, not the checklist results.
 - The status column in §1 is kept as it was before Phase 9, for the record.
 
