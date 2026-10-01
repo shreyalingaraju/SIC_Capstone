@@ -689,6 +689,7 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 - **Writes:**
   - `event_study_coefficients.csv`;
   - `event_study_plot.png` (headless `Agg` backend, title "… (provisional)", no Software metadata tag, byte-reproducible);
+    - S6 (§7.2 item 7) explicitly approves `event_study_summary.json`, the "(provisional)" title and a byte-reproducible PNG. The `Agg` backend and the omitted Software tag are the implementation means used for byte-reproducibility. S6 does not name them, and they have no separate approval.
   - `event_study_summary.json` (strict JSON).
 - **The summary contains:** status, panel path, observations, units, pairs, FE, cluster variable and count, week windows, the pre-trend test and the coefficients.
   - It records the panel **path only**, with no sha256, unlike Stage 9.

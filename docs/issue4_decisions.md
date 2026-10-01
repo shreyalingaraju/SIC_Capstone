@@ -23,7 +23,7 @@ Written for: capstone reviewers checking what was decided, when, by whom and whe
 - **Documented:** a documentation requirement, met by this Phase 6 documentation.
 - **Not implemented:** for example D11 = No.
 - **Pending:** approved but not yet done.
-- **Needs sign-off:** implemented but never explicitly approved. The Phase 6 commit `932b374` used this status for the items later numbered S1–S7. All seven were approved afterwards, at 2026-09-30T16:01:39Z (§11). No entry carries this status now.
+- **Needs sign-off:** implemented but never explicitly approved. The Phase 6 commit `932b374` used this status for the items numbered S1–S7 (its §11, "Open items requiring explicit sign-off"). All seven were approved afterwards, at 2026-09-30T16:01:39Z (§11). No entry carries this status now.
 
 **Rationale** is quoted or closely paraphrased from the proposal or approval. Where the record gives none, the entry says **"not recorded"**.
 
@@ -100,7 +100,7 @@ All approved together (T1 L224, **2026-09-26T17:16:51Z**). They were implemented
 | C5 | The band minimum stays 500 m in the exclusion-250 run | Zone disjointness is a hard rule | Implemented | `e2d88fa` | `MATCH_BAND_MIN_M` (locked) |
 | C6 | 311 coverage guard: W inside the 311 coverage, with the lag | Consistency check. Expected to remove 0, but see the item 11 amendment | Implemented | `6cae561` | rule 2 `W_OUTSIDE_DARKNESS` |
 | Artifact threshold rule | T = quantile(n_complaints, 0.999, "higher") over all sites; artifact if n > T; ties not artifacts; recorded in `universe` | Deterministic integer threshold | Implemented | `4007672` | `build_sites`; H18 |
-| Seed-stability rule | deviation(s) = \|N_s − N_42\| / N_42 ≤ 0.02 for s = 101 and 202, each; balance must also pass per seed | Unambiguous acceptance | Acceptance criterion (item 15). Passed in Phase 9 with per-seed balance ([acceptance_report.md §3](acceptance_report.md)) | `9d44ce3` (evidence) | [issue4_acceptance.md](issue4_acceptance.md) |
+| Seed-stability rule | deviation(s) = \|N_s − N_42\| / N_42 ≤ 0.02 for s = 101 and 202, each; balance must also pass per seed | Unambiguous acceptance | Acceptance criterion (item 15). Passed in Phase 9 with per-seed balance (evidence committed in `9d44ce3`; [acceptance_report.md §3](acceptance_report.md)) | none | [issue4_acceptance.md](issue4_acceptance.md) |
 | 12-commit plan | Step 1 in 12 commits on `issue4-step1`, with `baseline-pre-issue4` on main | Smallest reviewable steps | Implemented (`e2d88fa` … `9ce8542` plus fix-ups) | see `git log` | acceptance amendment A3 |
 | Conventions A1–A12 | As in [issue4_design.md §3.9](issue4_design.md) | Pin down time, overlap and distance semantics | Implemented | `e2d88fa` (text); per-commit use | `CONVENTIONS` |
 | `artifact_threshold_is_maximum` logging | Optional logging addition | No methodology change | Implemented | `4007672` | `universe` |
@@ -358,7 +358,7 @@ These items were implemented in Phases 3–5 before any approval existed. The us
 
 | Stage | What the record shows |
 |---|---|
-| Original design and Phase 3–5 review | The approved text does not specify S2 (missing precinct), S3 (hard stop at 50), S4 (year) or S5 (tercile variable, edges, ties). S1 was a discrepancy between the design table and the review verdict. S6 conflicted with design §11 "Unchanged: … the outputs" |
+| Original design and Phase 3–5 review | The approved text does not specify S2 (missing precinct), S3 (hard stop at 50), S4 (year) or S5 (tercile variable, edges, ties). S1 was a discrepancy between the design table and the review verdict. S6 differed from design §11 "Unchanged: … the outputs" (Phase 6: needs sign-off "if outputs must be strictly unchanged") |
 | Phase 6, `932b374` (2026-09-30T15:55:45Z) | All of these are recorded as "needs sign-off" (design §7.2 items 2, 3, 4, 5, 7) and are not treated as frozen |
 | Sign-off, T4 L578 (2026-09-30T16:01:39Z) | An explicit approval of each item, quoted below. It came after the Phase 6 commit |
 | Phase 7, `57f4cb4` | The decision log, design and acceptance documents updated to record the approval |
