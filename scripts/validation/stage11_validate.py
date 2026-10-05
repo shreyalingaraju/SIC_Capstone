@@ -99,12 +99,19 @@ required = ["effect_name", "estimate", "standard_error", "variance", "ci_lower",
             "outcome_ring", "sign_convention"]
 check("required columns present", all(c in t.columns for c in required))
 check("one row per effect and period", len(t) == 8 and t["effect_name"].is_unique)
+prop = t["effect_name"].str.startswith("displacement_proportion")
+check("proportion rows: point estimate only, no SE/CI",
+      prop.sum() == 2 and t.loc[prop, ["standard_error", "variance", "ci_lower", "ci_upper"]].isna().all().all()
+      and t.loc[prop, "estimate"].notna().all())
+t_all = t
+t = t[~prop]
 check("variances non-negative", (t["variance"] >= 0).all())
 check("SE = sqrt(variance)", np.allclose(t["standard_error"], np.sqrt(t["variance"])))
 check("CI = estimate +/- 1.96 SE", np.allclose(t["ci_lower"], t["estimate"] - s11.Z_95 * t["standard_error"])
       and np.allclose(t["ci_upper"], t["estimate"] + s11.Z_95 * t["standard_error"]))
 check("ci_lower <= estimate <= ci_upper", ((t["ci_lower"] <= t["estimate"]) & (t["estimate"] <= t["ci_upper"])).all())
-check("all numeric fields finite", np.isfinite(t[["estimate", "standard_error", "variance", "ci_lower", "ci_upper"]].to_numpy()).all())
+check("all numeric fields finite (non-proportion rows)", np.isfinite(t[["estimate", "standard_error", "variance", "ci_lower", "ci_upper"]].to_numpy()).all())
+t = t_all
 for period in s11.PERIODS:
     r = t.set_index("effect_name")["estimate"]
     check(f"net_{period} = direct + displacement", close(r[f"net_{period}"], r[f"direct_{period}"] + r[f"displacement_{period}"], 1e-9))

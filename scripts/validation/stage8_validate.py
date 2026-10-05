@@ -127,14 +127,17 @@ if placebo_dir is not None:
     code, out = run("--pairs", placebo_dir / "control_area_pairs.parquet", "--out", scratch / "placebo.parquet")
     check("placebo pairs build a panel", code == 0, out.strip().splitlines()[-1][:80])
 
-# Legacy backup.
+# Legacy backup. The fixture is a synthetic legacy-schema panel (the built
+# panel without unit_id), so the check does not depend on whether the
+# repository's own data/processed/causal_panel.parquet is already Issue 4.
 lg = scratch / "legacy"; lg.mkdir()
-shutil.copy2(s8.OUTPUT_FILE, lg / "causal_panel.parquet") if s8.OUTPUT_FILE.exists() else None
-if (lg / "causal_panel.parquet").exists():
-    first = s8.preserve_legacy_panel(lg / "causal_panel.parquet")
-    second = s8.preserve_legacy_panel(lg / "causal_panel.parquet")
-    check("legacy panel backed up once, then kept", first.startswith("backed up") and second.startswith("existing backup kept")
-          and s8._sha256(lg / s8.LEGACY_PANEL_BACKUP) == s8._sha256(s8.OUTPUT_FILE))
+legacy_file = lg / "causal_panel.parquet"
+panel.drop(columns="unit_id").to_parquet(legacy_file, index=False)
+original_sha = s8._sha256(legacy_file)
+first = s8.preserve_legacy_panel(legacy_file)
+second = s8.preserve_legacy_panel(legacy_file)
+check("legacy panel backed up once, then kept", first.startswith("backed up") and second.startswith("existing backup kept")
+      and s8._sha256(lg / s8.LEGACY_PANEL_BACKUP) == original_sha)
 check("new-schema panel not backed up",
       s8.preserve_legacy_panel(scratch / "panel.parquet").startswith("existing panel already has"))
 

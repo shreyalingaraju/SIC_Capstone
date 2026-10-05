@@ -39,8 +39,12 @@ effect offset by an opposite-signed ring effect (equivalently
 1 - tau_net / tau_direct). Undefined (NaN) when tau_direct is zero.
 0 = no displacement, 1 = full offset, > 1 = over-displacement,
 < 0 = the ring moves the same way as the direct zone (diffusion of the
-effect, not displacement). Its SE is a delta-method approximation and is
-unreliable when tau_direct is close to zero.
+effect, not displacement). Only the point estimate is reported: its Wald /
+delta-method interval is unreliable when tau_direct is near zero (here the
+direct estimates are statistically indistinguishable from zero in the
+during period), so SE, variance, CI and p-value are left NaN rather than
+presented as inference. displacement_proportion() still returns the
+delta-method variance for reference and testing.
 """
 
 import argparse
@@ -254,6 +258,10 @@ def build_table(result_by_period, n_observations, n_units, n_pairs):
         )
         for name in ("direct", "displacement", "net", "displacement_proportion"):
             estimate, variance = result[name]
+            if name == "displacement_proportion":
+                # Ratio inference is unstable (see module doc): report the
+                # point estimate only; SE, variance, CI and p are NaN.
+                variance = float("nan")
             lower, upper = confidence_interval(estimate, variance)
             note = ""
             if name == "net":
@@ -264,8 +272,10 @@ def build_table(result_by_period, n_observations, n_units, n_pairs):
                 )
             elif name == "displacement_proportion":
                 note = (
-                    "delta-method SE; NaN if direct effect is 0; "
-                    "unreliable when the direct effect is near zero"
+                    "point estimate only: no SE/CI because ratio inference "
+                    "is unstable when the direct effect is near zero "
+                    "(delta-method / Wald intervals are misleading); "
+                    "NaN if the direct effect is 0"
                 )
             rows.append({
                 "effect_name": f"{name}_{period}",
