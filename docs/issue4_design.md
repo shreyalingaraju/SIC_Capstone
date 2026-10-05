@@ -253,7 +253,7 @@ Every other methodology value is a locked constant that H0 checks for equality (
 
 **Non-default runs** must use an `--out-dir` other than `data/processed`. `--skip-recheck` is refused for the canonical directory (H0).
 
-**The D19 grid runner** (Step 5, `robustness.py`) is out of scope: **[DEFERRED]**, Q6.
+**The D19 grid runner** (Step 5, `src/models/robustness.py`) was out of scope in Q6 and was implemented afterwards: see [robustness_report.md](robustness_report.md). The frozen content of this section is unchanged.
 
 ### 3.9 Conventions A1–A13 [FROZEN]
 
@@ -786,7 +786,7 @@ The M1–M8 list is taken from the final release review. No message explicitly a
 
 | Item | Source | Status |
 |---|---|---|
-| Step 5 `src/models/robustness.py`: the D18/D19 grid through S7 → S8 → S9 into `outputs/robustness/<run_id>/` | Q6 | Out of scope for this cycle; open item for the release documents |
+| Step 5 `src/models/robustness.py`: the D18/D19 grid through S7 → S8 → S9 into `outputs/robustness/<run_id>/` | Q6 | Out of scope for this cycle. Implemented later, after the Stage 8–11 commits: [robustness_report.md](robustness_report.md). The release documents are historical and unchanged |
 | Notebooks 05–08 | D16, Q7 | Stale banners approved but not yet scheduled; full realignment deferred |
 | `outputs/robustness/` in `.gitignore` | Q8 | **Done** in Phase 7 |
 | Delete the four empty legacy source files (`src/causal_analysis.py`, `src/preprocess.py`, `src/prioritization.py`, `src/spatial_linking.py`) | Q10 | **Done** in Phase 7 |

@@ -119,7 +119,7 @@ Definitions: [docs/issue4_design.md §3.11](docs/issue4_design.md).
 - The D19 values are exclusion radius 250/500, band max 2,000, caliper 0.2, `never` reuse, lag 0, imputed duration 50/720 h, `pre_only` controls, and seeds 101/202/303/404.
 - `--placebo-shift-days 90` moves the treatment dates, windows and clean-rule windows back 90 days and re-matches. Darkness always uses the real dates.
 - Sensitivity and placebo results are report-only.
-- The grid runner (`robustness.py`) is not implemented (out of scope).
+- The grid runner `src/models/robustness.py` was added after the Stage 8–11 work (it was out of scope at Phase 7): `python src/models/robustness.py` writes to the git-ignored `outputs/robustness/d19_grid/`; see [docs/robustness_report.md](docs/robustness_report.md).
 
 ### Stage 8: causal panel
 
