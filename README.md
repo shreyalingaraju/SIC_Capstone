@@ -187,6 +187,15 @@ python src/models/prioritization_engine.py [--scored P] [--capacity K] [--out DI
 - Orders the scored outages by FIFO (`created_date`) and by LightSafe (`priority_score` descending), simulates K = 20 repairs per day, and writes `outputs/prioritized_queue.csv` and `outputs/fifo_vs_lightsafe_comparison.csv`.
 - The credited impact is the Stage 12 index (not a crime count); the comparison is a benchmark of the index, not evidence of crime prevention. Details: [docs/stage13_prioritization_engine.md](docs/stage13_prioritization_engine.md). Validation: `scripts/validation/stage13_validate.py`.
 
+### Stage 14: ILP optimization
+
+```
+python src/optimization/ilp_solver.py [--daily-budget B] [--repair-cost C] [--quota-fraction F] [--quota BOROUGH=N ...]
+```
+
+- Chooses one day's repairs from the scored outages with PuLP and CBC (`pulp==3.3.2`; 4.0 no longer bundles CBC): maximise total `priority_score` subject to a daily budget (default 20 = the Stage 13 capacity at cost 1) and borough minimum quotas. Writes `outputs/optimal_dispatch_plan.csv` and `outputs/optimal_dispatch_summary.json`.
+- Costs, budget and quotas are Stage 14 conventions, and the benefit is the Stage 12 index, not a crime count. Details: [docs/stage14_optimization.md](docs/stage14_optimization.md). Validation: `scripts/validation/stage14_validate.py`.
+
 ### Validation scripts
 
 In [scripts/validation/](scripts/validation/) (usage and runtimes in its [README](scripts/validation/README.md)):

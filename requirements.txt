@@ -123,3 +123,4 @@ widgetsnbextension==4.0.16
 wrapt==2.5.0rc1
 requests
 pyarrow
+pulp==3.3.2

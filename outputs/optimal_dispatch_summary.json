@@ -1,0 +1,49 @@
+{
+  "benefit_definition": "Stage 12 priority_score (index points; not a crime count)",
+  "borough_allocation": {
+    "BRONX": 1,
+    "BROOKLYN": 3,
+    "MANHATTAN": 13,
+    "QUEENS": 2,
+    "STATEN ISLAND": 1
+  },
+  "budget_remaining": 0.0,
+  "budget_used": 20.0,
+  "model": "LightSafe_Dispatch (PuLP, CBC)",
+  "n_candidates": 103830,
+  "n_deferred": 103810,
+  "n_selected": 20,
+  "objective_value": 1152.8321720939725,
+  "parameters": {
+    "daily_budget": 20.0,
+    "quota_fraction": 0.5,
+    "quota_overrides": {},
+    "repair_cost": 1.0,
+    "tie_epsilon": 1e-06
+  },
+  "price_of_fairness": 55.80142523470454,
+  "pulp_version": "3.3.2",
+  "quota_compliance": {
+    "BRONX": true,
+    "BROOKLYN": true,
+    "MANHATTAN": true,
+    "QUEENS": true,
+    "STATEN ISLAND": true,
+    "Unspecified": true
+  },
+  "quotas": {
+    "BRONX": 1,
+    "BROOKLYN": 3,
+    "MANHATTAN": 1,
+    "QUEENS": 2,
+    "STATEN ISLAND": 1,
+    "Unspecified": 0
+  },
+  "solver_status": "Optimal",
+  "unconstrained_borough_allocation": {
+    "BROOKLYN": 1,
+    "MANHATTAN": 15,
+    "QUEENS": 4
+  },
+  "unconstrained_objective": 1208.633597328677
+}
