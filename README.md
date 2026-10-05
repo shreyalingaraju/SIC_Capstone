@@ -169,6 +169,15 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 - **The −7…0 day gap:** days [−7, 0) belong to no week. This is a known limitation, flagged and not fixed.
 - **Use a scratch `--out` for now**, for the same reason as Stage 9.
 
+### Stage 12: priority score
+
+```
+python src/features/priority_score.py [--outages P] [--crime P] [--stage11 P] [--out P]
+```
+
+- Writes `data/processed/outages_scored.parquet`: `max(0, tau_net × local_crime_rate × duration_factor)`, min-max normalised to 0–100, tiers High ≥ 80, Medium ≥ 40, Low otherwise.
+- Uses the Stage 11 `net_post` estimate unchanged. Definitions, results and limitations: [docs/stage12_priority_scoring.md](docs/stage12_priority_scoring.md). Validation: `scripts/validation/stage12_validate.py`. The score is a decision-support index, not a probability.
+
 ### Validation scripts
 
 In [scripts/validation/](scripts/validation/) (usage and runtimes in its [README](scripts/validation/README.md)):
