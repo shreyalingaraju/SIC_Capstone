@@ -178,6 +178,15 @@ python src/features/priority_score.py [--outages P] [--crime P] [--stage11 P] [-
 - Writes `data/processed/outages_scored.parquet`: `max(0, tau_net × local_crime_rate × duration_factor)`, min-max normalised to 0–100, tiers High ≥ 80, Medium ≥ 40, Low otherwise.
 - Uses the Stage 11 `net_post` estimate unchanged. Definitions, results and limitations: [docs/stage12_priority_scoring.md](docs/stage12_priority_scoring.md). Validation: `scripts/validation/stage12_validate.py`. The score is a decision-support index, not a probability.
 
+### Stage 13: prioritization engine
+
+```
+python src/models/prioritization_engine.py [--scored P] [--capacity K] [--out DIR]
+```
+
+- Orders the scored outages by FIFO (`created_date`) and by LightSafe (`priority_score` descending), simulates K = 20 repairs per day, and writes `outputs/prioritized_queue.csv` and `outputs/fifo_vs_lightsafe_comparison.csv`.
+- The credited impact is the Stage 12 index (not a crime count); the comparison is a benchmark of the index, not evidence of crime prevention. Details: [docs/stage13_prioritization_engine.md](docs/stage13_prioritization_engine.md). Validation: `scripts/validation/stage13_validate.py`.
+
 ### Validation scripts
 
 In [scripts/validation/](scripts/validation/) (usage and runtimes in its [README](scripts/validation/README.md)):
