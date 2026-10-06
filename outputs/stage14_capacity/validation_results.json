@@ -1,0 +1,57 @@
+{
+  "validated_utc": "2026-10-06T09:05:44+00:00",
+  "n_checks": 10,
+  "n_passed": 10,
+  "results": [
+    {
+      "check": "V1 common arrivals",
+      "pass": true,
+      "detail": "57444 jobs; identical (job_id, arrival_s, site_id, borough) for K=[55, 60, 65, 70, 75, 80]; jobs.parquet sha256 equals the file Stage 13 used=True"
+    },
+    {
+      "check": "V2 FIFO ordering",
+      "pass": true,
+      "detail": "K=55: order ok=True, work-conserving=True; K=60: order ok=True, work-conserving=True; K=65: order ok=True, work-conserving=True; K=70: order ok=True, work-conserving=True; K=75: order ok=True, work-conserving=True; K=80: order ok=True, work-conserving=True; ordering function takes (arrival_s, job_id) only"
+    },
+    {
+      "check": "V3 capacity",
+      "pass": true,
+      "detail": "K=55: max/day=55; K=60: max/day=60; K=65: max/day=65; K=70: max/day=70; K=75: max/day=75; K=80: max/day=80; every job served exactly once"
+    },
+    {
+      "check": "V4 no future information",
+      "pass": true,
+      "detail": "selected at an 08:00 decision strictly after arrival for every job and K; cutoff 2025-03-15 08:00:00: decisions identical for all K; cutoff 2025-11-20 08:00:00: decisions identical for all K"
+    },
+    {
+      "check": "V5 service assumption",
+      "pass": true,
+      "detail": "resolved = selected + 1 day for all jobs at every K=True"
+    },
+    {
+      "check": "V6 no closure leakage",
+      "pass": true,
+      "detail": "files read: [('jobs.parquet', ['job_id', 'arrival_s', 'site_id', 'borough']), ('arrivals.parquet', ['created_date', 'period', 'is_artifact_pre'])]; unexpected reads=[]; retired/forbidden names in module code=[]; retired modules loaded on import=none"
+    },
+    {
+      "check": "V9 reproducibility",
+      "pass": true,
+      "detail": "two fresh runs byte-identical tables=True; equal to stored tables=True; summaries equal except timestamp=True; stored log hashes reproduced=True"
+    },
+    {
+      "check": "V7 monotonic capacity",
+      "pass": true,
+      "detail": "K=55->60: queue<= True, selection<= True; K=60->65: queue<= True, selection<= True; K=65->70: queue<= True, selection<= True; K=70->75: queue<= True, selection<= True; K=75->80: queue<= True, selection<= True"
+    },
+    {
+      "check": "V8 metric independence",
+      "pass": true,
+      "detail": "simulation inputs=['jobs', 'capacity']; each K identical alone / in reversed sweep=True; grid = pre-specified [55, 60, 65, 70, 75, 80]=True; stored metrics recompute from logs=True"
+    },
+    {
+      "check": "V10 baseline consistency",
+      "pass": true,
+      "detail": "K=65 schedule equals frozen jobs_fifo=True; backlog series/hash equal=True; frozen Stage 13 job-log hash reproduced=True; 30 metrics max |diff|=0.0e+00 (CSV round-trip); regime split equal (2025-07-01 00:00:00)=True"
+    }
+  ]
+}

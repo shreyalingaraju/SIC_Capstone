@@ -8,6 +8,7 @@ Written for: capstone reviewers and anyone who will run, check or extend the Iss
 - The Phase 9 acceptance runs are done ([acceptance_report.md](acceptance_report.md)). The user reported Phase 9 "reviewed and **APPROVED**" on 2026-09-30T17:14:01Z (decision log §9). That statement did not itself declare formal acceptance. A subsequent project-owner decision (2026-10-01T14:07:40Z; decision log §9) formally accepts Step 1 and the Stage 8–10 migration on the basis of the acceptance report at `9d44ce3`, with item 9 accepted as partly met. That decision satisfies Q12's acceptance condition. It is not a release-readiness approval, and it does not by itself authorise a push or merge.
 - The Phase 10 self-review ([release_readiness_review.md](release_readiness_review.md), `f79af97`) concludes **A. Not ready for release**.
 - Nothing here is a final result. Every Stage 9 and 10 estimate is provisional while M8 (§9) is open.
+- **Role in the final project (2026-10-06):** Stages 7–10 are an earlier exploratory causal design. Their DiD and event-study results remain provisional, and M1–M8 (§9) remain open. They are not part of the final pipeline. The frozen Stages 11–14 use no Stage 7–10 estimate or causal claim; they share only data conventions (CRS, bounding box, site and artifact rules). See the README section "Final methodology".
 
 **How to read this document.** Each statement carries one of these labels:
 

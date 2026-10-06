@@ -1,6 +1,30 @@
 # LightSafe
 
-Streetlight outages and night-time crime in New York City: a causal pipeline that matches each reported streetlight outage to a nearby location that was not dark, and compares crime before, during and after the outage.
+Streetlight outages and night-time crime in New York City: an observational research prototype. Stages 7–10 match each reported streetlight outage to a nearby location that was not reported dark and compare crime before, during and after the outage (a matched design whose estimates remain provisional, M1–M8). Stages 11–14 are the final frozen analysis below.
+
+## Final methodology (frozen 2026-10-06)
+
+None of these stages estimates or claims crime reduction, a causal repair benefit, physical darkness or an optimal crew allocation.
+
+| Stage | Question | Code | Doc | Validator |
+|---|---|---|---|---|
+| S11 | Association between reported-open streetlight exposure and night crime by distance band (null) | `src/features/build_exposure_panel.py`, `src/models/exposure_model.py`, `src/models/stage11_sensitivity.py` | [stage11_exposure_analysis.md](docs/stage11_exposure_analysis.md) | `scripts/validation/stage11_exposure_validate.py` (7/7) |
+| S12–13 | Descriptive chronological FIFO dispatch of 57,444 complaint-jobs (K = 65/day, 08:00 decisions, 1-day simulated service); candidate priority scores audited and rejected | `src/features/operational_priority.py`, `src/models/dispatch_simulation.py` | [stage12_13_operational_dispatch.md](docs/stage12_13_operational_dispatch.md) | `scripts/validation/stage12_13_validate.py` (9/9) |
+| S14 | Capacity / service-level analysis of the same FIFO simulation for K ∈ {55, …, 80} | `src/models/capacity_analysis.py` | [stage14_capacity_analysis.md](docs/stage14_capacity_analysis.md) | `scripts/validation/stage14_capacity_validate.py` (10/10) |
+
+Stages 12–14 read nothing from Stage 11 or Stages 7–10 except shared conventions (CRS, bounding box, site and artifact rules).
+
+The frozen outputs are kept exactly as produced. Their stored metadata strings (`status`, `estimand`, `framing`) are historical. The documents linked above define the current interpretation and supersede that wording.
+
+**Stages 7–10** are an earlier exploratory causal design. Their DiD and event-study results remain provisional, and M1–M8 remain open (see [Limitations](#limitations)). They are not part of the final pipeline, and no Stage 7–10 causal claim is used in Stages 11–14.
+
+**Retired, kept as historical audit artifacts (not part of the final pipeline):**
+- `src/models/displacement_model.py`, `src/models/robustness.py`, `outputs/displacement_estimates.csv` (old Stage 11, `tau_net`);
+- `src/features/priority_score.py`, `src/models/prioritization_engine.py`, `src/optimization/ilp_solver.py` and their outputs `outputs/prioritized_queue.csv`, `outputs/fifo_vs_lightsafe_comparison.csv`, `outputs/optimal_dispatch_plan.csv`, `outputs/optimal_dispatch_summary.json`;
+- `scripts/validation/stage11_validate.py`, `stage12_validate.py`, `stage13_validate.py`, `stage14_validate.py`;
+- notebooks 09–12.
+
+The Stage 12–14 sections further down describe these retired designs.
 
 ## Project status (reconciled 2026-10-01)
 
@@ -169,7 +193,9 @@ python src/models/event_study.py [--panel PATH] [--crime PATH] [--out DIR]
 - **The −7…0 day gap:** days [−7, 0) belong to no week. This is a known limitation, flagged and not fixed.
 - **Use a scratch `--out` for now**, for the same reason as Stage 9.
 
-### Stage 12: priority score
+### Stage 12: priority score (retired)
+
+> Retired historical design. See [Final methodology](#final-methodology-frozen-2026-10-06).
 
 ```
 python src/features/priority_score.py [--outages P] [--crime P] [--stage11 P] [--out P]
@@ -178,7 +204,9 @@ python src/features/priority_score.py [--outages P] [--crime P] [--stage11 P] [-
 - Writes `data/processed/outages_scored.parquet`: `max(0, tau_net × local_crime_rate × duration_factor)`, min-max normalised to 0–100, tiers High ≥ 80, Medium ≥ 40, Low otherwise.
 - Uses the Stage 11 `net_post` estimate unchanged. Definitions, results and limitations: [docs/stage12_priority_scoring.md](docs/stage12_priority_scoring.md). Validation: `scripts/validation/stage12_validate.py`. The score is a decision-support index, not a probability.
 
-### Stage 13: prioritization engine
+### Stage 13: prioritization engine (retired)
+
+> Retired historical design. See [Final methodology](#final-methodology-frozen-2026-10-06).
 
 ```
 python src/models/prioritization_engine.py [--scored P] [--capacity K] [--out DIR]
@@ -187,7 +215,9 @@ python src/models/prioritization_engine.py [--scored P] [--capacity K] [--out DI
 - Orders the scored outages by FIFO (`created_date`) and by LightSafe (`priority_score` descending), simulates K = 20 repairs per day, and writes `outputs/prioritized_queue.csv` and `outputs/fifo_vs_lightsafe_comparison.csv`.
 - The credited impact is the Stage 12 index (not a crime count); the comparison is a benchmark of the index, not evidence of crime prevention. Details: [docs/stage13_prioritization_engine.md](docs/stage13_prioritization_engine.md). Validation: `scripts/validation/stage13_validate.py`.
 
-### Stage 14: ILP optimization
+### Stage 14: ILP optimization (retired)
+
+> Retired historical design. See [Final methodology](#final-methodology-frozen-2026-10-06).
 
 ```
 python src/optimization/ilp_solver.py [--daily-budget B] [--repair-cost C] [--quota-fraction F] [--quota BOROUGH=N ...]

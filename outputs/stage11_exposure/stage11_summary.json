@@ -1,0 +1,409 @@
+{
+  "stage": "11b exposure model",
+  "status": "provisional; estimand = reported-open status, not physical darkness",
+  "estimand": "per additional reported-open light-night (311 open status) in the band; not a physical-darkness or repair effect; under the non-differential timing-error assumption an attenuated signal of darkness",
+  "created_utc": "2026-10-06T06:46:38+00:00",
+  "specs": {
+    "primary": {
+      "period": "week",
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500"
+      ],
+      "note": ""
+    },
+    "cutoff_750": {
+      "period": "week",
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500",
+        "x_500_750"
+      ],
+      "note": ""
+    },
+    "fortnight": {
+      "period": "fortnight",
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500"
+      ],
+      "note": "coefficient is per light-night on fortnight crime; an extra night raises one of two weeks, so it is about half the weekly coefficient and not directly comparable to it"
+    }
+  },
+  "inputs": {
+    "exposure_cells.parquet": "10bdb313cdfa2c19ef24bc8a8d6f9cd4cee471cd16238dd96a3f20ece0b8a603",
+    "exposure_panel.parquet": "f3c6070f1f82cb7fd0d40ffd6bb172d5d87f3b3f2b7709f7af9d51a035203f00"
+  },
+  "stage11a_definitions": {
+    "panel_start": "2024-01-01",
+    "n_weeks": 130,
+    "first_week": "2024-W01",
+    "last_week": "2026-W26",
+    "night_window": "[d 18:00, d+1 07:00) (Stage 5 hour >= 18 or <= 6)",
+    "h3_resolution": 10,
+    "cluster_resolution": 7,
+    "universe_radius_m": 500.0,
+    "bands_m": {
+      "x_0_100": [
+        0.0,
+        100.0
+      ],
+      "x_100_250": [
+        100.0,
+        250.0
+      ],
+      "x_250_500": [
+        250.0,
+        500.0
+      ],
+      "x_500_750": [
+        500.0,
+        750.0
+      ]
+    },
+    "primary_bands": [
+      "x_0_100",
+      "x_100_250",
+      "x_250_500"
+    ],
+    "interval_rule": "[created, closed or snapshot), capped at created + 8760 h; closures < 0.5 h and closed < created excluded",
+    "artifact_rule": "n_complaints > quantile(0.999, 'higher'); no exposure"
+  },
+  "results": {
+    "primary": {
+      "sample": {
+        "n_obs_panel": 7080710,
+        "n_obs": 3921970,
+        "n_obs_dropped": 3158740,
+        "n_cells_panel": 54467,
+        "n_cells": 30169,
+        "n_periods": 130,
+        "n_fe_borough_period": 650,
+        "n_clusters": 200,
+        "drop_rounds": 2,
+        "crime_total_panel": 349692,
+        "crime_total_estimation": 349692
+      },
+      "exposure_variation": {
+        "x_0_100": {
+          "nonzero_share": 0.11936246325188617,
+          "mean": 0.8067935246827487,
+          "total": 3164220,
+          "within_variance_share": 0.6576980019877683,
+          "cells_without_within_variation": 8157
+        },
+        "x_100_250": {
+          "nonzero_share": 0.4322019291325533,
+          "mean": 3.9875922049378247,
+          "total": 15639217,
+          "within_variance_share": 0.561235459285634,
+          "cells_without_within_variation": 450
+        },
+        "x_250_500": {
+          "nonzero_share": 0.7896195024439249,
+          "mean": 13.450714309390435,
+          "total": 52753298,
+          "within_variance_share": 0.4028729776919436,
+          "cells_without_within_variation": 35
+        }
+      },
+      "fit": {
+        "converged": true,
+        "iterations": 6,
+        "deviance": 1365861.1134932782,
+        "runtime_s": 20.0,
+        "max_abs_score_sum": 6.829850462963805e-09,
+        "n_zero_y_with_mu_below_1e-12": 0,
+        "fitted_total_minus_observed": 1.9232335034757853e-05,
+        "pearson_dispersion": 1.1187229168282622
+      },
+      "vcov": [
+        [
+          1.0616378617349154e-06,
+          -1.0633885356294619e-07,
+          -5.4920291032957716e-08
+        ],
+        [
+          -1.0633885356294619e-07,
+          3.670911703995142e-07,
+          3.402124923065503e-08
+        ],
+        [
+          -5.4920291032957716e-08,
+          3.4021249230655046e-08,
+          6.716822196992246e-08
+        ]
+      ],
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500"
+      ],
+      "irls_history": [
+        {
+          "iteration": 1,
+          "deviance": 1678796.1403121403,
+          "ap_sweeps": 10
+        },
+        {
+          "iteration": 2,
+          "deviance": 1393230.1311453786,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 3,
+          "deviance": 1366352.5695429211,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 4,
+          "deviance": 1365861.5903400904,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 5,
+          "deviance": 1365861.113531772,
+          "ap_sweeps": 3
+        },
+        {
+          "iteration": 6,
+          "deviance": 1365861.1134932782,
+          "ap_sweeps": 3
+        }
+      ]
+    },
+    "cutoff_750": {
+      "sample": {
+        "n_obs_panel": 7080710,
+        "n_obs": 3921970,
+        "n_obs_dropped": 3158740,
+        "n_cells_panel": 54467,
+        "n_cells": 30169,
+        "n_periods": 130,
+        "n_fe_borough_period": 650,
+        "n_clusters": 200,
+        "drop_rounds": 2,
+        "crime_total_panel": 349692,
+        "crime_total_estimation": 349692
+      },
+      "exposure_variation": {
+        "x_0_100": {
+          "nonzero_share": 0.11936246325188617,
+          "mean": 0.8067935246827487,
+          "total": 3164220,
+          "within_variance_share": 0.6576980019877683,
+          "cells_without_within_variation": 8157
+        },
+        "x_100_250": {
+          "nonzero_share": 0.4322019291325533,
+          "mean": 3.9875922049378247,
+          "total": 15639217,
+          "within_variance_share": 0.561235459285634,
+          "cells_without_within_variation": 450
+        },
+        "x_250_500": {
+          "nonzero_share": 0.7896195024439249,
+          "mean": 13.450714309390435,
+          "total": 52753298,
+          "within_variance_share": 0.4028729776919436,
+          "cells_without_within_variation": 35
+        },
+        "x_500_750": {
+          "nonzero_share": 0.8897620328559372,
+          "mean": 21.194865080559005,
+          "total": 83125625,
+          "within_variance_share": 0.33553667262440917,
+          "cells_without_within_variation": 28
+        }
+      },
+      "fit": {
+        "converged": true,
+        "iterations": 6,
+        "deviance": 1365861.006263814,
+        "runtime_s": 25.3,
+        "max_abs_score_sum": 1.1074007488787174e-08,
+        "n_zero_y_with_mu_below_1e-12": 0,
+        "fitted_total_minus_observed": 1.9300845451653004e-05,
+        "pearson_dispersion": 1.1187227648410265
+      },
+      "vcov": [
+        [
+          1.0688803143796527e-06,
+          -1.0532125435195508e-07,
+          -5.112528618620892e-08,
+          -4.0572221062076333e-08
+        ],
+        [
+          -1.0532125435195512e-07,
+          3.6059321197987305e-07,
+          2.7326963504675047e-08,
+          3.558622880278723e-08
+        ],
+        [
+          -5.112528618620892e-08,
+          2.732696350467506e-08,
+          6.252412129093295e-08,
+          1.505673321339915e-08
+        ],
+        [
+          -4.0572221062076333e-08,
+          3.558622880278722e-08,
+          1.5056733213399153e-08,
+          4.577978597060164e-08
+        ]
+      ],
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500",
+        "x_500_750"
+      ],
+      "irls_history": [
+        {
+          "iteration": 1,
+          "deviance": 1678799.0590273817,
+          "ap_sweeps": 10
+        },
+        {
+          "iteration": 2,
+          "deviance": 1393230.6130480904,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 3,
+          "deviance": 1366352.4954705075,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 4,
+          "deviance": 1365861.4833802073,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 5,
+          "deviance": 1365861.0063024452,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 6,
+          "deviance": 1365861.006263814,
+          "ap_sweeps": 3
+        }
+      ]
+    },
+    "fortnight": {
+      "sample": {
+        "n_obs_panel": 3540355,
+        "n_obs": 1960985,
+        "n_obs_dropped": 1579370,
+        "n_cells_panel": 54467,
+        "n_cells": 30169,
+        "n_periods": 65,
+        "n_fe_borough_period": 325,
+        "n_clusters": 200,
+        "drop_rounds": 2,
+        "crime_total_panel": 349692,
+        "crime_total_estimation": 349692
+      },
+      "exposure_variation": {
+        "x_0_100": {
+          "nonzero_share": 0.1343018942011285,
+          "mean": 1.6135870493654974,
+          "total": 3164220,
+          "within_variance_share": 0.6441361849404192,
+          "cells_without_within_variation": 8157
+        },
+        "x_100_250": {
+          "nonzero_share": 0.47210356020061345,
+          "mean": 7.9751844098756495,
+          "total": 15639217,
+          "within_variance_share": 0.5465262544067193,
+          "cells_without_within_variation": 450
+        },
+        "x_250_500": {
+          "nonzero_share": 0.8258426250073305,
+          "mean": 26.90142861878087,
+          "total": 52753298,
+          "within_variance_share": 0.3890991834174565,
+          "cells_without_within_variation": 35
+        }
+      },
+      "fit": {
+        "converged": true,
+        "iterations": 6,
+        "deviance": 996762.7251341725,
+        "runtime_s": 10.7,
+        "max_abs_score_sum": 1.2373219115957568e-09,
+        "n_zero_y_with_mu_below_1e-12": 0,
+        "fitted_total_minus_observed": 1.8096761777997017e-07,
+        "pearson_dispersion": 1.129669408875019
+      },
+      "vcov": [
+        [
+          2.8540791759497243e-07,
+          -2.5081064303738172e-08,
+          -1.1864191536544252e-08
+        ],
+        [
+          -2.5081064303738172e-08,
+          9.281239341214209e-08,
+          8.281717858393105e-09
+        ],
+        [
+          -1.1864191536544252e-08,
+          8.281717858393105e-09,
+          1.8132730480081858e-08
+        ]
+      ],
+      "bands": [
+        "x_0_100",
+        "x_100_250",
+        "x_250_500"
+      ],
+      "irls_history": [
+        {
+          "iteration": 1,
+          "deviance": 1137538.953351951,
+          "ap_sweeps": 10
+        },
+        {
+          "iteration": 2,
+          "deviance": 1004589.8684885448,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 3,
+          "deviance": 996837.1006361136,
+          "ap_sweeps": 4
+        },
+        {
+          "iteration": 4,
+          "deviance": 996762.7891541573,
+          "ap_sweeps": 3
+        },
+        {
+          "iteration": 5,
+          "deviance": 996762.7251345343,
+          "ap_sweeps": 3
+        },
+        {
+          "iteration": 6,
+          "deviance": 996762.7251341725,
+          "ap_sweeps": 3
+        }
+      ]
+    }
+  },
+  "tolerances": {
+    "irls_rel_deviance": 1e-10,
+    "ap": 1e-12
+  },
+  "git": {
+    "sha": "59af56aa21087064d77d33511d3c65d6cec3f969",
+    "branch": "issue4-step1",
+    "dirty": true
+  }
+}

@@ -1,5 +1,7 @@
 # Stage 14: ILP optimization layer
 
+> **Retired (2026-10-06).** This design reads the retired `outages_scored.parquet` and maximises a `priority_score` that no longer exists (Stage 11 is null, and the Stage 12–13 audit froze no score). It is replaced by the capacity / service-level analysis in [stage14_capacity_analysis.md](stage14_capacity_analysis.md). The code and outputs below are kept unchanged for audit history only.
+
 Written for: reviewers and the Stage 15 implementer. It states the optimization model, the parameter conventions the Guide left open, and what the result does and does not mean.
 
 **Status.** Implemented on `issue4-step1` after Stage 13. Provisional while M8 is open. The plan maximizes the Stage 12 priority index under stated constraints. **It is not a guaranteed or estimated number of crimes prevented.**

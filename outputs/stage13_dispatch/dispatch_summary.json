@@ -1,0 +1,303 @@
+{
+  "stage": "13 rolling dispatch simulation",
+  "framing": "Decision-support for prioritizing unresolved reported streetlight outages using operational need and exposure features. Not a crime-reduction, crime-prevention or causal repair-benefit estimate.",
+  "created_utc": "2026-10-06T07:22:41+00:00",
+  "job_definition": "one job per evaluation-period complaint at a non-artifact site; job_id = unique_key, arrival = created_date; no merging",
+  "assumptions": {
+    "decision_cadence": "daily at 08:00",
+    "capacity_jobs_per_decision": 65,
+    "capacity_rule": "ceil(2023 daily non-artifact complaint arrivals 58.48 / 0.9)",
+    "service_days": 1,
+    "service_time_note": "simulation assumption; not inferred from 311 closure dates (never loaded)",
+    "initial_queue": "empty at 2024-01-01",
+    "horizon": [
+      "2024-01-01",
+      "2026-06-29"
+    ],
+    "drain": "decisions continue after the last arrival until the queue is empty"
+  },
+  "frozen_policy": "fifo",
+  "policy_specs": {
+    "fifo": null,
+    "age_only": {
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "r": null
+    },
+    "age_c": {
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ],
+      "r": null
+    },
+    "age_r": {
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ],
+      "r": "prior"
+    },
+    "operational": {
+      "weights": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.3333333333333333
+      ],
+      "r": "current"
+    }
+  },
+  "policy_status": {
+    "fifo": "frozen",
+    "age_only": "audited_rejected",
+    "age_c": "audited_rejected",
+    "age_r": "audited_rejected",
+    "operational": "audited_rejected"
+  },
+  "regime_split": {
+    "overload_start": "2025-07-01 00:00:00",
+    "rule": "start of the first calendar quarter whose mean daily arrivals exceed K"
+  },
+  "common_population": {
+    "n_jobs": 57444,
+    "jobs_sha256": "b8eb250e028bf76d7e9dc60fe6f2ea8b585b90373f82d2b99a326c8c5776b1fe",
+    "identity_columns": [
+      "job_id",
+      "arrival_s",
+      "site_id"
+    ]
+  },
+  "backlog_series_identical_across_policies": true,
+  "n_artifact_arrivals_excluded": 1444,
+  "metrics": [
+    {
+      "policy": "fifo",
+      "status": "frozen",
+      "n_jobs": 57444,
+      "wait_mean_days": 13.46793113486371,
+      "wait_median_days": 2.642361111111111,
+      "wait_p90_days": 38.70097222222223,
+      "wait_max_days": 46.81597222222222,
+      "served_within_7d_pct": 62.41556994638257,
+      "served_within_14d_pct": 65.41675370795905,
+      "served_within_30d_pct": 71.98837128333682,
+      "backlog_mean": 739.4813186813187,
+      "backlog_max": 2970,
+      "backlog_at_horizon_end": 2940,
+      "throughput_per_day": 59.85934065934066,
+      "utilisation": 0.9209129332206255,
+      "drain_days_after_horizon": 46,
+      "stable_n_jobs": 31102,
+      "stable_wait_mean_days": 1.4613524317835938,
+      "stable_wait_median_days": 0.9118055555555555,
+      "stable_wait_p90_days": 3.6659722222222224,
+      "stable_wait_max_days": 6.384027777777778,
+      "stable_served_within_7d_pct": 100.0,
+      "stable_served_within_14d_pct": 100.0,
+      "stable_served_within_30d_pct": 100.0,
+      "overload_n_jobs": 26342,
+      "overload_wait_mean_days": 27.64409888306802,
+      "overload_wait_median_days": 34.84791666666667,
+      "overload_wait_p90_days": 40.925694444444446,
+      "overload_wait_max_days": 46.81597222222222,
+      "overload_served_within_7d_pct": 18.0396325260041,
+      "overload_served_within_14d_pct": 24.58431402323286,
+      "overload_served_within_30d_pct": 38.915040619542935,
+      "guard_selections": 0,
+      "guard_share_pct": 0.0,
+      "stable_guard_selections": 0,
+      "overload_guard_selections": 0
+    },
+    {
+      "policy": "age_only",
+      "status": "audited_rejected",
+      "n_jobs": 57444,
+      "wait_mean_days": 13.46793113486371,
+      "wait_median_days": 2.642361111111111,
+      "wait_p90_days": 38.70097222222223,
+      "wait_max_days": 46.81597222222222,
+      "served_within_7d_pct": 62.41556994638257,
+      "served_within_14d_pct": 65.41675370795905,
+      "served_within_30d_pct": 71.98837128333682,
+      "backlog_mean": 739.4813186813187,
+      "backlog_max": 2970,
+      "backlog_at_horizon_end": 2940,
+      "throughput_per_day": 59.85934065934066,
+      "utilisation": 0.9209129332206255,
+      "drain_days_after_horizon": 46,
+      "stable_n_jobs": 31102,
+      "stable_wait_mean_days": 1.4613524317835938,
+      "stable_wait_median_days": 0.9118055555555555,
+      "stable_wait_p90_days": 3.6659722222222224,
+      "stable_wait_max_days": 6.384027777777778,
+      "stable_served_within_7d_pct": 100.0,
+      "stable_served_within_14d_pct": 100.0,
+      "stable_served_within_30d_pct": 100.0,
+      "overload_n_jobs": 26342,
+      "overload_wait_mean_days": 27.64409888306802,
+      "overload_wait_median_days": 34.84791666666667,
+      "overload_wait_p90_days": 40.925694444444446,
+      "overload_wait_max_days": 46.81597222222222,
+      "overload_served_within_7d_pct": 18.0396325260041,
+      "overload_served_within_14d_pct": 24.58431402323286,
+      "overload_served_within_30d_pct": 38.915040619542935,
+      "guard_selections": 16091,
+      "guard_share_pct": 28.011628716663182,
+      "stable_guard_selections": 0,
+      "overload_guard_selections": 16091
+    },
+    {
+      "policy": "age_c",
+      "status": "audited_rejected",
+      "n_jobs": 57444,
+      "wait_mean_days": 13.46793113486371,
+      "wait_median_days": 0.9958333333333333,
+      "wait_p90_days": 38.70097222222223,
+      "wait_max_days": 46.81597222222222,
+      "served_within_7d_pct": 60.37009957523849,
+      "served_within_14d_pct": 65.13822157231391,
+      "served_within_30d_pct": 69.33187103962119,
+      "backlog_mean": 739.4813186813187,
+      "backlog_max": 2970,
+      "backlog_at_horizon_end": 2940,
+      "throughput_per_day": 59.85934065934066,
+      "utilisation": 0.9209129332206255,
+      "drain_days_after_horizon": 46,
+      "stable_n_jobs": 31102,
+      "stable_wait_mean_days": 1.461352431783594,
+      "stable_wait_median_days": 0.6854166666666667,
+      "stable_wait_p90_days": 3.6595833333333356,
+      "stable_wait_max_days": 16.977777777777778,
+      "stable_served_within_7d_pct": 95.24789402610764,
+      "stable_served_within_14d_pct": 99.36660021863545,
+      "stable_served_within_30d_pct": 100.0,
+      "overload_n_jobs": 26342,
+      "overload_wait_mean_days": 27.64409888306802,
+      "overload_wait_median_days": 34.84791666666667,
+      "overload_wait_p90_days": 40.925694444444446,
+      "overload_wait_max_days": 46.81597222222222,
+      "overload_served_within_7d_pct": 19.189886872674816,
+      "overload_served_within_14d_pct": 24.72477412497153,
+      "overload_served_within_30d_pct": 33.122010477564345,
+      "guard_selections": 17617,
+      "guard_share_pct": 30.668128960378805,
+      "stable_guard_selections": 0,
+      "overload_guard_selections": 17617
+    },
+    {
+      "policy": "age_r",
+      "status": "audited_rejected",
+      "n_jobs": 57444,
+      "wait_mean_days": 13.46793113486371,
+      "wait_median_days": 2.3444444444444446,
+      "wait_p90_days": 38.70097222222223,
+      "wait_max_days": 46.81597222222222,
+      "served_within_7d_pct": 62.763735115939,
+      "served_within_14d_pct": 65.6378385906274,
+      "served_within_30d_pct": 70.39899728431168,
+      "backlog_mean": 739.4813186813187,
+      "backlog_max": 2970,
+      "backlog_at_horizon_end": 2940,
+      "throughput_per_day": 59.85934065934066,
+      "utilisation": 0.9209129332206255,
+      "drain_days_after_horizon": 46,
+      "stable_n_jobs": 31102,
+      "stable_wait_mean_days": 1.4613524317835938,
+      "stable_wait_median_days": 0.8534722222222222,
+      "stable_wait_p90_days": 3.7568750000000013,
+      "stable_wait_max_days": 7.547916666666667,
+      "stable_served_within_7d_pct": 99.76528840589029,
+      "stable_served_within_14d_pct": 100.0,
+      "stable_served_within_30d_pct": 100.0,
+      "overload_n_jobs": 26342,
+      "overload_wait_mean_days": 27.64409888306802,
+      "overload_wait_median_days": 34.88194444444444,
+      "overload_wait_p90_days": 40.925694444444446,
+      "overload_wait_max_days": 46.81597222222222,
+      "overload_served_within_7d_pct": 19.07600030369752,
+      "overload_served_within_14d_pct": 25.066433831903424,
+      "overload_served_within_30d_pct": 35.44909270366715,
+      "guard_selections": 17004,
+      "guard_share_pct": 29.601002715688324,
+      "stable_guard_selections": 0,
+      "overload_guard_selections": 17004
+    },
+    {
+      "policy": "operational",
+      "status": "audited_rejected",
+      "n_jobs": 57444,
+      "wait_mean_days": 13.46793113486371,
+      "wait_median_days": 0.9625,
+      "wait_p90_days": 38.70097222222223,
+      "wait_max_days": 46.81597222222222,
+      "served_within_7d_pct": 61.00898266137455,
+      "served_within_14d_pct": 64.70127428452057,
+      "served_within_30d_pct": 68.63031822296497,
+      "backlog_mean": 739.4813186813187,
+      "backlog_max": 2970,
+      "backlog_at_horizon_end": 2940,
+      "throughput_per_day": 59.85934065934066,
+      "utilisation": 0.9209129332206255,
+      "drain_days_after_horizon": 46,
+      "stable_n_jobs": 31102,
+      "stable_wait_mean_days": 1.461352431783594,
+      "stable_wait_median_days": 0.6791666666666667,
+      "stable_wait_p90_days": 3.380347222222225,
+      "stable_wait_max_days": 20.29513888888889,
+      "stable_served_within_7d_pct": 95.3314899363385,
+      "stable_served_within_14d_pct": 98.68175680020578,
+      "stable_served_within_30d_pct": 100.0,
+      "overload_n_jobs": 26342,
+      "overload_wait_mean_days": 27.64409888306802,
+      "overload_wait_median_days": 34.87152777777778,
+      "overload_wait_p90_days": 40.925694444444446,
+      "overload_wait_max_days": 46.81597222222222,
+      "overload_served_within_7d_pct": 20.484397540050107,
+      "overload_served_within_14d_pct": 24.58051780426695,
+      "overload_served_within_30d_pct": 31.592134234302634,
+      "guard_selections": 18020,
+      "guard_share_pct": 31.369681777035023,
+      "stable_guard_selections": 0,
+      "overload_guard_selections": 18020
+    }
+  ],
+  "logs": {
+    "fifo": {
+      "jobs_sha256": "839687646a624c6c3c2359d938e0ae3d39d26652af9c062536c8452f5a45cf2c",
+      "backlog_sha256": "1e41307267d2d3194d24ac28e31962a5f3789c0de318ab50be212cb0f948f75b",
+      "guard_selections": 0
+    },
+    "age_only": {
+      "jobs_sha256": "5a4ed8b396060b044e618af7c45a97ffa07b30b00506ee4d31e7e1846d683ba0",
+      "backlog_sha256": "1e41307267d2d3194d24ac28e31962a5f3789c0de318ab50be212cb0f948f75b",
+      "guard_selections": 16091
+    },
+    "age_c": {
+      "jobs_sha256": "77d44429c2e5aa64af7882d0a91c340a199b6fcbcbfad7716f44d8a923c97fd3",
+      "backlog_sha256": "1e41307267d2d3194d24ac28e31962a5f3789c0de318ab50be212cb0f948f75b",
+      "guard_selections": 17617
+    },
+    "age_r": {
+      "jobs_sha256": "2f14b34db843d168e37a294715b2a1ede39fa7f39bd7af8237fe7e1dcfc1f00c",
+      "backlog_sha256": "1e41307267d2d3194d24ac28e31962a5f3789c0de318ab50be212cb0f948f75b",
+      "guard_selections": 17004
+    },
+    "operational": {
+      "jobs_sha256": "f10a8e37f0bcbca45fb3444d86a99b95eb4e162f40506c44042bc5c175550ccb",
+      "backlog_sha256": "1e41307267d2d3194d24ac28e31962a5f3789c0de318ab50be212cb0f948f75b",
+      "guard_selections": 18020
+    }
+  },
+  "stage12_calibration_sha256": "bd286e84d4e5d1fff134a551e90d5a23a731f3c581b91e16d7d21c25ee2eaedb",
+  "stage12_jobs_sha256": "2e9504466093eb329fd1ca267c789044c1084da7dc950ae74b6553244accf6bf",
+  "git": {
+    "sha": "59af56aa21087064d77d33511d3c65d6cec3f969",
+    "branch": "issue4-step1",
+    "dirty": true
+  }
+}
