@@ -9,3 +9,10 @@ __pycache__/
 data/raw/
 data/processed/
 outputs/robustness/
+
+# Dashboard
+node_modules/
+frontend/dist/
+.env
+.env.local
+*.tsbuildinfo

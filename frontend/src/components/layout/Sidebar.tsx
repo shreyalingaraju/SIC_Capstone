@@ -1,0 +1,46 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { LayoutDashboard, Map, Lightbulb, ListOrdered, FlaskConical } from 'lucide-react';
+
+const NAV_ITEMS = [
+  { path: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+  { path: '/map', label: 'City Map', icon: Map, end: false },
+  { path: '/outages', label: 'Outages', icon: Lightbulb, end: false },
+  { path: '/priority', label: 'Dispatch Plan', icon: ListOrdered, end: false },
+  { path: '/causal', label: 'Evidence', icon: FlaskConical, end: false },
+];
+
+export const Sidebar: React.FC = () => (
+  <aside className="flex w-14 shrink-0 flex-col border-r border-night-light/40 bg-night-deep text-slate-300 xl:w-60" aria-label="Primary">
+    <nav className="flex flex-col gap-0.5 p-2 xl:p-3">
+      {NAV_ITEMS.map(({ path, label, icon: Icon, end }) => (
+        <NavLink
+          key={path}
+          to={path}
+          end={end}
+          title={label}
+          className={({ isActive }) =>
+            `group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-[13px] font-semibold transition-colors duration-150 xl:px-3 ${
+              isActive ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <span
+                aria-hidden
+                className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-signal transition-opacity duration-150 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+              />
+              <Icon size={16} strokeWidth={2} className={`shrink-0 transition-colors duration-150 ${isActive ? 'text-signal' : 'text-slate-500 group-hover:text-slate-300'}`} />
+              <span className="hidden xl:inline">{label}</span>
+            </>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+
+    <p className="mt-auto hidden px-5 pb-4 text-[11px] leading-snug text-slate-400 xl:block">
+      Recommendations support, but do not replace, dispatch judgement.
+    </p>
+  </aside>
+);

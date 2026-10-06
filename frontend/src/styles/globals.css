@@ -1,0 +1,190 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ theme tokens
+   Channels are "r g b" so Tailwind can apply opacity. Switched by <html data-theme>. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-paper: 243 244 239;
+  --c-surface: 251 252 248;
+  --c-surface-strong: 255 255 255;
+  --c-line: 216 222 215;
+  --c-line-soft: 232 235 229;
+  --c-ink: 19 44 39;
+  --c-ink-soft: 83 102 97;
+  --c-night: 24 63 54;
+  --c-night-deep: 16 46 41;
+  --c-night-light: 36 89 76;
+  --c-signal: 201 244 91;
+  --c-signal-deep: 98 130 14;
+  --c-brand: 24 63 54;
+
+  /* status tones: fg / bg / border */
+  --t-high-fg: 168 58 36;   --t-high-bg: 253 237 232;   --t-high-bd: 245 205 194;
+  --t-med-fg: 128 87 8;     --t-med-bg: 252 244 222;    --t-med-bd: 241 222 168;
+  --t-low-fg: 45 98 92;     --t-low-bg: 232 243 241;    --t-low-bd: 198 224 220;
+  --t-ok-fg: 21 94 62;      --t-ok-bg: 228 245 235;     --t-ok-bd: 188 227 204;
+  --t-neutral-fg: 83 102 97; --t-neutral-bg: 236 239 233; --t-neutral-bd: 216 222 215;
+
+  --chart-grid: #e3e8e1;
+  --chart-axis: #536661;
+  --chart-a: #183f36;   /* LightSafe */
+  --chart-b: #94a3b8;   /* FIFO */
+  --chart-accent: #4f7f1d;
+
+  --shadow-subtle: 0 1px 2px rgba(19, 44, 39, 0.04), 0 2px 8px rgba(19, 44, 39, 0.04);
+  --shadow-elevated: 0 8px 28px rgba(19, 44, 39, 0.10);
+  --shadow-modal: 0 20px 50px rgba(16, 46, 41, 0.22);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-paper: 9 19 16;
+  --c-surface: 15 29 25;
+  --c-surface-strong: 20 37 32;
+  --c-line: 36 56 49;
+  --c-line-soft: 27 44 38;
+  --c-ink: 230 238 233;
+  --c-ink-soft: 150 170 162;
+  --c-night: 28 76 64;
+  --c-night-deep: 8 24 20;
+  --c-night-light: 40 98 83;
+  --c-signal: 201 244 91;
+  --c-signal-deep: 168 208 60;
+  --c-brand: 201 244 91;
+
+  --t-high-fg: 255 168 148;  --t-high-bg: 58 28 23;   --t-high-bd: 104 52 42;
+  --t-med-fg: 240 202 112;   --t-med-bg: 54 43 18;    --t-med-bd: 96 78 32;
+  --t-low-fg: 134 204 196;   --t-low-bg: 21 46 43;    --t-low-bd: 40 82 77;
+  --t-ok-fg: 124 222 164;    --t-ok-bg: 19 50 37;     --t-ok-bd: 36 88 63;
+  --t-neutral-fg: 150 170 162; --t-neutral-bg: 27 44 38; --t-neutral-bd: 36 56 49;
+
+  --chart-grid: #233a32;
+  --chart-axis: #96aaa2;
+  --chart-a: #c9f45b;
+  --chart-b: #7d8f88;
+  --chart-accent: #a8d03c;
+
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------------ base */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* the app shell scrolls internally */
+}
+
+/* Brief colour transition only while the theme is being switched (no flash on load). */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease, fill 220ms ease, stroke 220ms ease !important;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--c-signal-deep));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--c-line)) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--c-line)); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-ink-soft) / 0.6); background-clip: content-box; }
+
+.mono-num { font-family: 'DM Mono', ui-monospace, monospace; font-feature-settings: 'tnum' on; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* ------------------------------------------------------------------ components */
+@layer components {
+  .page { @apply mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-8 animate-fade-up; }
+  .page-title { @apply text-xl font-extrabold tracking-tight text-ink; }
+  .page-sub { @apply mt-1 text-[13px] leading-snug text-ink-soft; }
+  .eyebrow { @apply text-[11px] font-bold uppercase tracking-wider text-ink-soft; }
+
+  .card { @apply rounded-card border border-line bg-surface shadow-subtle; }
+  .card-pad { @apply p-5; }
+  .card-title { @apply text-sm font-bold text-ink; }
+
+  .btn {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink
+      transition-colors duration-150 hover:bg-line-soft disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-primary { @apply border-night bg-night text-white hover:bg-night-light; }
+  .btn-sm { @apply h-8 px-2.5; }
+
+  .control {
+    @apply flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs text-ink
+      transition-colors duration-150 hover:border-ink-soft/50 focus-within:border-signal-deep focus-within:ring-2 focus-within:ring-signal/30;
+  }
+  .control > select, .control > input {
+    @apply min-w-0 flex-1 bg-transparent text-xs font-semibold text-ink outline-none;
+  }
+  .control > select { @apply cursor-pointer pr-1; }
+  .control > select option { background: rgb(var(--c-surface-strong)); color: rgb(var(--c-ink)); }
+  .control > input::placeholder { @apply font-normal text-ink-soft; }
+  .control-label { @apply hidden shrink-0 text-ink-soft min-[1500px]:inline; }
+
+  .badge {
+    @apply inline-flex items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-4;
+  }
+  .badge-high { color: rgb(var(--t-high-fg)); background: rgb(var(--t-high-bg)); border-color: rgb(var(--t-high-bd)); }
+  .badge-medium { color: rgb(var(--t-med-fg)); background: rgb(var(--t-med-bg)); border-color: rgb(var(--t-med-bd)); }
+  .badge-low { color: rgb(var(--t-low-fg)); background: rgb(var(--t-low-bg)); border-color: rgb(var(--t-low-bd)); }
+  .badge-ok { color: rgb(var(--t-ok-fg)); background: rgb(var(--t-ok-bg)); border-color: rgb(var(--t-ok-bd)); }
+  .badge-neutral { color: rgb(var(--t-neutral-fg)); background: rgb(var(--t-neutral-bg)); border-color: rgb(var(--t-neutral-bd)); }
+
+  .notice { @apply rounded-lg border px-3.5 py-3 text-xs leading-relaxed; }
+  .notice-warn { color: rgb(var(--t-med-fg)); background: rgb(var(--t-med-bg)); border-color: rgb(var(--t-med-bd)); }
+  .notice-bad { color: rgb(var(--t-high-fg)); background: rgb(var(--t-high-bg)); border-color: rgb(var(--t-high-bd)); }
+  .notice-info { color: rgb(var(--c-ink-soft)); background: rgb(var(--c-line-soft) / 0.6); border-color: rgb(var(--c-line)); }
+
+  /* tables */
+  .table-wrap { @apply overflow-auto rounded-card border border-line bg-surface shadow-subtle; }
+  .data-table { @apply w-full border-collapse text-left text-[13px]; }
+  .data-table thead th {
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface-strong px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-soft;
+  }
+  .data-table tbody td { @apply whitespace-nowrap border-b border-line-soft px-4 py-3 align-middle text-ink; }
+  .data-table tbody tr:last-child td { @apply border-b-0; }
+  .data-table tbody tr.row-link { @apply cursor-pointer transition-colors duration-100 hover:bg-line-soft/60; }
+  .data-table tbody tr.row-link:focus-visible { outline-offset: -2px; }
+  .num { @apply text-right tabular-nums; }
+
+  .tab {
+    @apply relative -mb-px whitespace-nowrap border-b-2 border-transparent px-3.5 py-2.5 text-[13px] font-semibold text-ink-soft
+      transition-colors duration-150 hover:text-ink;
+  }
+  .tab[aria-selected='true'] { @apply border-signal-deep text-ink; }
+
+  .progress { @apply h-1.5 w-full overflow-hidden rounded-full bg-line; }
+  .progress > span { @apply block h-full rounded-full bg-signal-deep transition-[width] duration-500; }
+
+  .skeleton { @apply animate-pulse rounded bg-line-soft; }
+}
+
+/* maplibre popups/controls follow the theme */
+.maplibregl-ctrl-group { background: rgb(var(--c-surface-strong)) !important; border: 1px solid rgb(var(--c-line)); box-shadow: var(--shadow-subtle) !important; }
+.maplibregl-ctrl-group button { background-color: transparent !important; }
+:root[data-theme='dark'] .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
+.maplibregl-ctrl-attrib { background: rgb(var(--c-surface-strong) / 0.8) !important; color: rgb(var(--c-ink-soft)) !important; }
+.maplibregl-ctrl-attrib a { color: rgb(var(--c-ink-soft)) !important; }
