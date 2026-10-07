@@ -1,0 +1,73 @@
+{
+  "features": [
+    "borough",
+    "location_type",
+    "address_type",
+    "community_board",
+    "police_precinct",
+    "zip_code",
+    "hour",
+    "dow",
+    "month",
+    "is_weekend",
+    "is_business_hours",
+    "latitude",
+    "longitude",
+    "has_coords",
+    "council_district",
+    "loc_prior_90d",
+    "loc_prior_365d",
+    "loc_days_since_prev",
+    "boro_backlog_60d",
+    "boro_created_7d",
+    "boro_closed_14d",
+    "boro_median_dur_14d",
+    "city_median_dur_14d",
+    "boro_share_gt168_14d"
+  ],
+  "categorical": [
+    "borough",
+    "location_type",
+    "address_type",
+    "community_board",
+    "police_precinct",
+    "zip_code"
+  ],
+  "numeric": [
+    "hour",
+    "dow",
+    "month",
+    "is_weekend",
+    "is_business_hours",
+    "latitude",
+    "longitude",
+    "has_coords",
+    "council_district",
+    "loc_prior_90d",
+    "loc_prior_365d",
+    "loc_days_since_prev",
+    "boro_backlog_60d",
+    "boro_created_7d",
+    "boro_closed_14d",
+    "boro_median_dur_14d",
+    "city_median_dur_14d",
+    "boro_share_gt168_14d"
+  ],
+  "target": "slow_repair",
+  "target_definition": "1 if complaint is not resolved within 168 hours of created_date",
+  "leaky_columns_never_used": [
+    "closed_date",
+    "resolution_action_updated_date",
+    "resolution_description",
+    "status",
+    "due_date",
+    "duration_hours"
+  ],
+  "required_raw_columns": [
+    "created_date",
+    "closed_date",
+    "status",
+    "borough"
+  ],
+  "note": "Feature columns must be produced by features.build_features.engineer_features(); history features need the full complaint log (incl. earlier complaints) of the target system."
+}

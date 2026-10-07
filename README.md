@@ -43,6 +43,10 @@ The Stage 12–14 sections further down describe these retired designs.
 - **Legacy results** in `outputs/` are pre-Issue-4 and are **not** current results (see [Stale and legacy results](#stale-and-legacy-results)).
 - Nothing on `issue4-step1` has been pushed or merged to `main`.
 
+## Repair-pressure context (ML, additive)
+
+A frozen XGBoost model trained on NYC 311 street-light repair behaviour gives each borough a *repair-pressure* reading: how slowly complaints are being resolved now compared with that borough's own 2024-2025 history. It is shown on the dashboard Overview as context only. It does not predict crime, does not score individual outages, and does not feed the priority score, FIFO comparison or optimisation plan; those outputs are byte-identical with ML on or off. Details, validation and limitations: [docs/ml_repair_pressure.md](docs/ml_repair_pressure.md). Switch off with `LIGHTSAFE_ML_ENABLED=0`.
+
 ## Pipeline
 
 Run every stage from the repository root: Stages 1–7 use paths relative to it.

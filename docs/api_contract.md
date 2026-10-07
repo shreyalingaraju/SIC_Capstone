@@ -22,7 +22,7 @@ npm run dev
 
 Tests: `.venv\Scripts\python.exe -m unittest backend.tests.test_api -v` and `cd frontend && npx tsc --noEmit && npm run build`.
 
-Environment variables: see `.env.example` (`LIGHTSAFE_HOST`, `LIGHTSAFE_PORT`, `LIGHTSAFE_CORS_ORIGINS`, `VITE_API_BASE_URL`). No secrets are used.
+Environment variables: see `.env.example` (`LIGHTSAFE_ML_ENABLED`, `LIGHTSAFE_HOST`, `LIGHTSAFE_PORT`, `LIGHTSAFE_CORS_ORIGINS`, `VITE_API_BASE_URL`). No secrets are used.
 
 ## Data sources
 
@@ -69,6 +69,7 @@ If an artifact is missing the API still starts: `/api/health` reports `degraded`
 | `GET /api/map/buffers/{id}` | - | GeoJSON polygons for the 100 m and 250 m analysis rings; 404 unknown ID |
 | `GET /api/causal/overview` | - | Stage 11 estimates by period (`post`, `during`) with CI, p-value, `significant_at_5pct`, `ci_includes_zero`; event study; dataset summary |
 | `GET /api/causal/event-study` | - | array of weekly coefficients |
+| `GET /api/ml/regime` | `borough` (optional) | Borough repair-pressure context from the frozen model: `available`, `model_status` (`state` = `ready`/`disabled`/`unavailable`, `integrity_verified`), `window`, `reference`, `boroughs[]` (`category` High/Moderate/Low, `relative_score` = percentile of the borough's own 2024-2025 history, `above_reference_range`, `observation_count`), `explanation`, `limitations[]`, `role: "context_only"`. When ML is off or unverified: `available: false` plus a `note`; never a 500. Context only: no per-outage values, not used by any dispatch endpoint. See [ml_repair_pressure.md](ml_repair_pressure.md) |
 
 ### Outage item
 

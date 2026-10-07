@@ -1,0 +1,94 @@
+{
+  "selected_model": "xgboost",
+  "hyperparameters": {
+    "max_depth": 3,
+    "n_estimators": 200,
+    "learning_rate": 0.05
+  },
+  "decision_threshold": 0.6153271198272705,
+  "threshold_rule": "Youden J (max TPR-FPR) on NYC validation set",
+  "selection_rule": "highest validation ROC-AUC among best config per model family; NYC data only",
+  "split": {
+    "train": {
+      "rows": 32622,
+      "from": "2024-01-01 02:19:00",
+      "to": "2025-06-30 23:46:00",
+      "slow_repair_rate": 0.4583
+    },
+    "val": {
+      "rows": 14624,
+      "from": "2025-07-01 00:03:00",
+      "to": "2025-12-31 23:57:00",
+      "slow_repair_rate": 0.7562
+    },
+    "test": {
+      "rows": 19722,
+      "from": "2026-01-01 00:21:00",
+      "to": "2026-09-12 23:03:00",
+      "slow_repair_rate": 0.7965
+    }
+  },
+  "window_start": "2024-01-01",
+  "seed": 42,
+  "nyc_validation_metrics": {
+    "n": 14624,
+    "prevalence": 0.7561542669584245,
+    "threshold": 0.6153271198272705,
+    "accuracy": 0.7761898249452954,
+    "balanced_accuracy": 0.75530065964328,
+    "precision": 0.8963445677629569,
+    "recall": 0.7960752396455055,
+    "f1": 0.8432396187556875,
+    "roc_auc": 0.8042179602233956,
+    "pr_auc": 0.90758586888479,
+    "brier": 0.14606036245822906,
+    "log_loss": 0.46156362027317205,
+    "tn": 2548,
+    "fp": 1018,
+    "fn": 2255,
+    "tp": 8803,
+    "mean_predicted_prob": 0.6810523271560669
+  },
+  "nyc_test_metrics": {
+    "n": 19722,
+    "prevalence": 0.7964709461515059,
+    "threshold": 0.6153271198272705,
+    "accuracy": 0.7393266403001724,
+    "balanced_accuracy": 0.6886334232021385,
+    "precision": 0.8841707263869701,
+    "recall": 0.7741278329513623,
+    "f1": 0.825498116153559,
+    "roc_auc": 0.7436856078210602,
+    "pr_auc": 0.9027421801774104,
+    "brier": 0.1547645777463913,
+    "log_loss": 0.4835672211139161,
+    "tn": 2421,
+    "fp": 1593,
+    "fn": 3548,
+    "tp": 12160,
+    "mean_predicted_prob": 0.6820716857910156
+  },
+  "diagnostics": {
+    "baseline_prior": {
+      "val_roc_auc": 0.5,
+      "val_pr_auc": 0.7561542669584245,
+      "test_roc_auc": 0.5,
+      "test_pr_auc": 0.7964709461515059
+    },
+    "selected_static_features_only": {
+      "val_roc_auc": 0.7321845265574156,
+      "val_pr_auc": 0.88040522686668,
+      "test_roc_auc": 0.553422186467557,
+      "test_pr_auc": 0.838228091717595
+    }
+  },
+  "library_versions": {
+    "python": "3.14.0",
+    "sklearn": "1.8.0",
+    "xgboost": "3.4.1",
+    "pandas": "2.3.3",
+    "numpy": "2.4.4"
+  },
+  "frozen_pipeline": "models/frozen_model.joblib (preprocessing + model, call predict_proba on FEATURES)",
+  "trained_on": "NYC only; the model is trained on the train split only (validation not merged back)"
+}

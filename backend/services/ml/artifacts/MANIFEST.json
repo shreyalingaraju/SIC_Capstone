@@ -1,0 +1,18 @@
+{
+ "model": "xgboost slow-repair pipeline (preprocessing + XGBClassifier)",
+ "note": "Byte-identical copy of ml_model/models; do not edit. Provenance and metrics: model_card.json.",
+ "artifacts": {
+  "frozen_model.joblib": {
+   "sha256": "979a72b6a915df8b4b001ed219bc435ffd05bf49755ce7e65be4b8bc35453dfc",
+   "source_sha256": "979a72b6a915df8b4b001ed219bc435ffd05bf49755ce7e65be4b8bc35453dfc"
+  },
+  "model_card.json": {
+   "sha256": "85aba5d57b6caf9184547ac88f92f83df74087c3d27e14519c142247b8815133",
+   "source_sha256": "85aba5d57b6caf9184547ac88f92f83df74087c3d27e14519c142247b8815133"
+  },
+  "feature_schema.json": {
+   "sha256": "778924a5eeb61f005b25f5ceac23968d72e3ebf63da425b93217b909d07cd599",
+   "source_sha256": "778924a5eeb61f005b25f5ceac23968d72e3ebf63da425b93217b909d07cd599"
+  }
+ }
+}

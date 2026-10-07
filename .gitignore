@@ -16,3 +16,7 @@ frontend/dist/
 .env
 .env.local
 *.tsbuildinfo
+
+# ML research: large raw/derived data (reproducible; see ml_model/README.md)
+ml_model/data/
+ml_model/synthetic_data/data/

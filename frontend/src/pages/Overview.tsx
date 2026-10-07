@@ -6,6 +6,7 @@ import { useGlobalFilters } from '../context/FilterContext';
 import { HeaderControls } from '../components/layout/HeaderSlot';
 import { BoroughControl, DecisionBadge, ErrorState, Loading, PageHeader, ScoreNote, Stat, TierBadge } from '../components/ui';
 import { formatDays, formatNumber, formatScore } from '../lib/formatters';
+import { RepairPressure } from '../components/RepairPressure';
 
 export const Overview: React.FC = () => {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ export const Overview: React.FC = () => {
         description={
           borough === 'All'
             ? 'Which street-light outages to repair first, given the daily repair budget.'
-            : `Which street-light outages to repair first. Counts are filtered to ${borough}; the repair plan is citywide.`
+            : `Which street-light outages to repair first. Outage counts and the repair list are filtered to ${borough}; the repair budget and recommended-repair total are citywide.`
         }
         actions={
           <button type="button" className="btn btn-primary" onClick={() => navigate('/priority')}>
@@ -45,17 +46,17 @@ export const Overview: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
-          label="Outages to prioritize"
+          label={borough === 'All' ? 'Outages to prioritize' : `Outages to prioritize · ${borough}`}
           value={formatNumber(kpis.scored_outages)}
           hint={kpis.excluded_outages > 0 && borough === 'All' ? `${formatNumber(kpis.excluded_outages)} more could not be scored` : undefined}
         />
         <Stat
-          label="High priority"
+          label={borough === 'All' ? 'High priority' : `High priority · ${borough}`}
           value={formatNumber(kpis.high_priority)}
           hint={`${formatNumber(kpis.medium_priority)} medium · ${formatNumber(kpis.low_priority)} low`}
         />
-        <Stat label="Recommended repairs" value={formatNumber(kpis.recommended_repairs ?? 0)} hint="Selected for the current plan" />
-        <Stat label="Repair budget" value={`${used} / ${budget}`} hint={`${kpis.budget_remaining ?? 0} remaining`}>
+        <Stat label="Recommended repairs · citywide" value={formatNumber(kpis.recommended_repairs ?? 0)} hint="Selected for the current plan" />
+        <Stat label="Repair budget · citywide" value={`${used} / ${budget}`} hint={`${kpis.budget_remaining ?? 0} remaining`}>
           <div className="progress mt-1" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={budget} aria-label="Repair budget used">
             <span style={{ width: `${pct}%` }} />
           </div>
@@ -134,6 +135,8 @@ export const Overview: React.FC = () => {
           )}
         </section>
       </div>
+
+      <RepairPressure borough={borough} />
 
       <ScoreNote />
     </div>

@@ -96,7 +96,7 @@ rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rfc3987-syntax==1.1.0
 rpds-py==2026.6.3
-scikit-learn==1.9.1
+scikit-learn==1.8.0  # frozen repair-pressure model was saved with 1.8.0 (backend/services/ml checks this)
 scipy==1.18.1
 seaborn==0.13.2
 Send2Trash==2.1.0
@@ -127,3 +127,4 @@ pulp==3.3.2
 fastapi==0.142.2
 uvicorn==0.54.0
 pydantic==2.13.5
+xgboost==3.4.1  # frozen repair-pressure model was saved with 3.4.1 (backend/services/ml checks this)

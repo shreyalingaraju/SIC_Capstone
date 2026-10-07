@@ -1,0 +1,62 @@
+{
+ "generated_by": "scripts/ml/build_regime_snapshot.py",
+ "model_sha256": "979a72b6a915df8b4b001ed219bc435ffd05bf49755ce7e65be4b8bc35453dfc",
+ "window": {
+  "days": 28,
+  "end": "2026-09-18",
+  "start": "2026-08-22"
+ },
+ "reference": {
+  "start": "2024-01-01",
+  "end": "2025-12-31",
+  "step_days": 7,
+  "description": "Model development period (train and validation splits)."
+ },
+ "boroughs": [
+  {
+   "borough": "Bronx",
+   "available": true,
+   "category": "High",
+   "relative_score": 81.2,
+   "above_reference_range": false,
+   "observation_count": 684,
+   "reference_windows": 101
+  },
+  {
+   "borough": "Brooklyn",
+   "available": true,
+   "category": "High",
+   "relative_score": 100.0,
+   "above_reference_range": true,
+   "observation_count": 838,
+   "reference_windows": 101
+  },
+  {
+   "borough": "Manhattan",
+   "available": true,
+   "category": "High",
+   "relative_score": 100.0,
+   "above_reference_range": true,
+   "observation_count": 377,
+   "reference_windows": 101
+  },
+  {
+   "borough": "Queens",
+   "available": true,
+   "category": "High",
+   "relative_score": 92.1,
+   "above_reference_range": false,
+   "observation_count": 630,
+   "reference_windows": 101
+  },
+  {
+   "borough": "Staten Island",
+   "available": true,
+   "category": "High",
+   "relative_score": 69.3,
+   "above_reference_range": false,
+   "observation_count": 642,
+   "reference_windows": 101
+  }
+ ]
+}

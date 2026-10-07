@@ -2,7 +2,8 @@ import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Flag, MapPin, PauseCircle, RotateCcw } from 'lucide-react';
 import { useOutageDetail, useOutageActionMutation } from '../hooks/useOutages';
-import { DecisionBadge, EmptyState, Loading, ScoreNote, TierBadge } from '../components/ui';
+import { ApiError } from '../lib/api';
+import { DecisionBadge, EmptyState, ErrorState, Loading, ScoreNote, TierBadge } from '../components/ui';
 import { formatDate, formatDays, formatImpact, formatNumber, formatScore } from '../lib/formatters';
 
 const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -15,7 +16,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value
 export const OutageDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: outage, isLoading, isError } = useOutageDetail(id);
+  const { data: outage, isLoading, isError, error, refetch } = useOutageDetail(id);
   const actionMutation = useOutageActionMutation();
 
   const back = (
@@ -25,6 +26,19 @@ export const OutageDetails: React.FC = () => {
   );
 
   if (isLoading) return <Loading label="Loading outage…" />;
+  if (isError && !(error instanceof ApiError && error.status === 404)) {
+    // network failure or a server error: the outage may well exist, so do not say it was not found
+    return (
+      <>
+        <div className="mx-auto w-full max-w-[1400px] px-6 pt-6 lg:px-8">{back}</div>
+        <ErrorState
+          title="Outage details could not be loaded"
+          detail="The LightSafe API did not respond, so this outage could not be checked. Make sure the LightSafe service is running, then retry."
+          onRetry={() => refetch()}
+        />
+      </>
+    );
+  }
   if (isError || !outage) {
     return (
       <div className="page max-w-3xl">
@@ -70,7 +84,7 @@ export const OutageDetails: React.FC = () => {
           <span className="font-bold">Not scored.</span>{' '}
           {outage.exclusion_reason === 'lookback_not_covered_by_crime_data'
             ? 'The crime data does not cover the period before this report, so no score was calculated.'
-            : `Reason: ${outage.exclusion_reason ?? 'unspecified'}.`}{' '}
+            : `Reason: ${(outage.exclusion_reason ?? 'not specified').replace(/_/g, ' ')}.`}{' '}
           It has no queue position or dispatch decision.
         </div>
       )}
@@ -83,12 +97,12 @@ export const OutageDetails: React.FC = () => {
               <dl>
                 <Row label={`Crimes per day within 250 m (previous ${d.lookback_days} days)`} value={d.local_crime_rate?.toFixed(3)} />
                 <Row label="Days the light was out" value={d.duration_factor?.toFixed(2)} />
-                <Row label="Effect constant" value={d.tau_net !== null ? d.tau_net.toFixed(4) : '–'} />
-                <Row label="Raw priority" value={d.raw_priority?.toPrecision(3)} />
+                <Row label="Assumed crime effect of an outage" value={d.tau_net !== null ? d.tau_net.toFixed(4) : '–'} />
+                <Row label="Unscaled priority" value={d.raw_priority?.toPrecision(3)} />
                 <Row label="Score (scaled 0–100)" value={<span className="text-brand">{formatScore(d.priority_score)}</span>} />
               </dl>
               <p className="mt-3 text-xs leading-relaxed text-ink-soft">
-                Raw priority multiplies the three inputs, then scores are scaled across all outages. The effect constant is not statistically distinguishable from zero (see <Link to="/causal" className="font-semibold text-brand hover:underline">Evidence</Link>), so the ranking mainly reflects recent nearby crime and how long the light has been out.
+                The unscaled priority multiplies these three inputs, then scores are scaled across all outages. The assumed crime effect is one value used for every outage and is not statistically distinguishable from zero (see <Link to="/causal" className="font-semibold text-brand hover:underline">Evidence</Link>), so the ranking mainly reflects recent nearby crime and how long the light has been out.
               </p>
             </>
           ) : (

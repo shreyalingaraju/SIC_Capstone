@@ -4,8 +4,19 @@ import { CausalOverview, EventStudyPoint } from '../types/causal';
 import { Comparison, Optimization, QueueList, QueueMethod } from '../types/dispatch';
 import { OverviewData } from '../types/overview';
 import { ReplayData } from '../types/explorer';
+import { MlRegime } from '../types/ml';
 
 export type { OverviewData };
+
+/** HTTP error from the API; `status` lets pages tell "not found" (404) from a backend problem. */
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -22,7 +33,7 @@ export interface OutageFilters {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`API error ${res.status}: ${errorText || res.statusText}`);
+    throw new ApiError(res.status, `API error ${res.status}: ${errorText || res.statusText}`);
   }
   return res.json();
 }
@@ -94,6 +105,8 @@ export const fetchBufferRings = (outageId: string) =>
 export const fetchCausalOverview = () => get<CausalOverview>('/causal/overview');
 
 export const fetchEventStudy = () => get<EventStudyPoint[]>('/causal/event-study');
+
+export const fetchMlRegime = () => get<MlRegime>('/ml/regime');
 
 /* ---- city replay */
 export const fetchReplay = (k: number) => get<ReplayData>(`/operations/replay${query({ k })}`);

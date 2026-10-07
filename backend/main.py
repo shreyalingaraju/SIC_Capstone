@@ -17,6 +17,7 @@ from . import config
 from .api.routes import router
 from .services.data_store import store
 from .services import operations_service
+from .services.ml import ml_model
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("lightsafe.api")
@@ -26,6 +27,7 @@ logger = logging.getLogger("lightsafe.api")
 async def lifespan(app: FastAPI):
     logger.info("Loading LightSafe artifacts...")
     store.load_all()
+    ml_model.load()  # integrity-checked; failure or LIGHTSAFE_ML_ENABLED=0 only switches the ML context off
     # Explorer simulation inputs load in the background; existing endpoints are not delayed.
     threading.Thread(target=operations_service.warm, daemon=True).start()
     yield

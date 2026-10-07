@@ -179,7 +179,7 @@ export const CityReplay: React.FC = () => {
   const overloadIdx = s.date.findIndex((x) => x >= data.overload_start);
   const pendingTotal = s.backlog[d];
   const stats = [
-    { label: 'New jobs this decision', value: formatNumber(s.new_jobs[d]), color: c.demand },
+    { label: 'New reports this decision', value: formatNumber(s.new_jobs[d]), color: c.demand },
     { label: 'Dispatched this decision', value: `${formatNumber(s.dispatched[d])} / ${data.capacity_k}`, color: c.dispatch },
     { label: 'Pending (backlog)', value: formatNumber(pendingTotal), color: c.demand },
     { label: 'Repaired so far (resolved)', value: formatNumber(cum.resolved[d]), color: c.backlog },
@@ -190,7 +190,7 @@ export const CityReplay: React.FC = () => {
     <div className="page max-w-[1400px] space-y-4">
       <PageHeader
         title="City replay"
-        description="The frozen FIFO dispatch simulation replayed one daily 08:00 decision at a time: reports arrive, join the queue, the oldest K are dispatched, and the backlog changes."
+        description="The frozen FIFO dispatch simulation replayed one daily 08:00 decision at a time: reports arrive, join the queue, the oldest reports are dispatched up to the daily capacity, and the backlog changes."
       />
 
       <div className="card flex flex-wrap items-center gap-3 p-3">
@@ -209,7 +209,7 @@ export const CityReplay: React.FC = () => {
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-          Capacity K
+          Repairs per day
           <select className="rounded border border-line bg-surface px-1.5 py-1 text-xs" value={k} onChange={(e) => setK(Number(e.target.value))}>
             {K_OPTIONS.map((o) => <option key={o} value={o}>{o}{o === 65 ? ' (baseline)' : ''}</option>)}
           </select>
@@ -267,8 +267,8 @@ export const CityReplay: React.FC = () => {
       </div>
 
       <p className="text-[11px] leading-relaxed text-ink-soft">
-        Each dot is one simulated complaint-job at its streetlight site; no crews, vehicles or routes are simulated. A job is known at the first 08:00 decision after its 311 report; "repaired" means resolved one day after dispatch under the Stage 13 1-day service assumption, not an observed repair.
-        {data.n_jobs_without_coordinates > 0 && ` ${data.n_jobs_without_coordinates} jobs have no site coordinates and are counted but not drawn.`}
+        Each dot is one simulated complaint at its streetlight site; no crews, vehicles or routes are simulated. A complaint is known at the first 08:00 decision after its 311 report; "repaired" means resolved one day after dispatch under the simulation's 1-day service assumption, not an observed repair.
+        {data.n_jobs_without_coordinates > 0 && ` ${data.n_jobs_without_coordinates} complaints have no site coordinates and are counted but not drawn.`}
       </p>
     </div>
   );

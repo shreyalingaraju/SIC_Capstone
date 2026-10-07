@@ -84,7 +84,7 @@ export const OutageList: React.FC = () => {
         </table>
         {isLoading && <p className="px-5 py-10 text-center text-xs text-ink-soft" role="status">Loading outages…</p>}
         {isError && (
-          <EmptyState tone="warn" title="Outages could not be loaded" detail="Check that the backend is running." />
+          <EmptyState tone="warn" title="Outages could not be loaded" detail="Check that the LightSafe service is running." />
         )}
         {data && data.items.length === 0 && <EmptyState title="No outages match these filters" detail="Try a different borough, tier or search term." />}
       </div>

@@ -11,6 +11,7 @@ from ..services import (
     overview_service, pipeline_service, priority_service,
 )
 from ..services.data_store import store
+from ..services.ml import get_regime
 
 router = APIRouter(prefix="/api")
 
@@ -38,6 +39,12 @@ def summary() -> Dict[str, Any]:
 @router.get("/overview", tags=["Overview"])
 def overview(borough: Optional[str] = None, priority_tier: Optional[str] = None) -> Dict[str, Any]:
     return overview_service.get_overview_data(borough=borough, priority_tier=priority_tier)
+
+
+@router.get("/ml/regime", tags=["Operational context"])
+def ml_regime(borough: Optional[str] = None) -> Dict[str, Any]:
+    """Borough repair-pressure context (frozen model). Context only: not a crime forecast, not used for dispatch."""
+    return get_regime(borough)
 
 
 @router.get("/outages", response_model=OutageList, tags=["Outages"])

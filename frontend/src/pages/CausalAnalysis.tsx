@@ -7,6 +7,14 @@ import { formatNumber } from '../lib/formatters';
 import { chartColors } from '../lib/chartTheme';
 import { useTheme } from '../context/ThemeContext';
 
+const EFFECT_LABELS: Record<string, string> = { direct: 'Within 100 m', displacement: '100–250 m ring', net: 'Combined (net)' };
+const PERIOD_LABELS: Record<string, string> = { post: 'after the outage', during: 'during the outage' };
+/** e.g. "net_post" -> "Combined (net), after the outage"; unknown names are shown as stored. */
+const effectLabel = (name: string) => {
+  const [effect, period] = name.split('_');
+  return EFFECT_LABELS[effect] && PERIOD_LABELS[period] ? `${EFFECT_LABELS[effect]}, ${PERIOD_LABELS[period]}` : name;
+};
+
 const f = (v: number | null | undefined, d = 4) => (v === null || v === undefined ? '–' : v.toFixed(d));
 
 const Finding: React.FC<{ title: string; range: string; e?: EffectEstimate }> = ({ title, range, e }) => (
@@ -33,7 +41,7 @@ export const CausalAnalysis: React.FC = () => {
   if (isLoading) return <Loading label="Loading evidence…" />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!causal || !causal.available) {
-    return <div className="page"><div className="card"><EmptyState tone="warn" title="Evidence tables are not available" detail="The estimates file was not found." /></div></div>;
+    return <div className="page"><div className="card"><EmptyState tone="warn" title="Evidence tables are not available" detail="The evidence results are not available right now." /></div></div>;
   }
 
   const { direct, displacement, net, displacement_proportion } = causal.periods.post;
@@ -104,10 +112,10 @@ export const CausalAnalysis: React.FC = () => {
         </summary>
         <div className="space-y-6 border-t border-line p-5">
           <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[13px] sm:grid-cols-4">
-            {ds.rows !== undefined && <div><p className="eyebrow">Panel rows</p><p className="font-semibold tabular-nums">{formatNumber(ds.rows)}</p></div>}
+            {ds.rows !== undefined && <div><p className="eyebrow">Observations</p><p className="font-semibold tabular-nums">{formatNumber(ds.rows)}</p></div>}
             {ds.unique_pairs !== undefined && <div><p className="eyebrow">Matched pairs</p><p className="font-semibold tabular-nums">{formatNumber(ds.unique_pairs)}</p></div>}
             {displacement_proportion !== null && <div><p className="eyebrow">Displacement ratio</p><p className="font-semibold tabular-nums">{f(displacement_proportion, 3)}</p></div>}
-            {causal.method && <div className="col-span-2 sm:col-span-1"><p className="eyebrow">Method</p><p className="font-semibold">{causal.method}</p></div>}
+            {causal.method && <div className="col-span-2 sm:col-span-1"><p className="eyebrow">Method</p><p className="font-semibold">Paired difference-in-differences</p></div>}
           </div>
 
           {chartData.length > 0 && (
@@ -144,7 +152,7 @@ export const CausalAnalysis: React.FC = () => {
               <tbody>
                 {causal.estimates_table.map((r) => (
                   <tr key={r.effect_name}>
-                    <td className="font-mono text-xs">{r.effect_name}</td>
+                    <td className="text-xs">{effectLabel(r.effect_name)}</td>
                     <td className="num">{f(r.estimate, 5)}</td>
                     <td className="num text-ink-soft">{f(r.standard_error, 5)}</td>
                     <td className="num text-ink-soft">{f(r.p_value, 3)}</td>

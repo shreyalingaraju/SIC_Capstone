@@ -51,7 +51,7 @@ export const EmptyState: React.FC<{ title: string; detail?: string; tone?: 'neut
 
 export const ErrorState: React.FC<{ title?: string; detail?: string; onRetry?: () => void }> = ({
   title = 'Data could not be loaded',
-  detail = 'The LightSafe API did not respond. Check that the backend is running, then retry.',
+  detail = 'The LightSafe API did not respond. Check that the LightSafe service is running, then retry.',
   onRetry,
 }) => (
   <div className="page">

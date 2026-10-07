@@ -1,0 +1,337 @@
+{
+  "rows": 49796,
+  "unique_complaint_ids": 49552,
+  "date_range": [
+    "2024-01-01 00:02:00",
+    "2026-09-30 23:35:00"
+  ],
+  "borough_distribution_pct": {
+    "BROOKLYN": 31.12,
+    "QUEENS": 20.26,
+    "MANHATTAN": 19.55,
+    "BRONX": 18.28,
+    "STATEN ISLAND": 9.61,
+    "(blank)": 1.18
+  },
+  "slow_repair_rate_observable": 0.3526,
+  "slow_repair_rate_observable_history_ready": 0.3482,
+  "repair_hours_all_latent": {
+    "mean": 256.2,
+    "median": 80.2,
+    "p5": 5.2,
+    "p25": 17.6,
+    "p75": 328.7,
+    "p90": 890.0,
+    "p95": 1137.3,
+    "p99": 1356.6
+  },
+  "repair_hours_observed_closed": {
+    "mean": 240.6,
+    "median": 75.4,
+    "p90": 817.6
+  },
+  "unresolved_closed_date_blank_raw": 1192,
+  "unresolved_true_at_snapshot_gt": 1045,
+  "missing_pct": {
+    "complaint_id": 0.0,
+    "created_date": 0.0,
+    "closed_date": 2.39,
+    "status": 0.95,
+    "borough": 1.18,
+    "descriptor_2": 0.0,
+    "address_type": 0.0,
+    "community_board": 3.05,
+    "council_district": 13.94,
+    "police_precinct": 0.0,
+    "incident_zip": 5.88,
+    "latitude": 12.21,
+    "longitude": 12.21,
+    "intersection_street_1": 30.73,
+    "intersection_street_2": 30.73,
+    "incident_address": 77.95,
+    "street_name": 63.52,
+    "cross_street_1": 85.57,
+    "cross_street_2": 85.57
+  },
+  "duplicate_rows": 244,
+  "status_counts": {
+    "Closed": 48185,
+    "Open": 1049,
+    "(blank)": 472,
+    "Assigned": 90
+  },
+  "location_type_pct": {
+    "Location Type: Intersection": 55.8,
+    "Location Type: Residential Address": 22.0,
+    "Location Type: Other": 7.8,
+    "Location Type: Park": 5.8,
+    "Location Type: Highway": 3.8,
+    "Location Type: Bridge / Tunnel": 2.6,
+    "Location Type: Misc.": 2.1
+  },
+  "address_type_pct": {
+    "INTERSECTION": 63.5,
+    "ADDRESS": 16.3,
+    "BLOCKFACE": 14.4,
+    "PLACENAME": 5.8
+  },
+  "sites_with_complaints": 12107,
+  "repeated_sites_ge2": 8640,
+  "site_tiers_by_realized_count": {
+    "high_ge10": 888,
+    "medium_4_9": 3391,
+    "low_1_3": 7828
+  },
+  "share_of_complaints_at_sites_ge4": 0.718,
+  "max_complaints_one_site": 105,
+  "monthly": [
+    {
+      "month": "2024-01",
+      "volume": 1826,
+      "slow_rate_observable": 0.3
+    },
+    {
+      "month": "2024-02",
+      "volume": 1698,
+      "slow_rate_observable": 0.526
+    },
+    {
+      "month": "2024-03",
+      "volume": 1549,
+      "slow_rate_observable": 0.405
+    },
+    {
+      "month": "2024-04",
+      "volume": 1395,
+      "slow_rate_observable": 0.265
+    },
+    {
+      "month": "2024-05",
+      "volume": 1337,
+      "slow_rate_observable": 0.334
+    },
+    {
+      "month": "2024-06",
+      "volume": 1075,
+      "slow_rate_observable": 0.355
+    },
+    {
+      "month": "2024-07",
+      "volume": 1098,
+      "slow_rate_observable": 0.255
+    },
+    {
+      "month": "2024-08",
+      "volume": 1225,
+      "slow_rate_observable": 0.1
+    },
+    {
+      "month": "2024-09",
+      "volume": 1300,
+      "slow_rate_observable": 0.061
+    },
+    {
+      "month": "2024-10",
+      "volume": 1493,
+      "slow_rate_observable": 0.052
+    },
+    {
+      "month": "2024-11",
+      "volume": 1594,
+      "slow_rate_observable": 0.071
+    },
+    {
+      "month": "2024-12",
+      "volume": 1926,
+      "slow_rate_observable": 0.168
+    },
+    {
+      "month": "2025-01",
+      "volume": 2003,
+      "slow_rate_observable": 0.231
+    },
+    {
+      "month": "2025-02",
+      "volume": 1621,
+      "slow_rate_observable": 0.24
+    },
+    {
+      "month": "2025-03",
+      "volume": 1863,
+      "slow_rate_observable": 0.371
+    },
+    {
+      "month": "2025-04",
+      "volume": 1459,
+      "slow_rate_observable": 0.465
+    },
+    {
+      "month": "2025-05",
+      "volume": 1315,
+      "slow_rate_observable": 0.235
+    },
+    {
+      "month": "2025-06",
+      "volume": 1155,
+      "slow_rate_observable": 0.241
+    },
+    {
+      "month": "2025-07",
+      "volume": 1056,
+      "slow_rate_observable": 0.168
+    },
+    {
+      "month": "2025-08",
+      "volume": 1063,
+      "slow_rate_observable": 0.131
+    },
+    {
+      "month": "2025-09",
+      "volume": 1359,
+      "slow_rate_observable": 0.085
+    },
+    {
+      "month": "2025-10",
+      "volume": 1517,
+      "slow_rate_observable": 0.069
+    },
+    {
+      "month": "2025-11",
+      "volume": 1768,
+      "slow_rate_observable": 0.15
+    },
+    {
+      "month": "2025-12",
+      "volume": 2104,
+      "slow_rate_observable": 0.606
+    },
+    {
+      "month": "2026-01",
+      "volume": 2243,
+      "slow_rate_observable": 0.641
+    },
+    {
+      "month": "2026-02",
+      "volume": 1868,
+      "slow_rate_observable": 0.718
+    },
+    {
+      "month": "2026-03",
+      "volume": 1837,
+      "slow_rate_observable": 0.644
+    },
+    {
+      "month": "2026-04",
+      "volume": 1455,
+      "slow_rate_observable": 0.608
+    },
+    {
+      "month": "2026-05",
+      "volume": 1443,
+      "slow_rate_observable": 0.633
+    },
+    {
+      "month": "2026-06",
+      "volume": 1100,
+      "slow_rate_observable": 0.573
+    },
+    {
+      "month": "2026-07",
+      "volume": 986,
+      "slow_rate_observable": 0.567
+    },
+    {
+      "month": "2026-08",
+      "volume": 1257,
+      "slow_rate_observable": 0.539
+    },
+    {
+      "month": "2026-09",
+      "volume": 1564,
+      "slow_rate_observable": 0.465
+    }
+  ],
+  "borough_slow_rate_overall": {
+    "BRONX": 0.559,
+    "BROOKLYN": 0.487,
+    "MANHATTAN": 0.105,
+    "QUEENS": 0.313,
+    "STATEN ISLAND": 0.118
+  },
+  "borough_monthly_slow_rate_range": {
+    "BRONX": {
+      "min": 0.015,
+      "max": 0.863
+    },
+    "BROOKLYN": {
+      "min": 0.015,
+      "max": 0.854
+    },
+    "MANHATTAN": {
+      "min": 0.01,
+      "max": 0.605
+    },
+    "QUEENS": {
+      "min": 0.02,
+      "max": 0.817
+    },
+    "STATEN ISLAND": {
+      "min": 0.03,
+      "max": 0.725
+    }
+  },
+  "checks": {
+    "all_5_boroughs_present": true,
+    "dates_parse_and_in_range": true,
+    "closed_not_before_created": true,
+    "duration_non_negative": true,
+    "ground_truth_matches_dates": true,
+    "every_borough_has_fast_and_slow": true,
+    "history_available": true,
+    "no_outcome_columns_in_raw_except_closed_date_status": true
+  },
+  "frozen_pipeline_compatibility": {
+    "schema_features_match_code": true,
+    "all_features_present": true,
+    "rows_after_feature_engineering": 49796,
+    "label_known_rows": 49489,
+    "feature_missing_pct": {
+      "borough": 0.0,
+      "location_type": 0.0,
+      "address_type": 0.0,
+      "community_board": 3.05,
+      "police_precinct": 0.0,
+      "zip_code": 5.88,
+      "hour": 0.0,
+      "dow": 0.0,
+      "month": 0.0,
+      "is_weekend": 0.0,
+      "is_business_hours": 0.0,
+      "latitude": 12.21,
+      "longitude": 12.21,
+      "has_coords": 0.0,
+      "council_district": 13.94,
+      "loc_prior_90d": 0.0,
+      "loc_prior_365d": 0.0,
+      "loc_days_since_prev": 28.87,
+      "boro_backlog_60d": 0.0,
+      "boro_created_7d": 0.0,
+      "boro_closed_14d": 0.0,
+      "boro_median_dur_14d": 0.17,
+      "city_median_dur_14d": 0.16,
+      "boro_share_gt168_14d": 0.17
+    },
+    "pipeline_label_vs_ground_truth_mismatches": 0,
+    "pipeline_known_but_gt_unobservable": 0,
+    "category_overlap_with_nyc": {
+      "community_board": "1 of 52 synthetic categories never seen in NYC",
+      "police_precinct": "9 of 41 synthetic categories never seen in NYC",
+      "zip_code": "20 of 80 synthetic categories never seen in NYC"
+    },
+    "predict_proba_accepts_features": true
+  },
+  "sha256": {
+    "raw": "5dc9470e45b154d014cf6d8e4e4c0bf0e46dd143fd5a57490096b4f5e6b2c5b8",
+    "ground_truth": "042c3b0c47bbd3726ddfb4609d415b9ca8b7cdd6767030d0734c58dfe0f7eb93"
+  }
+}

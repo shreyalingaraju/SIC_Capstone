@@ -1,0 +1,136 @@
+{
+  "calibration": {
+    "all": {
+      "mean_pred": 0.47408008575439453,
+      "observed": 0.3527450544565459,
+      "ece_decile": 0.1457815865047312,
+      "share_predicted_positive": 0.2193214653761442,
+      "observed_rate_in_pred_pos": 0.7559425096738529,
+      "observed_rate_in_pred_neg": 0.23947198136404815
+    },
+    "history_ready": {
+      "mean_pred": 0.47414225339889526,
+      "observed": 0.34836350974930363,
+      "ece_decile": 0.15501091928249822,
+      "share_predicted_positive": 0.22229717966573817,
+      "observed_rate_in_pred_pos": 0.7632892804698972,
+      "observed_rate_in_pred_neg": 0.22976187144975796
+    }
+  },
+  "tracking": {
+    "n_borough_months": 155,
+    "pearson_pred_vs_observed": 0.7815260870481644,
+    "spearman_pred_vs_observed": 0.4637820104885345,
+    "within_borough_month_roc_auc_weighted": 0.5242539047768859,
+    "within_borough_roc_auc_weighted": 0.7329627700400494,
+    "single_feature_scores": {
+      "boro_share_gt168_14d": {
+        "roc_auc_of_raw_feature": 0.8756927202809229,
+        "pearson_with_model_score": 0.7356306521677289
+      },
+      "boro_median_dur_14d": {
+        "roc_auc_of_raw_feature": 0.8840580586343216,
+        "pearson_with_model_score": 0.7016524266326292
+      },
+      "city_median_dur_14d": {
+        "roc_auc_of_raw_feature": 0.7504566828928577,
+        "pearson_with_model_score": 0.4350239907084787
+      },
+      "boro_backlog_60d": {
+        "roc_auc_of_raw_feature": 0.8837846440875875,
+        "pearson_with_model_score": 0.64135056829031
+      },
+      "boro_created_7d": {
+        "roc_auc_of_raw_feature": 0.6528051127305036,
+        "pearson_with_model_score": 0.029761881162761353
+      },
+      "loc_prior_90d": {
+        "roc_auc_of_raw_feature": 0.5398765351494704,
+        "pearson_with_model_score": -0.062374172734292625
+      },
+      "loc_days_since_prev": {
+        "roc_auc_of_raw_feature": 0.4899468376429758,
+        "pearson_with_model_score": 0.15339612338276895
+      }
+    },
+    "nyc_test_single_feature_scores": {
+      "boro_share_gt168_14d": 0.7633665859806095,
+      "boro_median_dur_14d": 0.6359623384235599,
+      "city_median_dur_14d": 0.5921616223152757,
+      "boro_backlog_60d": 0.6070687356792607,
+      "boro_created_7d": 0.6311419549021764,
+      "loc_prior_90d": 0.46520341841497215,
+      "loc_days_since_prev": 0.5283249716624339
+    },
+    "nyc_test_within_borough_roc_auc": {
+      "BRONX": 0.6046631263790984,
+      "BROOKLYN": 0.526074110820858,
+      "MANHATTAN": 0.6454741190798194,
+      "QUEENS": 0.6397594650998705,
+      "STATEN ISLAND": 0.46272438595873816,
+      "UNKNOWN": 0.47685185185185186
+    }
+  },
+  "score_shift": {
+    "nyc_train_mean_p": 0.49403131008148193,
+    "nyc_train_prevalence": 0.45831034271350624,
+    "nyc_test_mean_p": 0.6820716857910156,
+    "nyc_test_prevalence": 0.7964709461515059,
+    "syn_all_mean_p": 0.47408008575439453,
+    "syn_all_prevalence": 0.3527450544565459
+  },
+  "info_only": {
+    "synthetic_youden_threshold_info_only": 0.5097725987434387,
+    "frozen_threshold": 0.6153271198272705,
+    "metrics_at_that_threshold_info_only": {
+      "balanced_accuracy": 0.7668672092620534,
+      "precision": 0.6803410649335162,
+      "recall": 0.7127686156921539,
+      "f1": 0.6961774306720766
+    }
+  },
+  "by_borough_history_ready": [
+    {
+      "borough": "BRONX",
+      "n": 8372,
+      "prevalence": 0.5473,
+      "mean_pred": 0.5601000189781189,
+      "within_borough_roc_auc": 0.7943
+    },
+    {
+      "borough": "BROOKLYN",
+      "n": 14306,
+      "prevalence": 0.4771,
+      "mean_pred": 0.4828000068664551,
+      "within_borough_roc_auc": 0.8072
+    },
+    {
+      "borough": "MANHATTAN",
+      "n": 8939,
+      "prevalence": 0.1015,
+      "mean_pred": 0.37929999828338623,
+      "within_borough_roc_auc": 0.5735
+    },
+    {
+      "borough": "QUEENS",
+      "n": 9351,
+      "prevalence": 0.3198,
+      "mean_pred": 0.4731000065803528,
+      "within_borough_roc_auc": 0.8062
+    },
+    {
+      "borough": "STATEN ISLAND",
+      "n": 4451,
+      "prevalence": 0.1177,
+      "mean_pred": 0.47119998931884766,
+      "within_borough_roc_auc": 0.5668
+    },
+    {
+      "borough": "UNKNOWN",
+      "n": 533,
+      "prevalence": 0.3358,
+      "mean_pred": 0.5253999829292297,
+      "within_borough_roc_auc": 0.5539
+    }
+  ]
+}

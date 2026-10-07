@@ -33,6 +33,11 @@ STAGE11_SUMMARY_FILE = STAGE11_DIR / "stage11_summary.json"
 STAGE11_SENSITIVITY_FILE = STAGE11_DIR / "sensitivity" / "stage11_sensitivity_estimates.csv"
 STAGE14_CAPACITY_METRICS_FILE = OUTPUTS_DIR / "stage14_capacity" / "capacity_metrics.csv"
 
+# Operational repair-pressure context (frozen XGBoost model; see backend/services/ml)
+ML_ARTIFACT_DIR = Path(__file__).resolve().parent / "services" / "ml" / "artifacts"
+ML_REGIME_SNAPSHOT_FILE = OUTPUTS_DIR / "ml" / "regime_snapshot.json"
+ML_ENABLED = os.getenv("LIGHTSAFE_ML_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
+
 # Capacity explorer range (jobs per daily decision). The frozen Stage 14 grid is 55-80;
 # values outside it are exploratory re-runs of the same frozen FIFO simulation.
 CAPACITY_MIN = 50

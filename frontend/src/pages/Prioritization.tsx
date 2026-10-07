@@ -115,7 +115,7 @@ export const Prioritization: React.FC = () => {
   if (isLoading) return <>{controls}<Loading label="Loading dispatch plan…" /></>;
   if (isError || !opt) return <>{controls}<ErrorState onRetry={() => refetch()} /></>;
   if (!opt.available) {
-    return <>{controls}<div className="page"><div className="card"><EmptyState tone="warn" title="No dispatch plan available" detail="The optimization results file was not found. Run the pipeline or check /api/health." /></div></div></>;
+    return <>{controls}<div className="page"><div className="card"><EmptyState tone="warn" title="No dispatch plan available" detail="The dispatch plan results are not available right now. Check that the LightSafe service is running." /></div></div></>;
   }
 
   const pct = opt.daily_budget > 0 ? Math.min(100, (opt.budget_used / opt.daily_budget) * 100) : 0;
