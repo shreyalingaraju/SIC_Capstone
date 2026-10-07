@@ -25,6 +25,19 @@ DID_SUMMARY_FILE = OUTPUTS_DIR / "did_summary.json"
 EVENT_STUDY_FILE = OUTPUTS_DIR / "event_study_coefficients.csv"
 DISPLACEMENT_FILE = OUTPUTS_DIR / "displacement_estimates.csv"
 
+# Frozen Stage 11-14 artifacts (read only; used by the evidence/operations explorer views)
+OUTAGE_SITES_FILE = DATA_PROCESSED_DIR / "outage_sites.parquet"
+STAGE11_DIR = OUTPUTS_DIR / "stage11_exposure"
+STAGE11_ESTIMATES_FILE = STAGE11_DIR / "stage11_estimates.csv"
+STAGE11_SUMMARY_FILE = STAGE11_DIR / "stage11_summary.json"
+STAGE11_SENSITIVITY_FILE = STAGE11_DIR / "sensitivity" / "stage11_sensitivity_estimates.csv"
+STAGE14_CAPACITY_METRICS_FILE = OUTPUTS_DIR / "stage14_capacity" / "capacity_metrics.csv"
+
+# Capacity explorer range (jobs per daily decision). The frozen Stage 14 grid is 55-80;
+# values outside it are exploratory re-runs of the same frozen FIFO simulation.
+CAPACITY_MIN = 50
+CAPACITY_MAX = 90
+
 # Runtime settings (see .env.example at the repository root)
 API_HOST = os.getenv("LIGHTSAFE_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("LIGHTSAFE_PORT", "8000"))

@@ -61,9 +61,19 @@ def get_outages(
 ) -> Dict[str, Any]:
     page_size = min(max(page_size, 1), config.MAX_PAGE_SIZE)
     filtered = filter_outages(borough, priority_tier, search, dispatch_status, min_score, scope)
+    filtered = _acted_last(filtered)
     start = (page - 1) * page_size
     page_df = filtered.iloc[start:start + page_size]
     return {"items": records_for(page_df), **paginate(len(filtered), page, page_size)}
+
+
+def _acted_last(df: pd.DataFrame) -> pd.DataFrame:
+    """Display order only: outages with a session operator action move to the end of the list,
+    in the order the actions were taken. Scores, decisions and the underlying order are unchanged."""
+    acted = [oid for oid in store.operator_actions if oid in df.index]
+    if df.empty or not acted:
+        return df
+    return pd.concat([df[~df.index.isin(acted)], df.loc[acted]])
 
 
 def get_outage_by_id(outage_id: str) -> Optional[Dict[str, Any]]:
@@ -114,5 +124,7 @@ def update_outage_action(outage_id: str, action: str) -> Optional[Dict[str, Any]
     if status == "None":
         store.operator_actions.pop(str(outage_id), None)
     else:
+        # re-insert so the most recent action is last (Outages list display order)
+        store.operator_actions.pop(str(outage_id), None)
         store.operator_actions[str(outage_id)] = status
     return {"outage_id": str(outage_id), "operator_note": status, "success": True}

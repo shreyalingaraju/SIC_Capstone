@@ -11,6 +11,7 @@ import { OutageDetails } from './pages/OutageDetails';
 import { OutageList } from './pages/OutageList';
 import { Prioritization } from './pages/Prioritization';
 import { CausalAnalysis } from './pages/CausalAnalysis';
+import { CityReplay } from './pages/CityReplay';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
               <Route path="outages/:id" element={<OutageDetails />} />
               <Route path="priority" element={<Prioritization />} />
               <Route path="causal" element={<CausalAnalysis />} />
+              <Route path="replay" element={<CityReplay />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

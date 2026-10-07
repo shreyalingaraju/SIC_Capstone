@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { fetchBufferRings, fetchMapCrimes, fetchMapOutages } from '../lib/api';
+import { fetchBufferRings, fetchMapOutages } from '../lib/api';
 import { useGlobalFilters } from '../context/FilterContext';
 import { useTheme } from '../context/ThemeContext';
 import { HeaderControls } from '../components/layout/HeaderSlot';
@@ -35,9 +35,6 @@ const tierColor = (t: string | null) => (t && t in TIER_MAP_COLORS ? TIER_MAP_CO
 
 function addOverlays(map: any) {
   if (map.getSource('outages')) return;
-  map.addSource('crimes', { type: 'geojson', data: EMPTY });
-  map.addLayer({ id: 'crimes-layer', type: 'circle', source: 'crimes', layout: { visibility: 'none' }, paint: { 'circle-radius': 2.5, 'circle-color': '#a78bfa', 'circle-opacity': 0.55 } });
-
   map.addSource('buffers', { type: 'geojson', data: EMPTY });
   map.addLayer({ id: 'buffer-outer', type: 'fill', source: 'buffers', filter: ['==', ['get', 'type'], 'outer_ring'], paint: { 'fill-color': '#a78bfa', 'fill-opacity': 0.08 } });
   map.addLayer({ id: 'buffer-outer-line', type: 'line', source: 'buffers', filter: ['==', ['get', 'type'], 'outer_ring'], paint: { 'line-color': '#a78bfa', 'line-opacity': 0.7, 'line-width': 1.25, 'line-dasharray': [3, 2] } });
@@ -59,16 +56,6 @@ function addOverlays(map: any) {
   map.addLayer({ id: 'selected-ring', type: 'circle', source: 'selected', paint: { 'circle-radius': 16, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-width': 2.5, 'circle-stroke-color': '#ffffff' } });
 }
 
-const Toggle: React.FC<{ label: string; checked: boolean; onChange: (v: boolean) => void }> = ({ label, checked, onChange }) => (
-  <label className="flex cursor-pointer select-none items-center gap-2 text-xs font-semibold text-ink">
-    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-    <span className="relative h-4 w-7 rounded-full bg-line transition-colors peer-checked:bg-signal-deep peer-focus-visible:ring-2 peer-focus-visible:ring-signal-deep/50">
-      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-    </span>
-    {label}
-  </label>
-);
-
 export const MapView: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -81,20 +68,12 @@ export const MapView: React.FC = () => {
   themeRef.current = theme;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showCrimes, setShowCrimes] = useState(false);
-  const [showBuffers, setShowBuffers] = useState(true);
   const [search, setSearch] = useState('');
 
   const { data: outagesGeo, isLoading, isError } = useQuery({
     queryKey: ['mapOutages', borough, priorityTier, decision],
     queryFn: () => fetchMapOutages(borough, priorityTier, 500, decision === 'All' ? undefined : decision),
     staleTime: 1000 * 60 * 2,
-  });
-  const { data: crimesGeo } = useQuery({
-    queryKey: ['mapCrimes'],
-    queryFn: () => fetchMapCrimes(true, 800),
-    enabled: showCrimes,
-    staleTime: 1000 * 60 * 10,
   });
   const { data: buffersGeo } = useQuery({
     queryKey: ['mapBuffers', selectedId],
@@ -190,17 +169,6 @@ export const MapView: React.FC = () => {
     if (ready && outagesGeo) mapRef.current.getSource('outages')?.setData({ type: 'FeatureCollection', features: visible });
   }, [ready, outagesGeo, visible, styleVersion]);
   useEffect(() => {
-    if (ready && crimesGeo) mapRef.current.getSource('crimes')?.setData(crimesGeo);
-  }, [ready, crimesGeo, styleVersion]);
-  useEffect(() => {
-    if (ready && mapRef.current.getLayer('crimes-layer')) mapRef.current.setLayoutProperty('crimes-layer', 'visibility', showCrimes ? 'visible' : 'none');
-  }, [ready, showCrimes, styleVersion]);
-  useEffect(() => {
-    if (!ready) return;
-    const vis = showBuffers ? 'visible' : 'none';
-    ['buffer-outer', 'buffer-outer-line', 'buffer-inner', 'buffer-inner-line'].forEach((l) => mapRef.current.getLayer(l) && mapRef.current.setLayoutProperty(l, 'visibility', vis));
-  }, [ready, showBuffers, styleVersion]);
-  useEffect(() => {
     if (ready) mapRef.current.getSource('buffers')?.setData(buffersGeo && selectedId ? buffersGeo : EMPTY);
   }, [ready, buffersGeo, selectedId, styleVersion]);
 
@@ -218,8 +186,6 @@ export const MapView: React.FC = () => {
       mapRef.current.flyTo({ center: f.geometry.coordinates, zoom: Math.max(mapRef.current.getZoom(), 14), duration: 700 });
     }
   }, [ready, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resetView = useCallback(() => mapRef.current?.flyTo({ center: MAP_CENTER, zoom: MAP_DEFAULT_ZOOM, duration: 700 }), []);
 
   return (
     <div className="flex h-full min-h-0">
@@ -271,12 +237,6 @@ export const MapView: React.FC = () => {
       <div className="relative min-w-0 flex-1">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Map of street-light outages" />
         {isLoading && <div className="absolute inset-0 z-10 flex items-center justify-center bg-paper/50"><Loading label="Loading map data…" /></div>}
-
-        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-surface-strong/95 px-3 py-2 shadow-subtle backdrop-blur">
-          <Toggle label="100 m / 250 m rings" checked={showBuffers} onChange={setShowBuffers} />
-          <Toggle label="Night crimes (sample)" checked={showCrimes} onChange={setShowCrimes} />
-          <button type="button" className="text-xs font-semibold text-ink-soft transition-colors hover:text-ink" onClick={resetView}>Reset view</button>
-        </div>
 
         <div className="absolute bottom-8 left-3 z-10 rounded-lg border border-line bg-surface-strong/95 px-3 py-2.5 text-[11px] text-ink shadow-subtle backdrop-blur">
           <p className="mb-1.5 font-bold">Priority tier</p>

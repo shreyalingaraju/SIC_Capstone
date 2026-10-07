@@ -11,6 +11,11 @@ export function chartColors(theme: Theme) {
     secondary: dark ? '#7d8f88' : '#94a3b8',
     accent: dark ? '#7fb0ff' : '#2563eb',
     band: dark ? '#3a5a8f' : '#bfdbfe',
+    // Operations series (validated categorical trio, light/dark): dispatch/capacity, demand, backlog/repaired.
+    dispatch: dark ? '#5b8def' : '#2563eb',
+    demand: dark ? '#d9622a' : '#c2410c',
+    backlog: dark ? '#14a38b' : '#0d9488',
+    zero: dark ? '#e6eee9' : '#132c27',
     tooltip: {
       background: dark ? '#14251f' : '#ffffff',
       border: `1px solid ${dark ? '#243831' : '#d8ded7'}`,

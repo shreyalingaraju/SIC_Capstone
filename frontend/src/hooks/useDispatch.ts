@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { fetchComparison, fetchOptimization, fetchOptimizationPlan, fetchQueue } from '../lib/api';
+import { fetchComparison, fetchOptimization, fetchOptimizationPlan, fetchQueue, OperatorView } from '../lib/api';
 import { QueueMethod } from '../types/dispatch';
 
 const TEN_MIN = 1000 * 60 * 10; // artifacts are static between pipeline runs
@@ -10,6 +10,7 @@ export function useOptimization() {
 
 export function useOptimizationPlan(params: {
   decision?: 'recommended' | 'deferred';
+  action?: OperatorView;
   borough?: string;
   page?: number;
   pageSize?: number;
@@ -18,7 +19,9 @@ export function useOptimizationPlan(params: {
     queryKey: ['optimizationPlan', params],
     queryFn: () => fetchOptimizationPlan(params),
     staleTime: TEN_MIN,
-    placeholderData: keepPreviousData,
+    // Keep the previous page while the next loads, but never show one action view's rows under another.
+    placeholderData: (prev, prevQuery) =>
+      (prevQuery?.queryKey[1] as typeof params | undefined)?.action === params.action ? keepPreviousData(prev) : undefined,
   });
 }
 

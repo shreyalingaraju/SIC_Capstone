@@ -10,10 +10,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+import threading
 
 from . import config
 from .api.routes import router
 from .services.data_store import store
+from .services import operations_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("lightsafe.api")
@@ -23,6 +26,8 @@ logger = logging.getLogger("lightsafe.api")
 async def lifespan(app: FastAPI):
     logger.info("Loading LightSafe artifacts...")
     store.load_all()
+    # Explorer simulation inputs load in the background; existing endpoints are not delayed.
+    threading.Thread(target=operations_service.warm, daemon=True).start()
     yield
 
 
@@ -39,6 +44,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+# Replay payloads are columnar per-job arrays; compress them.
+app.add_middleware(GZipMiddleware, minimum_size=2048)
 
 app.include_router(router)
 

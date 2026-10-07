@@ -1,51 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Check, Download } from 'lucide-react';
 import { useGlobalFilters } from '../context/FilterContext';
 import { useComparison, useOptimization, useOptimizationPlan, useQueue } from '../hooks/useDispatch';
 import { HeaderControls } from '../components/layout/HeaderSlot';
-import { BoroughControl, EmptyState, ErrorState, Loading, PageHeader, Pager, ScoreNote, Stat, Tabs, TierBadge } from '../components/ui';
+import { BoroughControl, DecisionBadge, EmptyState, ErrorState, Loading, PageHeader, Pager, ScoreNote, Stat, Tabs, TierBadge } from '../components/ui';
 import { formatDays, formatImpact, formatNumber, formatPct, formatScore } from '../lib/formatters';
+import { OperatorView } from '../lib/api';
 import { QueueMethod } from '../types/dispatch';
 import { OutageItem } from '../types/outage';
 import { chartColors } from '../lib/chartTheme';
 import { useTheme } from '../context/ThemeContext';
 
-type Tab = 'plan' | 'deferred' | 'boroughs' | 'compare';
-const TABS = [
-  { id: 'plan', label: 'Recommended repairs' },
-  { id: 'deferred', label: 'Deferred' },
-  { id: 'boroughs', label: 'Borough allocation' },
-  { id: 'compare', label: 'Compare with FIFO' },
-] as const;
+type Tab = 'plan' | 'boroughs' | 'compare' | 'approved' | 'deferred' | 'flagged';
+// Outage-list views over the session operator actions: the Repair list holds outages not yet acted on.
+const LIST_VIEWS: Partial<Record<Tab, OperatorView>> = { plan: 'none', approved: 'approved', deferred: 'deferred', flagged: 'flagged' };
+const LIST_EMPTY: Record<OperatorView, string> = {
+  none: 'No outages left to act on in this borough',
+  approved: 'No approved outages',
+  deferred: 'No deferred outages',
+  flagged: 'No flagged outages',
+};
 
-const OutageRows: React.FC<{ items: OutageItem[]; showRank?: boolean }> = ({ items, showRank }) => {
+const OutageRows: React.FC<{ items: OutageItem[] }> = ({ items }) => {
   const navigate = useNavigate();
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            {showRank && <th scope="col">Rank</th>}
+            <th scope="col">Rank</th>
             <th scope="col">Outage ID</th>
             <th scope="col">Location</th>
             <th scope="col">Borough</th>
             <th scope="col" className="num">Duration</th>
             <th scope="col" className="num">Priority score</th>
             <th scope="col">Tier</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
           {items.map((o) => (
             <tr key={o.outage_id} className="row-link" tabIndex={0} onClick={() => navigate(`/outages/${o.outage_id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/outages/${o.outage_id}`)}>
-              {showRank && <td className="tabular-nums text-ink-soft">#{o.optimization_rank}</td>}
+              <td className="tabular-nums text-ink-soft">{o.optimization_rank ? `#${o.optimization_rank}` : '–'}</td>
               <td className="font-mono font-medium">{o.outage_id}</td>
               <td className="max-w-[300px] truncate text-ink-soft" title={o.location_desc}>{o.location_desc}</td>
               <td>{o.borough}</td>
               <td className="num text-ink-soft">{formatDays(o.duration_days)}</td>
               <td className="num font-bold">{formatScore(o.priority_score)}</td>
               <td><TierBadge tier={o.priority_tier} /></td>
+              <td><DecisionBadge status={o.dispatch_status} /></td>
             </tr>
           ))}
         </tbody>
@@ -59,15 +64,40 @@ export const Prioritization: React.FC = () => {
   const { theme } = useTheme();
   const colors = chartColors(theme);
   const [tab, setTab] = useState<Tab>('plan');
-  const [deferredPage, setDeferredPage] = useState(1);
+  const [listPage, setListPage] = useState(1);
   const [method, setMethod] = useState<QueueMethod>('LightSafe');
   const [queuePage, setQueuePage] = useState(1);
 
   const { data: opt, isLoading, isError, refetch } = useOptimization();
   const { data: plan } = useOptimizationPlan({ decision: 'recommended', borough, pageSize: 50 });
-  const { data: deferred } = useOptimizationPlan({ decision: 'deferred', borough, page: deferredPage, pageSize: 25 });
+  // Repair list: recommended repairs in plan-rank order, then deferred outages in priority order (existing backend order),
+  // minus outages with an operator action. Approved / Deferred / Flagged: in the order the actions were taken.
+  const view = LIST_VIEWS[tab];
+  const { data: list } = useOptimizationPlan({ borough, page: listPage, pageSize: 50, action: view ?? 'none' });
+  // Tab counts (one row per request; total_count only).
+  const { data: nNone } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'none' });
+  const { data: nApproved } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'approved' });
+  const { data: nDeferred } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'deferred' });
+  const { data: nFlagged } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'flagged' });
   const { data: comparison } = useComparison();
   const { data: queue } = useQueue({ method, borough, page: queuePage, pageSize: 20 });
+
+  // A new view (see onChange below) or borough starts on its first page.
+  useEffect(() => setListPage(1), [borough]);
+  // If the current page no longer exists (e.g. outages were acted on), move to the last valid page.
+  useEffect(() => {
+    if (list && list.total_pages > 0 && listPage > list.total_pages) setListPage(list.total_pages);
+  }, [list, listPage]);
+
+  const count = (d?: { total_count: number }) => (d ? ` (${formatNumber(d.total_count)})` : '');
+  const tabs = [
+    { id: 'plan', label: `Repair list${count(nNone)}` },
+    { id: 'boroughs', label: 'Borough allocation' },
+    { id: 'compare', label: 'Compare with FIFO' },
+    { id: 'approved', label: `Approved${count(nApproved)}` },
+    { id: 'deferred', label: `Deferred${count(nDeferred)}` },
+    { id: 'flagged', label: `Flagged${count(nFlagged)}` },
+  ] as { id: Tab; label: string }[];
 
   const controls = <HeaderControls><BoroughControl /></HeaderControls>;
 
@@ -108,25 +138,16 @@ export const Prioritization: React.FC = () => {
         <Stat label="Deferred" value={formatNumber(opt.n_deferred)} hint="Scored outages not in this plan" />
       </div>
 
-      <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t)} label="Dispatch plan sections" />
+      <Tabs tabs={tabs} value={tab} onChange={(t) => { setTab(t); setListPage(1); }} label="Dispatch plan sections" />
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="space-y-4 animate-fade-in" key={tab}>
-        {tab === 'plan' && (
-          plan && plan.items.length > 0 ? <OutageRows items={plan.items} showRank /> : <div className="card"><EmptyState title="No recommended repairs in this borough" detail="Choose All boroughs to see the full plan." /></div>
-        )}
-
-        {tab === 'deferred' && (
-          <>
-            <p className="text-[13px] text-ink-soft">
-              These outages were scored but did not fit within the daily budget of {opt.daily_budget} repairs after every borough&apos;s minimum was met. They stay in the backlog in priority order.
-            </p>
-            {deferred && deferred.items.length > 0 ? (
-              <>
-                <OutageRows items={deferred.items} />
-                <Pager page={deferred.page} pages={deferred.total_pages} total={deferred.total_count} onPage={setDeferredPage} label="deferred outages" />
-              </>
-            ) : <div className="card"><EmptyState title="No deferred outages" /></div>}
-          </>
+        {view && (
+          list && list.items.length > 0 ? (
+            <>
+              <OutageRows items={list.items} />
+              <Pager page={list.page} pages={list.total_pages} total={list.total_count} onPage={setListPage} label="outages" />
+            </>
+          ) : list ? <div className="card"><EmptyState title={LIST_EMPTY[view]} /></div> : <Loading label="Loading outages…" />
         )}
 
         {tab === 'boroughs' && (

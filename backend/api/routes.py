@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException, Path, Query
 from .. import config
 from ..schemas.models import ActionResult, OutageDetail, OutageList, PriorityResponse, QueueList
 from ..services import (
-    causal_service, dispatch_service, map_service, optimization_service, outage_service,
+    causal_service, dispatch_service, evidence_service, map_service, operations_service,
+    optimization_service, outage_service,
     overview_service, pipeline_service, priority_service,
 )
 from ..services.data_store import store
@@ -121,8 +122,10 @@ def optimization_plan(
     borough: Optional[str] = None,
     page: int = Page,
     page_size: int = PageSize,
+    action: Optional[Literal["none", "approved", "deferred", "flagged"]] = None,
 ):
-    return optimization_service.get_optimization_plan(decision, borough, page, page_size)
+    """`action` filters by the session operator action: "none" = not yet acted on, otherwise that status."""
+    return optimization_service.get_optimization_plan(decision, borough, page, page_size, action)
 
 
 @router.get("/map/outages", tags=["Map"])
@@ -156,3 +159,36 @@ def causal_overview() -> Dict[str, Any]:
 @router.get("/causal/event-study", tags=["Causal evidence"])
 def causal_event_study() -> List[Dict[str, Any]]:
     return causal_service.get_event_study_data()
+
+
+# ----------------------------------------------------------- evidence / operations explorer
+@router.get("/evidence/stage11", tags=["Evidence explorer"])
+def evidence_stage11() -> Dict[str, Any]:
+    """Frozen Stage 11 estimates, ring definitions and the stored variant grid."""
+    return evidence_service.get_stage11()
+
+
+@router.get("/evidence/legacy", tags=["Evidence explorer"])
+def evidence_legacy() -> Dict[str, Any]:
+    """Retired Stage 7-10 pair design (provisional), with its ring/matching definitions."""
+    return evidence_service.get_legacy_pair_design()
+
+
+CapacityK = Query(65, ge=config.CAPACITY_MIN, le=config.CAPACITY_MAX)
+
+
+@router.get("/operations/capacity", tags=["Operations explorer"])
+def operations_capacity(k: int = CapacityK) -> Dict[str, Any]:
+    """Re-run the frozen FIFO simulation at capacity k: metrics, service targets, daily series."""
+    return operations_service.get_capacity(k)
+
+
+@router.get("/operations/capacity-curve", tags=["Operations explorer"])
+def operations_capacity_curve() -> Dict[str, Any]:
+    return operations_service.get_capacity_curve()
+
+
+@router.get("/operations/replay", tags=["Operations explorer"])
+def operations_replay(k: int = CapacityK) -> Dict[str, Any]:
+    """Per-job known/dispatch days and site coordinates for the city replay."""
+    return operations_service.get_replay(k)

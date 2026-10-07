@@ -1,19 +1,41 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Lightbulb, ListOrdered, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, Map, Lightbulb, ListOrdered, FlaskConical, PlayCircle } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { path: '/', label: 'Overview', icon: LayoutDashboard, end: true },
-  { path: '/map', label: 'City Map', icon: Map, end: false },
-  { path: '/outages', label: 'Outages', icon: Lightbulb, end: false },
-  { path: '/priority', label: 'Dispatch Plan', icon: ListOrdered, end: false },
-  { path: '/causal', label: 'Evidence', icon: FlaskConical, end: false },
+const NAV_SECTIONS = [
+  {
+    title: null,
+    items: [
+      { path: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+      { path: '/map', label: 'City Map', icon: Map, end: false },
+      { path: '/outages', label: 'Outages', icon: Lightbulb, end: false },
+      { path: '/priority', label: 'Dispatch Plan', icon: ListOrdered, end: false },
+    ],
+  },
+  {
+    title: 'Evidence',
+    items: [
+      { path: '/causal', label: 'Legacy DiD Summary', icon: FlaskConical, end: false },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { path: '/replay', label: 'City Replay', icon: PlayCircle, end: false },
+    ],
+  },
 ];
 
 export const Sidebar: React.FC = () => (
   <aside className="flex w-14 shrink-0 flex-col border-r border-night-light/40 bg-night-deep text-slate-300 xl:w-60" aria-label="Primary">
     <nav className="flex flex-col gap-0.5 p-2 xl:p-3">
-      {NAV_ITEMS.map(({ path, label, icon: Icon, end }) => (
+      {NAV_SECTIONS.map((section) => (
+        <React.Fragment key={section.title ?? 'main'}>
+          {section.title && (
+            <p className="mt-3 hidden px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 xl:block">{section.title}</p>
+          )}
+          {section.title && <span aria-hidden className="mx-2 my-2 block h-px bg-white/10 xl:hidden" />}
+          {section.items.map(({ path, label, icon: Icon, end }) => (
         <NavLink
           key={path}
           to={path}
@@ -36,6 +58,8 @@ export const Sidebar: React.FC = () => (
             </>
           )}
         </NavLink>
+          ))}
+        </React.Fragment>
       ))}
     </nav>
 

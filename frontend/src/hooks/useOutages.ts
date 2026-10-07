@@ -29,6 +29,7 @@ export function useOutageActionMutation() {
       queryClient.invalidateQueries({ queryKey: ['outage', variables.outageId] });
       queryClient.invalidateQueries({ queryKey: ['overview'] });
       queryClient.invalidateQueries({ queryKey: ['priority'] });
+      queryClient.invalidateQueries({ queryKey: ['optimizationPlan'] });
     },
   });
 }

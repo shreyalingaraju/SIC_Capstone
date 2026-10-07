@@ -48,8 +48,11 @@ def get_optimization_summary() -> Dict[str, Any]:
     }
 
 
+OPERATOR_VIEWS = {"approved": "Approved", "deferred": "Deferred", "flagged": "Flagged"}
+
+
 def get_optimization_plan(decision: Optional[str] = None, borough: Optional[str] = None,
-                          page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+                          page: int = 1, page_size: int = 50, action: Optional[str] = None) -> Dict[str, Any]:
     page_size = min(max(page_size, 1), config.MAX_PAGE_SIZE)
     df = store.scored_sorted
     if df.empty or store.dispatch_df.empty:
@@ -62,6 +65,13 @@ def get_optimization_plan(decision: Optional[str] = None, borough: Optional[str]
         df = df.assign(_r=df["optimization_rank"].fillna(1e12)).sort_values("_r", kind="mergesort")
     if not is_all(borough):
         df = df[borough_matches(df["borough"], borough)]
+    # Views over the session operator actions (store.operator_actions, the single source of truth):
+    # "none" = not yet acted on, in plan order; a status = its outages in the order the actions were taken.
+    if action == "none":
+        df = df[~df.index.isin(list(store.operator_actions))]
+    elif action in OPERATOR_VIEWS:
+        status = OPERATOR_VIEWS[action]
+        df = df.loc[[oid for oid, s in list(store.operator_actions.items()) if s == status and oid in df.index]]
     start = (page - 1) * page_size
     items = records_for(df.iloc[start:start + page_size])
     for it in items:

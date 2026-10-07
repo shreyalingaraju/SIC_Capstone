@@ -1,37 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Moon, Sun, Check, AlertTriangle } from 'lucide-react';
-import { PipelineStatus } from '../../types/overview';
-import { formatDate } from '../../lib/formatters';
+import React from 'react';
+import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 interface TopBarProps {
-  dataStatus?: PipelineStatus;
-  apiError?: boolean;
   setSlot: (el: HTMLElement | null) => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ dataStatus, apiError, setSlot }) => {
+export const TopBar: React.FC<TopBarProps> = ({ setSlot }) => {
   const { theme, toggleTheme } = useTheme();
-  const [open, setOpen] = useState(false);
-  const wrap = useRef<HTMLDivElement>(null);
-  const ok = !!dataStatus?.all_artifacts_available && !apiError;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   const night = theme === 'dark';
 
   return (
@@ -61,34 +37,6 @@ export const TopBar: React.FC<TopBarProps> = ({ dataStatus, apiError, setSlot })
           {night ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
           <span className="sr-only xl:not-sr-only">Night mode</span>
         </button>
-
-        <div className="relative" ref={wrap}>
-          <button type="button" className="btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
-            <span className={`h-2 w-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-priority-medium'}`} aria-hidden />
-            <span className="hidden md:inline">{apiError ? 'Offline' : ok ? 'Data current' : 'Data incomplete'}</span>
-            <span className="sr-only md:hidden">Data status</span>
-          </button>
-
-          {open && (
-            <div role="dialog" aria-label="Data status" className="absolute right-0 top-11 z-50 w-80 animate-pop-in rounded-card border border-line bg-surface-strong p-4 shadow-elevated">
-              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ink">
-                {ok ? <Check size={14} className="text-emerald-500" /> : <AlertTriangle size={14} className="text-priority-medium" />}
-                {apiError ? 'The API is not reachable' : ok ? 'All data files loaded' : 'Some data files are missing'}
-              </p>
-              {dataStatus?.artifacts_last_modified_utc && (
-                <p className="mb-2 text-xs text-ink-soft">Latest results file: {formatDate(dataStatus.artifacts_last_modified_utc)}</p>
-              )}
-              {dataStatus && !ok && dataStatus.missing_artifacts.length > 0 && (
-                <ul className="mb-2 list-disc pl-4 text-xs text-ink-soft">
-                  {dataStatus.missing_artifacts.map((m) => (
-                    <li key={m} className="font-mono">{m}</li>
-                  ))}
-                </ul>
-              )}
-              {dataStatus && <p className="border-t border-line-soft pt-2 text-[11px] leading-relaxed text-ink-soft">{dataStatus.notice}</p>}
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );

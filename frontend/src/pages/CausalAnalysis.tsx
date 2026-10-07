@@ -48,8 +48,8 @@ export const CausalAnalysis: React.FC = () => {
   return (
     <div className="page max-w-5xl space-y-8">
       <PageHeader
-        title="Evidence"
-        description="What the data say about street-light outages and nearby crime, and how much weight the priority score should carry."
+        title="Legacy DiD Summary"
+        description="Causal evidence from LightSafe's earlier paired difference-in-differences design: what the data say about street-light outages and nearby crime, and how much weight the priority score should carry. These results are provisional and are shown exactly as stored."
       />
 
       <section aria-labelledby="found" className="space-y-3">

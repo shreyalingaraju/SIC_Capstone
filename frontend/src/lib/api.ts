@@ -3,6 +3,7 @@ import { PriorityResponse, PrioritySummary } from '../types/priority';
 import { CausalOverview, EventStudyPoint } from '../types/causal';
 import { Comparison, Optimization, QueueList, QueueMethod } from '../types/dispatch';
 import { OverviewData } from '../types/overview';
+import { ReplayData } from '../types/explorer';
 
 export type { OverviewData };
 
@@ -77,16 +78,15 @@ export const fetchComparison = (points = 150) => get<Comparison>(`/comparison${q
 
 export const fetchOptimization = () => get<Optimization>('/optimization');
 
-export const fetchOptimizationPlan = (p: { decision?: 'recommended' | 'deferred'; borough?: string; page?: number; pageSize?: number }) =>
-  get<OutageList>(`/optimization/plan${query({ decision: p.decision, borough: p.borough, page: p.page, page_size: p.pageSize })}`);
+export type OperatorView = 'none' | 'approved' | 'deferred' | 'flagged';
+
+export const fetchOptimizationPlan = (p: { decision?: 'recommended' | 'deferred'; borough?: string; page?: number; pageSize?: number; action?: OperatorView }) =>
+  get<OutageList>(`/optimization/plan${query({ decision: p.decision, borough: p.borough, page: p.page, page_size: p.pageSize, action: p.action })}`);
 
 export const fetchMapOutages = (borough?: string, priorityTier?: string, limit = 500, dispatchStatus?: string) =>
   get<GeoJSON.FeatureCollection & { total_matching: number; returned: number }>(
     `/map/outages${query({ borough, priority_tier: priorityTier, dispatch_status: dispatchStatus, limit })}`
   );
-
-export const fetchMapCrimes = (nightOnly = true, limit = 600) =>
-  get<GeoJSON.FeatureCollection>(`/map/crimes${query({ night_only: nightOnly, limit })}`);
 
 export const fetchBufferRings = (outageId: string) =>
   get<GeoJSON.FeatureCollection>(`/map/buffers/${encodeURIComponent(outageId)}`);
@@ -94,3 +94,6 @@ export const fetchBufferRings = (outageId: string) =>
 export const fetchCausalOverview = () => get<CausalOverview>('/causal/overview');
 
 export const fetchEventStudy = () => get<EventStudyPoint[]>('/causal/event-study');
+
+/* ---- city replay */
+export const fetchReplay = (k: number) => get<ReplayData>(`/operations/replay${query({ k })}`);

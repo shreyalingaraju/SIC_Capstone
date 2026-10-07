@@ -38,7 +38,7 @@ export const OutageList: React.FC = () => {
 
       <PageHeader
         title="Outages"
-        description="Every reported street-light outage, ordered by priority score."
+        description="Every reported street-light outage, ordered by priority score. Outages you have acted on move to the end of the list."
         actions={
           <SelectControl
             label="Show"
@@ -76,6 +76,7 @@ export const OutageList: React.FC = () => {
                 <td>{scored ? <TierBadge tier={o.priority_tier} /> : <span className="text-ink-soft">–</span>}</td>
                 <td>
                   {scored ? <DecisionBadge status={o.dispatch_status} /> : <span className="text-xs text-ink-soft" title={o.exclusion_reason ?? ''}>{reasonLabel(o.exclusion_reason)}</span>}
+                  {o.operator_note !== 'None' && <span className="badge badge-neutral ml-1.5">Note: {o.operator_note}</span>}
                 </td>
               </tr>
             ))}
