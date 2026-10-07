@@ -7,11 +7,16 @@ import { HeaderControls } from '../components/layout/HeaderSlot';
 import { BoroughControl, DecisionBadge, ErrorState, Loading, PageHeader, ScoreNote, Stat, TierBadge } from '../components/ui';
 import { formatDays, formatNumber, formatScore } from '../lib/formatters';
 import { RepairPressure } from '../components/RepairPressure';
+import { useOptimizationPlan } from '../hooks/useDispatch';
 
 export const Overview: React.FC = () => {
   const navigate = useNavigate();
   const { borough } = useGlobalFilters();
   const { data, isLoading, isError, refetch } = useOverview(borough, 'All');
+  // Citywide counts of the session operator decisions (one row per request; total_count only).
+  const { data: nApproved } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'approved' });
+  const { data: nDeferred } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'deferred' });
+  const { data: nFlagged } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'flagged' });
 
   const controls = (
     <HeaderControls>
@@ -23,8 +28,10 @@ export const Overview: React.FC = () => {
   if (isError || !data) return <>{controls}<ErrorState onRetry={() => refetch()} /></>;
 
   const { kpis, recommended_repairs, optimization } = data;
-  const used = kpis.budget_used ?? 0;
+  // Budget used = outages the operator has approved, deferred or flagged this session, not the plan's selection.
+  const used = (nApproved?.total_count ?? 0) + (nDeferred?.total_count ?? 0) + (nFlagged?.total_count ?? 0);
   const budget = kpis.daily_budget ?? 0;
+  const remaining = Math.max(0, budget - used);
   const pct = budget > 0 ? Math.min(100, (used / budget) * 100) : 0;
 
   return (
@@ -56,7 +63,7 @@ export const Overview: React.FC = () => {
           hint={`${formatNumber(kpis.medium_priority)} medium · ${formatNumber(kpis.low_priority)} low`}
         />
         <Stat label="Recommended repairs · citywide" value={formatNumber(kpis.recommended_repairs ?? 0)} hint="Selected for the current plan" />
-        <Stat label="Repair budget · citywide" value={`${used} / ${budget}`} hint={`${kpis.budget_remaining ?? 0} remaining`}>
+        <Stat label="Repair budget · citywide" value={`${used} / ${budget}`} hint={`${remaining} remaining`}>
           <div className="progress mt-1" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={budget} aria-label="Repair budget used">
             <span style={{ width: `${pct}%` }} />
           </div>

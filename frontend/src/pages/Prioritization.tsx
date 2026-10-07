@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Check, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useGlobalFilters } from '../context/FilterContext';
 import { useComparison, useOptimization, useOptimizationPlan, useQueue } from '../hooks/useDispatch';
 import { HeaderControls } from '../components/layout/HeaderSlot';
@@ -13,7 +13,7 @@ import { OutageItem } from '../types/outage';
 import { chartColors } from '../lib/chartTheme';
 import { useTheme } from '../context/ThemeContext';
 
-type Tab = 'plan' | 'boroughs' | 'compare' | 'approved' | 'deferred' | 'flagged';
+type Tab = 'plan' | 'compare' | 'approved' | 'deferred' | 'flagged';
 // Outage-list views over the session operator actions: the Repair list holds outages not yet acted on.
 const LIST_VIEWS: Partial<Record<Tab, OperatorView>> = { plan: 'none', approved: 'approved', deferred: 'deferred', flagged: 'flagged' };
 const LIST_EMPTY: Record<OperatorView, string> = {
@@ -92,7 +92,6 @@ export const Prioritization: React.FC = () => {
   const count = (d?: { total_count: number }) => (d ? ` (${formatNumber(d.total_count)})` : '');
   const tabs = [
     { id: 'plan', label: `Repair list${count(nNone)}` },
-    { id: 'boroughs', label: 'Borough allocation' },
     { id: 'compare', label: 'Compare with FIFO' },
     { id: 'approved', label: `Approved${count(nApproved)}` },
     { id: 'deferred', label: `Deferred${count(nDeferred)}` },
@@ -148,41 +147,6 @@ export const Prioritization: React.FC = () => {
               <Pager page={list.page} pages={list.total_pages} total={list.total_count} onPage={setListPage} label="outages" />
             </>
           ) : list ? <div className="card"><EmptyState title={LIST_EMPTY[view]} /></div> : <Loading label="Loading outages…" />
-        )}
-
-        {tab === 'boroughs' && (
-          <div className="card">
-            <div className="border-b border-line px-5 py-3.5">
-              <h2 className="card-title">Repairs by borough</h2>
-              <p className="mt-1 text-xs text-ink-soft">
-                Each borough is guaranteed a minimum number of repairs. Requiring this lowers the plan&apos;s total priority score from {formatImpact(opt.unconstrained_objective)} to {formatImpact(opt.objective_value)} ({formatImpact(opt.price_of_fairness)} index points{opt.price_of_fairness_pct !== null ? `, ${opt.price_of_fairness_pct.toFixed(1)}%` : ''}). Minimums are a borough-level fairness rule, not a measure of fairness within a borough.
-              </p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Borough</th>
-                    <th scope="col" className="num">Minimum</th>
-                    <th scope="col" className="num">Planned</th>
-                    <th scope="col" className="num">Without minimums</th>
-                    <th scope="col">Minimum met</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {opt.borough_table.map((b) => (
-                    <tr key={b.borough}>
-                      <td className="font-semibold">{b.borough}</td>
-                      <td className="num text-ink-soft">{b.quota_minimum ?? '–'}</td>
-                      <td className="num font-bold">{b.selected}</td>
-                      <td className="num text-ink-soft">{b.unconstrained_selected}</td>
-                      <td>{b.quota_satisfied === null ? '–' : b.quota_satisfied ? <span className="badge badge-ok"><Check size={11} className="mr-0.5" aria-hidden />Met</span> : <span className="badge badge-high">Not met</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
 
         {tab === 'compare' && (
