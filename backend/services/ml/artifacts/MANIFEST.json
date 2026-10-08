@@ -7,12 +7,12 @@
    "source_sha256": "979a72b6a915df8b4b001ed219bc435ffd05bf49755ce7e65be4b8bc35453dfc"
   },
   "model_card.json": {
-   "sha256": "85aba5d57b6caf9184547ac88f92f83df74087c3d27e14519c142247b8815133",
-   "source_sha256": "85aba5d57b6caf9184547ac88f92f83df74087c3d27e14519c142247b8815133"
+   "sha256": "4b6a29bfc74f4b88af83b40554bf298a71ea7aa5c7abaae4864d9759f8cd2baa",
+   "source_sha256": "4b6a29bfc74f4b88af83b40554bf298a71ea7aa5c7abaae4864d9759f8cd2baa"
   },
   "feature_schema.json": {
-   "sha256": "778924a5eeb61f005b25f5ceac23968d72e3ebf63da425b93217b909d07cd599",
-   "source_sha256": "778924a5eeb61f005b25f5ceac23968d72e3ebf63da425b93217b909d07cd599"
+   "sha256": "03aa707fdcb870e94e56a1db4d8de508a012f9a3f15da0851b9d81afc9c2d847",
+   "source_sha256": "03aa707fdcb870e94e56a1db4d8de508a012f9a3f15da0851b9d81afc9c2d847"
   }
  }
 }
