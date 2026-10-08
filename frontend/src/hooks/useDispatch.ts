@@ -25,6 +25,17 @@ export function useOptimizationPlan(params: {
   });
 }
 
+/**
+ * Repair budget used = citywide outages the operator has approved, deferred or flagged this session
+ * (one row per request; total_count only), not the plan's selection. Shared by Overview and Dispatch Plan.
+ */
+export function useBudgetUsed() {
+  const { data: nApproved } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'approved' });
+  const { data: nDeferred } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'deferred' });
+  const { data: nFlagged } = useOptimizationPlan({ page: 1, pageSize: 1, action: 'flagged' });
+  return (nApproved?.total_count ?? 0) + (nDeferred?.total_count ?? 0) + (nFlagged?.total_count ?? 0);
+}
+
 export function useComparison() {
   return useQuery({ queryKey: ['comparison'], queryFn: () => fetchComparison(150), staleTime: TEN_MIN });
 }

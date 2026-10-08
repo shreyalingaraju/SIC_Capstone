@@ -2,6 +2,7 @@ import React from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useCausalOverview } from '../hooks/useCausal';
 import { EmptyState, ErrorState, Loading, PageHeader } from '../components/ui';
+import { DidFormulas } from '../components/DidFormulas';
 import { EffectEstimate } from '../types/causal';
 import { formatNumber } from '../lib/formatters';
 import { chartColors } from '../lib/chartTheme';
@@ -60,10 +61,12 @@ export const CausalAnalysis: React.FC = () => {
         description="Causal evidence from LightSafe's earlier paired difference-in-differences design: what the data say about street-light outages and nearby crime, and how much weight the priority score should carry. These results are provisional and are shown exactly as stored."
       />
 
+      <DidFormulas />
+
       <section aria-labelledby="found" className="space-y-3">
         <h2 id="found" className="text-base font-bold text-ink">What the analysis found</h2>
         <p className="text-[13px] text-ink-soft">
-          Locations near an outage were compared with similar locations without one. Figures are the change in crimes per location-week after the outage period (positive means more crime).
+          Locations near an outage were compared with similar locations without one. Figures are the change in the crime count per location from the 14-day window before the outage was reported to the 14-day window after it was closed (positive means more crime).
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Finding title="Within 100 m" range="Directly around the light" e={direct} />

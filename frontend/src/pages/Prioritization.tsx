@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Download } from 'lucide-react';
 import { useGlobalFilters } from '../context/FilterContext';
-import { useComparison, useOptimization, useOptimizationPlan, useQueue } from '../hooks/useDispatch';
+import { useBudgetUsed, useComparison, useOptimization, useOptimizationPlan, useQueue } from '../hooks/useDispatch';
 import { HeaderControls } from '../components/layout/HeaderSlot';
 import { BoroughControl, DecisionBadge, EmptyState, ErrorState, Loading, PageHeader, Pager, ScoreNote, Stat, Tabs, TierBadge } from '../components/ui';
 import { formatDays, formatImpact, formatNumber, formatPct, formatScore } from '../lib/formatters';
@@ -79,6 +79,7 @@ export const Prioritization: React.FC = () => {
   const { data: nApproved } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'approved' });
   const { data: nDeferred } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'deferred' });
   const { data: nFlagged } = useOptimizationPlan({ borough, page: 1, pageSize: 1, action: 'flagged' });
+  const used = useBudgetUsed();
   const { data: comparison } = useComparison();
   const { data: queue } = useQueue({ method, borough, page: queuePage, pageSize: 20 });
 
@@ -117,7 +118,9 @@ export const Prioritization: React.FC = () => {
     return <>{controls}<div className="page"><div className="card"><EmptyState tone="warn" title="No dispatch plan available" detail="The dispatch plan results are not available right now. Check that the LightSafe service is running." /></div></div></>;
   }
 
-  const pct = opt.daily_budget > 0 ? Math.min(100, (opt.budget_used / opt.daily_budget) * 100) : 0;
+  // Same budget-used count as Overview (session operator actions), not the plan's selection size.
+  const remaining = Math.max(0, opt.daily_budget - used);
+  const pct = opt.daily_budget > 0 ? Math.min(100, (used / opt.daily_budget) * 100) : 0;
   const ms = comparison?.available ? comparison.milestones : null;
 
   return (
@@ -131,10 +134,10 @@ export const Prioritization: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Recommended repairs" value={formatNumber(opt.n_selected)} hint="Selected for repair now" />
-        <Stat label="Budget used" value={`${opt.budget_used} / ${opt.daily_budget}`} hint={`${opt.budget_remaining} remaining`}>
-          <div className="progress mt-1" role="progressbar" aria-valuenow={opt.budget_used} aria-valuemin={0} aria-valuemax={opt.daily_budget} aria-label="Budget used"><span style={{ width: `${pct}%` }} /></div>
+        <Stat label="Budget used" value={`${used} / ${opt.daily_budget}`} hint={`${remaining} remaining`}>
+          <div className="progress mt-1" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={opt.daily_budget} aria-label="Budget used"><span style={{ width: `${pct}%` }} /></div>
         </Stat>
-        <Stat label="Deferred" value={formatNumber(opt.n_deferred)} hint="Scored outages not in this plan" />
+        <Stat label="Deferred" value={formatNumber(opt.n_deferred)} />
       </div>
 
       <Tabs tabs={tabs} value={tab} onChange={(t) => { setTab(t); setListPage(1); }} label="Dispatch plan sections" />

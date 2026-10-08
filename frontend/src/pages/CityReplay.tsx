@@ -214,7 +214,6 @@ export const CityReplay: React.FC = () => {
             {K_OPTIONS.map((o) => <option key={o} value={o}>{o}{o === 65 ? ' (baseline)' : ''}</option>)}
           </select>
         </label>
-        <span className="badge badge-neutral">Policy: {data.policy}</span>
         {isFetching && <span className="text-xs text-ink-soft">re-simulating…</span>}
         <span className="ml-auto text-lg font-extrabold tabular-nums text-ink">{s.date[d]}</span>
         <span className="text-xs text-ink-soft">decision {d + 1} of {n}{s.date[d] >= data.horizon_end ? ' · drain (no new arrivals)' : ''}</span>
