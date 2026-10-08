@@ -113,7 +113,13 @@ class DataStore:
             self.outages_df = pd.DataFrame()
             self.scored_sorted = pd.DataFrame()
             return
-        df = pd.read_parquet(path, columns=OUTAGE_COLUMNS)
+        # Columns a dataset does not carry (e.g. NYC street addresses in the synthetic data) are served as empty.
+        import pyarrow.parquet as pq
+        present = set(pq.read_schema(path).names)
+        df = pd.read_parquet(path, columns=[c for c in OUTAGE_COLUMNS if c in present])
+        for c in OUTAGE_COLUMNS:
+            if c not in df.columns:
+                df[c] = None
         df["outage_id"] = df["unique_key"].astype(str)
         df["scored"] = df["scored"].fillna(False).astype(bool)
         df["borough"] = df["borough"].fillna("Unspecified").astype(str)

@@ -1,0 +1,121 @@
+LightSafe synthetic Karnataka dataset - summary
+============================================================
+SYNTHETIC DATA. NOT real Karnataka crime or municipal records.
+Seed: 20250101
+Period: 2025-01-01 to 2025-12-31 (365 days)
+Streetlight records: 6856  (Street Light Out: 5959)
+Crime records: 31603
+Crime generation components (not stored in the CSV): background=15500, local=15976, effect_during=104, effect_after=23
+
+SHA-256
+  synthetic_streetlights.csv: c29e80d93f26935b3f81dcd9ca2410f229b9a5009c88dfd87af7920b40fc38a7
+  synthetic_crime.csv: 4d6706b6ad2d406b68ab5dc639b39d679582f62c725773b4c6f8d1c6239e98bf
+
+VALIDATION
+
+Streetlight dataset
+  [PASS] required columns present -- created_date, closed_date, latitude, longitude, status, descriptor
+  [PASS] all created_date parse
+  [PASS] closed_date parses for every Closed record
+  [PASS] open records have no closed_date -- 168 open/in-progress at period end
+  [PASS] closed_date >= created_date
+  [PASS] unique_key unique
+  [PASS] coordinates inside Karnataka bbox
+  [PASS] borough matches nearest city centre
+  [PASS] all 7 cities represented
+  [PASS] 'Street Light Out' records exist -- 5959 records
+  [PASS] outage durations reasonable (2 h - 120 d, not constant) -- hours p0/p25/p50/p75/p95/max = 5.8/71.6/126.4/231.8/696.9/2160.0
+
+Crime dataset
+  [PASS] required columns present -- cmplnt_fr_dt, cmplnt_fr_tm, latitude, longitude, ofns_desc, crime_category
+  [PASS] all date+time parse
+  [PASS] dates within period
+  [PASS] cmplnt_num unique
+  [PASS] coordinates inside Karnataka bbox
+  [PASS] all 7 cities represented
+  [PASS] required categories present -- ASSAULT, BURGLARY, GRAND LARCENY, MISCHIEF, PETIT LARCENY, ROBBERY
+  [PASS] night-time crimes exist -- 48.9% at 19:00-05:59
+
+Cross-dataset
+  [PASS] some crimes within 100 m of an outage location -- 0-100 m: 46.5%, 100-250 m: 30.8%, 250-1000 m: 19.3%, 1000-inf m: 3.5%
+  [PASS] not all crimes near outages
+  [PASS] outage periods contain nearby crime observations -- 585 night crimes within 100 m during outages
+  [PASS] pre-outage and post-repair observations exist -- pre=728, post=850 night crimes
+     naive night-crime rate within 100 m, per 1000 site-days (n=5294 outages):
+       pre (14 d before) = 9.8, during = 12.8, post (days 7-21 after repair) = 11.5  -> during/baseline = 1.20
+     same for daytime (placebo): pre = 11.0, during = 11.6, post = 10.9  -> during/baseline = 1.06
+  [PASS] night uplift moderate (1.05-1.8x) and larger than daytime
+  [PASS] every city has >= 200 outages and >= 1000 crimes
+
+Per-city counts
+            streetlight_records  street_light_out  crime_records
+Bengaluru                  2025              1763           9263
+Mysuru                     1120               979           5212
+Mangaluru                   830               728           3862
+Hubballi                    860               748           3725
+Belagavi                    702               601           3394
+Shivamogga                  559               487           2720
+Tumakuru                    760               653           3427
+
+Streetlight descriptor counts
+descriptor
+Street Light Out           5959
+Street Light Cycling        339
+Street Light Dayburning     290
+Street Light Dim            147
+Lamppost Damaged            121
+
+Streetlight status counts
+status
+Closed         6688
+Open            110
+In Progress      58
+
+Crime category counts
+crime_category
+PETIT LARCENY    9126
+ASSAULT          6983
+GRAND LARCENY    4619
+BURGLARY         3882
+MISCHIEF         3730
+ROBBERY          3263
+
+Crime offence (ky_cd / ofns_desc / law_cat_cd) counts
+ky_cd  ofns_desc                       law_cat_cd
+105    ROBBERY                         FELONY         3263
+106    FELONY ASSAULT                  FELONY         2257
+107    BURGLARY                        FELONY         3882
+109    GRAND LARCENY                   FELONY         4619
+121    CRIMINAL MISCHIEF & RELATED OF  FELONY          932
+341    PETIT LARCENY                   MISDEMEANOR    9126
+344    ASSAULT 3 & RELATED OFFENSES    MISDEMEANOR    4726
+351    CRIMINAL MISCHIEF & RELATED OF  MISDEMEANOR    2798
+
+Crime count by hour of day
+cmplnt_fr_tm
+0     1576
+1     1405
+2     1203
+3      921
+4      763
+5      666
+6      611
+7      683
+8      785
+9      889
+10    1017
+11    1212
+12    1333
+13    1465
+14    1513
+15    1580
+16    1621
+17    1716
+18    1730
+19    1848
+20    1875
+21    1880
+22    1736
+23    1575
+
+OVERALL VALIDATION: PASS

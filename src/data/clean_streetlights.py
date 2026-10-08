@@ -3,9 +3,15 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
+import sys as _sys
+from pathlib import Path as _Path
 
-RAW_FILE = Path("data/raw/streetlight_complaints.csv")
-OUTPUT_FILE = Path("data/processed/clean_streetlights.parquet")
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
+
+
+RAW_FILE = Path(_profile.RAW_DIR) / "streetlight_complaints.csv"
+OUTPUT_FILE = Path(_profile.PROCESSED_DIR) / "clean_streetlights.parquet"
 
 
 def clean_streetlights():
@@ -70,15 +76,15 @@ def clean_streetlights():
         (df["outage_duration_hours"] <= 8760)
     ]
 
-    # NYC bounding box
+    # Region bounding box (NYC by default; see src/profile.py)
     df = df[
-        (df["latitude"] >= 40.49)
+        (df["latitude"] >= _profile.BBOX[0])
         &
-        (df["latitude"] <= 40.92)
+        (df["latitude"] <= _profile.BBOX[1])
         &
-        (df["longitude"] >= -74.26)
+        (df["longitude"] >= _profile.BBOX[2])
         &
-        (df["longitude"] <= -73.69)
+        (df["longitude"] <= _profile.BBOX[3])
     ]
 
     print("After cleaning:", len(df))

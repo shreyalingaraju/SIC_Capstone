@@ -1,0 +1,72 @@
+LightSafe synthetic Karnataka dataset v2 (ward context + confounding) - summary
+======================================================================
+SYNTHETIC DATA. NOT real Karnataka crime, census, weather or municipal records.
+Seed: 20250102
+Period: 2025-01-01 to 2025-12-31 (365 days)
+Streetlight records: 6875 (Street Light Out: 6008)
+Crime records: 118216   Wards: 131
+Crime components (not stored in CSV): background=52000, local=63899, effect_during=1826, effect_after=491
+
+SHA-256
+  synthetic_streetlights.csv: f72f7bb2b967bc7dabb864c50b068955eae5aa26bc636ef65278662b31ae6119
+  synthetic_crime.csv: b79f2d9cdc670324089d16c6eba650bd1754848bf695806abd663ea091a355dc
+  synthetic_wards.csv: ce650fcb164601e0f58a408df4ea86bf1e23a491cf62138ed5ea1bc2224531c9
+
+VALIDATION (pipeline-level checks reused from the v1 generator)
+
+Streetlight dataset
+  [PASS] required columns present -- created_date, closed_date, latitude, longitude, status, descriptor
+  [PASS] all created_date parse
+  [PASS] closed_date parses for every Closed record
+  [PASS] open records have no closed_date -- 127 open/in-progress at period end
+  [PASS] closed_date >= created_date
+  [PASS] unique_key unique
+  [PASS] coordinates inside Karnataka bbox
+  [PASS] borough matches nearest city centre
+  [PASS] all 7 cities represented
+  [PASS] 'Street Light Out' records exist -- 6008 records
+  [PASS] outage durations reasonable (2 h - 120 d, not constant) -- hours p0/p25/p50/p75/p95/max = 6.1/67.2/120.7/228.2/694.8/2182.2
+
+Crime dataset
+  [PASS] required columns present -- cmplnt_fr_dt, cmplnt_fr_tm, latitude, longitude, ofns_desc, crime_category
+  [PASS] all date+time parse
+  [PASS] dates within period
+  [PASS] cmplnt_num unique
+  [PASS] coordinates inside Karnataka bbox
+  [PASS] all 7 cities represented
+  [PASS] required categories present -- ASSAULT, BURGLARY, GRAND LARCENY, MISCHIEF, PETIT LARCENY, ROBBERY
+  [PASS] night-time crimes exist -- 49.6% at 19:00-05:59
+
+Cross-dataset
+  [PASS] some crimes within 100 m of an outage location -- 0-100 m: 49.5%, 100-250 m: 27.8%, 250-1000 m: 19.6%, 1000-inf m: 3.1%
+  [PASS] not all crimes near outages
+  [PASS] outage periods contain nearby crime observations -- 3969 night crimes within 100 m during outages
+  [PASS] pre-outage and post-repair observations exist -- pre=4412, post=4364 night crimes
+     naive night-crime rate within 100 m, per 1000 site-days (n=5342 outages):
+       pre (14 d before) = 59.0, during = 88.9, post (days 7-21 after repair) = 58.4  -> during/baseline = 1.51
+     same for daytime (placebo): pre = 56.5, during = 53.0, post = 55.5  -> during/baseline = 0.95
+  [PASS] v2 night uplift 1.3-4x and larger than daytime placebo -- night 1.51, day 0.95
+  [PASS] every city has >= 200 outages and >= 1000 crimes
+
+Ward context table
+  [PASS] ward_id unique -- 131 wards
+  [PASS] no missing values
+  [PASS] population density 300-40,000 /km2 -- 910-30829
+  [PASS] shares in [0, 1]
+  [PASS] income index 0-100
+  [PASS] slope, distances non-negative
+  [PASS] all 7 cities have wards
+  [PASS] outage rate rises with rainfall and pole age -- corr(log rain, outages/site)=0.65, corr(pole age, outages/site)=0.51
+  [PASS] repair delay rises with depot distance -- corr=0.45 (median days vs km)
+
+Per-city counts
+            streetlight_records  street_light_out  crime_records
+Bengaluru                  1456              1284          31575
+Mysuru                      742               664          17677
+Mangaluru                  1718              1507          15155
+Hubballi                    810               709          17343
+Belagavi                    763               642          13444
+Shivamogga                  790               693          10511
+Tumakuru                    596               509          12511
+
+OVERALL VALIDATION: PASS

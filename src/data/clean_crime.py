@@ -3,13 +3,19 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
+import sys as _sys
+from pathlib import Path as _Path
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
+
 
 # -------------------------------------------------------------------
 # File paths
 # -------------------------------------------------------------------
 
-INPUT_FILE = Path("data/raw/nypd_crime.csv")
-OUTPUT_FILE = Path("data/processed/clean_crime.parquet")
+INPUT_FILE = Path(_profile.RAW_DIR) / _profile.CRIME_RAW_FILE
+OUTPUT_FILE = Path(_profile.PROCESSED_DIR) / "clean_crime.parquet"
 
 
 # -------------------------------------------------------------------
@@ -18,7 +24,7 @@ OUTPUT_FILE = Path("data/processed/clean_crime.parquet")
 # Keep in sync with src/data/download_data.py ANALYSIS_START.
 # -------------------------------------------------------------------
 
-ANALYSIS_START = pd.Timestamp("2019-11-01")
+ANALYSIS_START = pd.Timestamp(_profile.ANALYSIS_START)
 
 
 # -------------------------------------------------------------------
@@ -56,10 +62,7 @@ CATEGORY_KEYWORDS = "ROBBERY|BURGLARY|LARCENY|ASSAULT|MISCHIEF"
 # NYC coordinate bounds
 # -------------------------------------------------------------------
 
-MIN_LAT = 40.49
-MAX_LAT = 40.92
-MIN_LON = -74.26
-MAX_LON = -73.69
+MIN_LAT, MAX_LAT, MIN_LON, MAX_LON = _profile.BBOX
 
 
 def clean_crime():

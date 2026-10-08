@@ -1,6 +1,7 @@
 """Stage 9-11 evidence, read directly from the estimate files (no hardcoded fallbacks)."""
 from typing import Any, Dict, List
 
+from .. import config
 from .common import num, text
 from .data_store import store
 
@@ -65,6 +66,6 @@ def get_causal_overview() -> Dict[str, Any]:
         "event_study": get_event_study_data(),
         "estimates_table": table,
         "did_specifications": store.did_summary,
-        "score_input": "Stage 12 uses net_post as tau_net, a single global constant.",
+        "score_input": f"Stage 12 uses {config.dataset_profile.TAU_EFFECT} as tau_net, a single global constant.",
     })
     return out

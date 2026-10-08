@@ -40,13 +40,17 @@ from pyproj import Transformer
 from scipy.spatial import cKDTree
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.features import build_causal_panel as s8  # noqa: E402  (accepted Stage 8 constants)
 
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+PROCESSED_DIR = PROJECT_ROOT / _profile.PROCESSED_DIR
+OUTPUT_DIR = PROJECT_ROOT / _profile.OUTPUTS_DIR
 
 OUTAGES_FILE = PROCESSED_DIR / "clean_streetlights.parquet"
 CRIME_FILE = PROCESSED_DIR / "clean_crime.parquet"
@@ -54,7 +58,7 @@ STAGE11_FILE = OUTPUT_DIR / "displacement_estimates.csv"
 SCORED_FILE = PROCESSED_DIR / "outages_scored.parquet"
 
 OUTAGE_ID = "unique_key"
-TAU_NET_EFFECT = "net_post"
+TAU_NET_EFFECT = _profile.TAU_EFFECT  # "net_post" for NYC; see src/profile.py
 
 LOOKBACK_DAYS = s8.PRE_WINDOW_DAYS
 RADIUS_M = s8.OUTCOME_RADIUS_M

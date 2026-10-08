@@ -42,7 +42,11 @@ from scipy.spatial import cKDTree
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
+
+PROCESSED_DIR = PROJECT_ROOT / _profile.PROCESSED_DIR
 
 PAIRS_FILE = PROCESSED_DIR / "control_area_pairs.parquet"
 CRIME_FILE = PROCESSED_DIR / "clean_crime.parquet"
@@ -52,7 +56,7 @@ LEGACY_PANEL_BACKUP = "causal_panel.pre_issue4.parquet"
 
 # NAD83 / New York Long Island in metres (EPSG:2263 is US feet); must
 # equal Stage 7's PROJECTED_CRS.
-TARGET_CRS = "EPSG:32118"
+TARGET_CRS = _profile.CRS
 
 if CRS(TARGET_CRS).axis_info[0].unit_name != "metre":
     raise ValueError(f"{TARGET_CRS} must use metre units")

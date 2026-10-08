@@ -6,11 +6,26 @@ Nothing in this package writes to data/ or outputs/.
 """
 from pathlib import Path
 import os
+import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-DATA_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+from src import profile as dataset_profile  # noqa: E402  (LIGHTSAFE_PROFILE selects the dataset served)
+
+PROFILE_NAME = dataset_profile.NAME
+IS_SYNTHETIC = dataset_profile.IS_SYNTHETIC
+REGION_LABEL = dataset_profile.REGION_LABEL
+
+DATA_PROCESSED_DIR = PROJECT_ROOT / dataset_profile.PROCESSED_DIR
+OUTPUTS_DIR = PROJECT_ROOT / dataset_profile.OUTPUTS_DIR
+CONTEXT_DIR = OUTPUTS_DIR / "context"        # synthetic-profile ward / population / scenario outputs
+
+# Map framing and labels for the active profile (served by /api/profile).
+MAP_CENTER = (-73.98, 40.72) if not IS_SYNTHETIC else (76.0, 14.0)    # lon, lat
+MAP_ZOOM = 10.5 if not IS_SYNTHETIC else 6.2
+SYNTHETIC_LABEL = "Synthetic Dataset — Demonstration / Simulation"
 
 # Parquet files
 CLEAN_CRIME_FILE = DATA_PROCESSED_DIR / "clean_crime.parquet"
@@ -67,10 +82,17 @@ IMPACT_UNIT_NOTE = (
     "Impact is the sum of Stage 12 priority scores (a 0-100 decision-support index). "
     "It is not a number of crimes, a probability, or a prediction of crimes prevented."
 )
-PIPELINE_NOTICE = (
-    "Decision-support view of the Stage 12-14 design (priority index, FIFO comparison, "
-    "constrained dispatch). The README's 'Final methodology (frozen 2026-10-06)' marks this "
-    "design as superseded by a FIFO baseline plus capacity analysis, because the Stage 11 net "
-    "effect used to build the index is not statistically distinguishable from zero. "
-    "Results describe a ranking convention, not a causal or crime-prevention effect."
-)
+if IS_SYNTHETIC:
+    PIPELINE_NOTICE = (
+        "SYNTHETIC DEMONSTRATION. Every number in this dashboard comes from a simulated Karnataka dataset run through the "
+        "project's own pipeline (matched-control difference-in-differences, priority index, constrained dispatch). "
+        "None of it is a real-world measurement. The priority index is a ranking convention, not a crime forecast."
+    )
+else:
+    PIPELINE_NOTICE = (
+        "Decision-support view of the Stage 12-14 design (priority index, FIFO comparison, "
+        "constrained dispatch). The README's 'Final methodology (frozen 2026-10-06)' marks this "
+        "design as superseded by a FIFO baseline plus capacity analysis, because the Stage 11 net "
+        "effect used to build the index is not statistically distinguishable from zero. "
+        "Results describe a ranking convention, not a causal or crime-prevention effect."
+    )

@@ -8,7 +8,8 @@ import { useTheme } from '../context/ThemeContext';
 import { HeaderControls } from '../components/layout/HeaderSlot';
 import { BoroughControl, DecisionBadge, DecisionControl, Loading, SearchInput, TierBadge, TierControl } from '../components/ui';
 import { formatDate, formatDays, formatScore } from '../lib/formatters';
-import { MAP_CENTER, MAP_DEFAULT_ZOOM, TIER_MAP_COLORS } from '../lib/constants';
+import { TIER_MAP_COLORS } from '../lib/constants';
+import { useProfile } from '../context/ProfileContext';
 import { DispatchStatus, PriorityTier } from '../types/outage';
 
 interface OutageFeature {
@@ -59,6 +60,7 @@ function addOverlays(map: any) {
 export const MapView: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { mapCenter: MAP_CENTER, mapZoom: MAP_DEFAULT_ZOOM } = useProfile();
   const { borough, priorityTier, decision } = useGlobalFilters();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);

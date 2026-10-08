@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Search, X } from 'lucide-react';
-import { BOROUGHS, DISPATCH_STATUS, PRIORITY_TIERS, TIER_BADGE } from '../lib/constants';
+import { DISPATCH_STATUS, PRIORITY_TIERS, TIER_BADGE } from '../lib/constants';
 import { DispatchStatus, PriorityTier } from '../types/outage';
 import { DecisionFilter, useGlobalFilters } from '../context/FilterContext';
 import { formatNumber } from '../lib/formatters';
+import { useProfile } from '../context/ProfileContext';
 
 /* ------------------------------------------------------------------ badges */
 export const TierBadge: React.FC<{ tier: PriorityTier | null | undefined }> = ({ tier }) =>
@@ -98,7 +99,9 @@ export const SelectControl: React.FC<{ label: string; value: string; onChange: (
 
 export const BoroughControl: React.FC = () => {
   const { borough, setBorough } = useGlobalFilters();
-  return <SelectControl label="Borough" value={borough} onChange={setBorough} options={BOROUGHS.map((b) => ({ value: b, label: b === 'All' ? 'All boroughs' : b }))} />;
+  const { boroughs, synthetic } = useProfile();
+  const noun = synthetic ? 'cities' : 'boroughs';
+  return <SelectControl label={synthetic ? 'City' : 'Borough'} value={borough} onChange={setBorough} options={['All', ...boroughs].map((b) => ({ value: b, label: b === 'All' ? 'All ' + noun : b }))} />;
 };
 
 export const TierControl: React.FC = () => {

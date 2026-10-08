@@ -128,16 +128,22 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
+import sys as _sys
+from pathlib import Path as _Path
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
+
 
 # ---------------------------------------------------------
 # File paths
 # ---------------------------------------------------------
 
-RAW_COMPLAINTS_FILE = Path("data/raw/streetlight_complaints.csv")
-TREATMENT_FILE = Path("data/processed/clean_streetlights.parquet")
-CRIME_FILE = Path("data/processed/clean_crime.parquet")
+RAW_COMPLAINTS_FILE = Path(_profile.RAW_DIR) / "streetlight_complaints.csv"
+TREATMENT_FILE = Path(_profile.PROCESSED_DIR) / "clean_streetlights.parquet"
+CRIME_FILE = Path(_profile.PROCESSED_DIR) / "clean_crime.parquet"
 
-DEFAULT_OUT_DIR = Path("data/processed")
+DEFAULT_OUT_DIR = Path(_profile.PROCESSED_DIR)
 
 PAIRS_FILENAME = "control_area_pairs.parquet"
 SITES_FILENAME = "outage_sites.parquet"
@@ -151,10 +157,10 @@ FAILED_DIAGNOSTICS_FILENAME = "match_diagnostics.failed.json"
 # ---------------------------------------------------------
 
 # NAD83 / New York Long Island in metres (EPSG:2263 is US feet).
-PROJECTED_CRS = "EPSG:32118"
+PROJECTED_CRS = _profile.CRS
 
 # (lat_min, lat_max, lon_min, lon_max), same box as Stage 3.
-NYC_BBOX = (40.49, 40.92, -74.26, -73.69)
+NYC_BBOX = _profile.BBOX  # name kept for compatibility; box of the active profile
 
 H3_RESOLUTIONS = (7, 9, 10)
 
@@ -192,7 +198,7 @@ MATCH_BAND_MIN_M = 500.0
 TREATMENT_CLEAN_RADIUS_M = 100.0
 PRIOR_EPISODE_RADIUS_M = 250.0
 
-BASELINE_DAYS = 365
+BASELINE_DAYS = _profile.BASELINE_DAYS  # 365 for NYC; see src/profile.py
 
 RECHECK_SAMPLE_N = 2000
 RECHECK_SEED = 20260927

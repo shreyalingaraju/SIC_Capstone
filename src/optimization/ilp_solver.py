@@ -58,8 +58,12 @@ import pulp
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from src import profile as _profile  # noqa: E402  (dataset profile: paths, bbox, CRS)
+
+PROCESSED_DIR = PROJECT_ROOT / _profile.PROCESSED_DIR
+OUTPUT_DIR = PROJECT_ROOT / _profile.OUTPUTS_DIR
 
 SCORED_FILE = PROCESSED_DIR / "outages_scored.parquet"
 PLAN_FILENAME = "optimal_dispatch_plan.csv"

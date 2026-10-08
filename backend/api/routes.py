@@ -8,12 +8,19 @@ from ..schemas.models import ActionResult, OutageDetail, OutageList, PriorityRes
 from ..services import (
     causal_service, dispatch_service, evidence_service, map_service, operations_service,
     optimization_service, outage_service,
-    overview_service, pipeline_service, priority_service,
+    overview_service, pipeline_service, priority_service, synthetic_service,
 )
 from ..services.data_store import store
 from ..services.ml import get_regime
 
 router = APIRouter(prefix="/api")
+
+
+def _nyc_only(what: str) -> None:
+    """Track B (frozen FIFO / capacity design) is calibrated on NYC 2023-2026 data and has no synthetic counterpart."""
+    if config.IS_SYNTHETIC:
+        raise HTTPException(status_code=404, detail=f"{what} is not available for the synthetic demonstration profile "
+                                                    f"(it is calibrated on the NYC 2023-2026 data).")
 
 Page = Query(1, ge=1)
 PageSize = Query(50, ge=1, le=config.MAX_PAGE_SIZE)
@@ -172,6 +179,7 @@ def causal_event_study() -> List[Dict[str, Any]]:
 @router.get("/evidence/stage11", tags=["Evidence explorer"])
 def evidence_stage11() -> Dict[str, Any]:
     """Frozen Stage 11 estimates, ring definitions and the stored variant grid."""
+    _nyc_only("The frozen Stage 11 exposure model")
     return evidence_service.get_stage11()
 
 
@@ -187,15 +195,76 @@ CapacityK = Query(65, ge=config.CAPACITY_MIN, le=config.CAPACITY_MAX)
 @router.get("/operations/capacity", tags=["Operations explorer"])
 def operations_capacity(k: int = CapacityK) -> Dict[str, Any]:
     """Re-run the frozen FIFO simulation at capacity k: metrics, service targets, daily series."""
+    _nyc_only("The frozen FIFO capacity explorer")
     return operations_service.get_capacity(k)
 
 
 @router.get("/operations/capacity-curve", tags=["Operations explorer"])
 def operations_capacity_curve() -> Dict[str, Any]:
+    _nyc_only("The frozen FIFO capacity explorer")
     return operations_service.get_capacity_curve()
 
 
 @router.get("/operations/replay", tags=["Operations explorer"])
 def operations_replay(k: int = CapacityK) -> Dict[str, Any]:
     """Per-job known/dispatch days and site coordinates for the city replay."""
+    _nyc_only("The city replay")
     return operations_service.get_replay(k)
+
+
+# ----------------------------------------------------------- dataset profile + synthetic demonstration
+@router.get("/profile", tags=["Meta"])
+def dataset_profile() -> Dict[str, Any]:
+    """Which dataset this API serves (NYC or the synthetic Karnataka demonstration), map framing and filter values."""
+    return synthetic_service.profile()
+
+
+@router.get("/synthetic/overview", tags=["Synthetic demonstration"])
+def synthetic_overview() -> Dict[str, Any]:
+    return synthetic_service.overview()
+
+
+@router.get("/synthetic/wards", tags=["Synthetic demonstration"])
+def synthetic_wards(city: Optional[str] = None, area_class: Optional[str] = None, risk_category: Optional[str] = None) -> Dict[str, Any]:
+    return synthetic_service.wards(city, area_class, risk_category)
+
+
+@router.get("/synthetic/population", tags=["Synthetic demonstration"])
+def synthetic_population() -> Dict[str, Any]:
+    return synthetic_service.population()
+
+
+@router.get("/synthetic/relationships", tags=["Synthetic demonstration"])
+def synthetic_relationships() -> Dict[str, Any]:
+    return synthetic_service.relationships()
+
+
+@router.get("/synthetic/causal", tags=["Synthetic demonstration"])
+def synthetic_causal() -> Dict[str, Any]:
+    return synthetic_service.causal()
+
+
+@router.get("/synthetic/risk-model", tags=["Synthetic demonstration"])
+def synthetic_risk_model() -> Dict[str, Any]:
+    return synthetic_service.risk_model()
+
+
+@router.get("/synthetic/prioritization", tags=["Synthetic demonstration"])
+def synthetic_prioritization(
+    city: Optional[str] = None,
+    action: Optional[Literal["Repair now", "Schedule next", "Monitor", "All"]] = None,
+    sort: Literal["priority_score", "predicted_risk", "priority_ex_ante"] = "priority_score",
+    page: int = Page,
+    page_size: int = Query(25, ge=1, le=config.MAX_PAGE_SIZE),
+) -> Dict[str, Any]:
+    return synthetic_service.prioritization(city, action, page, page_size, sort)
+
+
+@router.get("/synthetic/scenarios", tags=["Synthetic demonstration"])
+def synthetic_scenarios(scenario: Optional[str] = None) -> Dict[str, Any]:
+    return synthetic_service.scenarios(scenario)
+
+
+@router.get("/synthetic/methodology", tags=["Synthetic demonstration"])
+def synthetic_methodology() -> Dict[str, Any]:
+    return synthetic_service.methodology()

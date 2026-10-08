@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Lightbulb, ListOrdered, FlaskConical, PlayCircle } from 'lucide-react';
+import { LayoutDashboard, Map, Lightbulb, ListOrdered, FlaskConical, PlayCircle, Microscope } from 'lucide-react';
+import { useProfile } from '../../context/ProfileContext';
 
 const NAV_SECTIONS = [
   {
@@ -26,10 +27,18 @@ const NAV_SECTIONS = [
   },
 ];
 
-export const Sidebar: React.FC = () => (
+export const Sidebar: React.FC = () => {
+  const { synthetic } = useProfile();
+  const sections = synthetic
+    ? [
+        { title: null, items: [{ path: '/synthetic', label: 'Synthetic Analysis', icon: Microscope, end: false }, ...NAV_SECTIONS[0].items.map((i) => (i.path === '/' ? { ...i, path: '/overview', label: 'Dispatch Overview' } : i))] },
+        NAV_SECTIONS[1],
+      ]
+    : NAV_SECTIONS;
+  return (
   <aside className="flex w-14 shrink-0 flex-col border-r border-night-light/40 bg-night-deep text-slate-300 xl:w-60" aria-label="Primary">
     <nav className="flex flex-col gap-0.5 p-2 xl:p-3">
-      {NAV_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <React.Fragment key={section.title ?? 'main'}>
           {section.title && (
             <p className="mt-3 hidden px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 xl:block">{section.title}</p>
@@ -67,4 +76,5 @@ export const Sidebar: React.FC = () => (
       Recommendations support, but do not replace, dispatch judgement.
     </p>
   </aside>
-);
+  );
+};

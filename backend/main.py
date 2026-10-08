@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
     store.load_all()
     ml_model.load()  # integrity-checked; failure or LIGHTSAFE_ML_ENABLED=0 only switches the ML context off
     # Explorer simulation inputs load in the background; existing endpoints are not delayed.
-    threading.Thread(target=operations_service.warm, daemon=True).start()
+    if not config.IS_SYNTHETIC:  # the frozen FIFO/capacity explorer is NYC-only (see routes._nyc_only)
+        threading.Thread(target=operations_service.warm, daemon=True).start()
     yield
 
 
