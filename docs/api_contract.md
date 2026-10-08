@@ -8,6 +8,15 @@ The dashboard (`frontend/`) talks only to the FastAPI backend (`backend/`). The 
 
 ## Run locally
 
+First-time setup (and after any change to `requirements.txt`), from the repository root, with Python 3.14:
+
+```
+py -3.14 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+This installs the pinned versions, including scikit-learn 1.8.0 and xgboost 3.4.1, which the repair-pressure model requires (`GET /api/ml/regime` returns `available: false` otherwise).
+
 Two terminals, from the repository root.
 
 ```

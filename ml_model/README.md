@@ -7,7 +7,7 @@ Nothing here is connected to any other project.
 ## Reproduce
 
 ```
-pip install pandas scikit-learn xgboost joblib matplotlib
+pip install pandas scikit-learn==1.8.0 xgboost==3.4.1 joblib matplotlib
 python -m training.train                                   # ~1 min; writes models/ and outputs/
 python -m evaluation.evaluate_synthetic --data <synthetic.csv> [--snapshot <extract time>]   # later, inference only
 ```

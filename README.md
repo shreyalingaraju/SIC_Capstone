@@ -196,11 +196,18 @@ The dashboard is a read-only FastAPI backend with a React (Vite, Tailwind) front
 
 ### Prerequisites
 
-- Python 3 with the project's dependencies installed (GeoPandas, H3, pandas, XGBoost, scikit-learn, FastAPI, among others)
+- Python 3.14 with the project's dependencies installed (GeoPandas, H3, pandas, XGBoost, scikit-learn, FastAPI, among others)
 - Node.js and npm for the frontend
 - Network access to NYC Open Data (Socrata) for the raw downloads
 
-> **Version pinning.** The backend's ML integrity check refuses to run with a different scikit-learn or XGBoost version than the frozen model was built with (scikit-learn 1.8.0 is pinned). If the versions do not match, the Repair Pressure card shows a fallback note and all other pages are unaffected. Install the pinned versions from the project's environment files.
+Create the project environment once from the repository root, and re-run the install whenever `requirements.txt` changes:
+
+```powershell
+py -3.14 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+> **Version pinning.** The backend's ML integrity check refuses to run with a different scikit-learn or XGBoost version than the frozen model was built with: `scikit-learn==1.8.0` and `xgboost==3.4.1`, both pinned in `requirements.txt`. If the versions do not match, the Repair Pressure card shows a fallback note and all other pages are unaffected. `.gitattributes` keeps the hash-checked model artifacts byte-for-byte identical on every platform (no CRLF conversion on Windows).
 
 ### 1. Download and clean the data
 
