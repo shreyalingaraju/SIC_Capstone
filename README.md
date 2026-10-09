@@ -281,5 +281,5 @@ A null result does not prove that streetlights do not matter. It excludes only l
 
 ## Contributors
 
-Commit authors in the repository history: Shreya Lingaraju, Anuradha M S, Abhijna A and Pragnya N Kashyap.
+Commit authors in the repository history: Shreya Lingaraju, Anuradha M S, Abhijna A and Prajnya N Kashyap.
 
