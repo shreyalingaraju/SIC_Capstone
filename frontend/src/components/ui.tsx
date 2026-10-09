@@ -27,18 +27,21 @@ export const PageHeader: React.FC<{ title: string; description?: string; actions
 );
 
 export const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: React.ReactNode; children?: React.ReactNode }> = ({ label, value, hint, children }) => (
-  <div className="card flex flex-col gap-1 p-4">
+  <div className="card stat-card flex flex-col gap-1 p-4">
     <span className="eyebrow">{label}</span>
-    <span className="text-2xl font-extrabold leading-tight tracking-tight text-ink tabular-nums">{value}</span>
+    <span className="bg-gradient-to-b from-ink to-ink/80 bg-clip-text text-2xl font-extrabold leading-tight tracking-tight text-ink tabular-nums">{value}</span>
     {children}
     {hint && <span className="text-xs leading-snug text-ink-soft">{hint}</span>}
   </div>
 );
 
 export const Loading: React.FC<{ label?: string }> = ({ label = 'Loading…' }) => (
-  <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-ink-soft" role="status" aria-live="polite">
-    <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-line border-t-signal-deep" />
-    <span className="text-xs font-medium">{label}</span>
+  <div className="flex min-h-[40vh] flex-col gap-4 py-2 text-ink-soft" role="status" aria-live="polite">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-20 rounded-xl" />)}
+    </div>
+    <div className="skeleton h-48 rounded-xl" />
+    <span className="text-center text-xs font-medium">{label}</span>
   </div>
 );
 

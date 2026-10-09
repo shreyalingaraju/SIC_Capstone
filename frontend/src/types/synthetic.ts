@@ -16,7 +16,7 @@ export interface SynKpis {
   high_risk_wards: number; high_medium_priority_outages: number; high_priority_outages: number;
   repairs_recommended_per_day: number; daily_repair_capacity_k: number; tau_effect: string; tau_value: number;
   priority_improvement_day30_pct: number | null; predicted_impact_priority_points_day30: number | null;
-  fifo_impact_priority_points_day30: number | null; benchmark_vs_fifo_pct_baseline: number | null;
+  fifo_impact_priority_points_day30: number | null; causal_weight: number; benchmark_vs_fifo_pct_baseline: number | null;
   benchmark_vs_fifo_pct_stress: number | null; data_period: [string, string];
 }
 export interface SynOverview {
@@ -63,10 +63,11 @@ export interface SynCausal {
 }
 
 export interface RiskModel {
-  available: boolean; model: string; target: string; validation: string; n_outages: number; features: string[];
+  available: boolean; model: string; target: string; validation: string; n_outages: number; features: string[]; metrics_unit: string;
+  mae: number; rmse: number; mae_baseline_mean_rate: number; rmse_baseline_mean_rate: number; mae_improvement_pct: number; rmse_improvement_pct: number;
   spearman_predicted_vs_observed: number; poisson_deviance_explained: number; top_decile_capture: number;
   top_decile_lift: number; no_skill_top_decile_capture: number; interpretation: string;
-  feature_importance: { feature: string; importance: number }[];
+  feature_importance: { feature: string; importance: number; mean_abs_shap_log_rate: number }[];
 }
 
 export interface PrioItem {
@@ -74,6 +75,9 @@ export interface PrioItem {
   duration_days: number; population: number; pop_density_per_km2: number; local_crime_rate: number | null;
   predicted_risk: number; risk_percentile: number; priority_score: number; priority_tier: string;
   recommended_action: string; optimization_rank: number | null;
+  vulnerable_pop_share: number; elevation_m: number; slope_pct: number; rainfall_mm_year: number; dist_depot_km: number;
+  prior_complaints_90d_50m: number; stage12_score: number; priority_reasons: string; xgb_top_features: string;
+  contrib_risk: number; contrib_exposure: number; contrib_vulnerable: number; contrib_recurrence: number; contrib_efficiency: number;
 }
 export interface PrioResponse { available: boolean; total: number; page: number; page_size: number; sorted_by: string; items: PrioItem[]; note: string }
 
@@ -94,3 +98,12 @@ export interface Methodology {
   model_derived: string[]; synthetic_values: string[]; limitations: string[]; data_period: [string, string] | null;
   traceability: TraceRow[];
 }
+
+export interface DecisionSummary {
+  available: boolean; formula: string; tiers: string; missing_data_rule: string; weights_note: string; not_used: string[];
+  components: { key: string; label: string; input_column: string; base_weight: number; effective_weight: number }[];
+  causal_weight: { value: number; effect: string; estimate_per_outage: number; ci: [number, number]; mean_outage_days_matched: number; effect_per_outage_day: number; mean_predicted_rate_matched_treated: number; rule: string };
+  sensitivity: { top_n: number; random_weight_draws: number; random_spearman_min: number; random_spearman_median: number; random_top100_overlap_median: number; variants: { variant: string; spearman_vs_base: number; top100_overlap: number }[] };
+  spearman_vs_stage12_hindsight_score: number;
+}
+export interface PopRiskResponse { available: boolean; scale: string; items: { ward_id: string; city: string; population: number; mean_predicted_risk: number; mean_priority_score: number; population_pct: number; risk_pct: number; priority_pct: number }[] }

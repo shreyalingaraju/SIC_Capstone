@@ -112,7 +112,7 @@ export const fetchMlRegime = () => get<MlRegime>('/ml/regime');
 export const fetchReplay = (k: number) => get<ReplayData>(`/operations/replay${query({ k })}`);
 
 /* ---- dataset profile + synthetic demonstration */
-import type { Profile, SynOverview, WardsResponse, PopulationResponse, RelationshipsResponse, SynCausal, RiskModel, PrioResponse, ScenarioResponse, Methodology } from '../types/synthetic';
+import type { Profile, SynOverview, WardsResponse, PopulationResponse, RelationshipsResponse, SynCausal, RiskModel, PrioResponse, ScenarioResponse, Methodology, DecisionSummary, PopRiskResponse } from '../types/synthetic';
 
 export const fetchProfile = () => get<Profile>('/profile');
 export const fetchSynOverview = () => get<SynOverview>('/synthetic/overview');
@@ -125,3 +125,5 @@ export const fetchSynPrioritization = (p: { city?: string; action?: string; sort
   get<PrioResponse>(`/synthetic/prioritization${query({ city: p.city, action: p.action, sort: p.sort, page: p.page, page_size: p.pageSize })}`);
 export const fetchSynScenarios = (scenario: string) => get<ScenarioResponse>(`/synthetic/scenarios${query({ scenario })}`);
 export const fetchSynMethodology = () => get<Methodology>('/synthetic/methodology');
+export const fetchSynDecision = () => get<DecisionSummary>('/synthetic/decision');
+export const fetchSynPopulationRisk = () => get<PopRiskResponse>('/synthetic/population-risk');

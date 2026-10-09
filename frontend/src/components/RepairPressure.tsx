@@ -3,19 +3,19 @@ import { useMlRegime } from '../hooks/useMlRegime';
 import { RegimeBorough } from '../types/ml';
 import { formatDate, formatNumber } from '../lib/formatters';
 
-const Position: React.FC<{ b: RegimeBorough }> = ({ b }) => {
+const Position: React.FC<{ b: RegimeBorough; ref_: string }> = ({ b, ref_ }) => {
   const pct = Math.max(0, Math.min(100, b.relative_score ?? 0));
   return (
     <div className="flex items-center gap-3">
       <div
         className="progress w-28 shrink-0 sm:w-40"
         role="img"
-        aria-label={`${b.borough}: ${b.above_reference_range ? 'above the whole 2024–2025 range' : `at the ${Math.round(pct)}th percentile of 2024–2025`}`}
+        aria-label={`${b.borough}: ${b.above_reference_range ? `above the whole range of ${ref_}` : `at the ${Math.round(pct)}th percentile of ${ref_}`}`}
       >
         <span style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs tabular-nums text-ink-soft">
-        {b.above_reference_range ? 'Above 2024–25 range' : `${Math.round(pct)}th percentile`}
+        {b.above_reference_range ? 'Above reference range' : `${Math.round(pct)}th percentile`}
       </span>
     </div>
   );
@@ -25,13 +25,16 @@ const Position: React.FC<{ b: RegimeBorough }> = ({ b }) => {
 export const RepairPressure: React.FC<{ borough: string }> = ({ borough }) => {
   const { data, isLoading, isError, refetch } = useMlRegime();
   const rows = (data?.boroughs ?? []).filter((b) => borough === 'All' || b.borough === borough);
+  const unit = data?.labels?.unit ?? 'Borough';
+  const reference = data?.labels?.reference ?? '2024–2025';
+  const synthetic = data?.labels?.kind === 'observed_synthetic';
 
   return (
     <section className="card" aria-labelledby="pressure">
       <div className="border-b border-line px-5 py-3.5">
         <h2 id="pressure" className="card-title">Repair pressure</h2>
         <p className="mt-0.5 text-xs text-ink-soft">
-          How slowly street-light complaints are being resolved, compared with each borough&apos;s own 2024–2025 history.
+          How slowly street-light complaints are being resolved, compared with each {unit.toLowerCase()}&apos;s own history ({reference}).{synthetic && <> <span className="badge badge-medium ml-1">Synthetic data</span></>}
           {data?.window && <> Based on complaints from {formatDate(data.window.start)} to {formatDate(data.window.end)}.</>}
         </p>
       </div>
@@ -58,9 +61,10 @@ export const RepairPressure: React.FC<{ borough: string }> = ({ borough }) => {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col">Borough</th>
+                    <th scope="col">{unit}</th>
                     <th scope="col">Repair pressure</th>
-                    <th scope="col">Position in 2024–2025 history</th>
+                    <th scope="col">Position in {reference}</th>
+                    {synthetic && <th scope="col" className="num">Slow share</th>}
                     <th scope="col" className="num">Complaints in window</th>
                   </tr>
                 </thead>
@@ -71,10 +75,11 @@ export const RepairPressure: React.FC<{ borough: string }> = ({ borough }) => {
                       {b.available ? (
                         <>
                           <td><span className="badge badge-neutral">{b.category}</span></td>
-                          <td><Position b={b} /></td>
+                          <td><Position b={b} ref_={reference} /></td>
+                          {synthetic && <td className="num tabular-nums">{b.slow_share !== undefined ? `${(b.slow_share * 100).toFixed(0)}%` : '–'}</td>}
                         </>
                       ) : (
-                        <td colSpan={2} className="text-ink-soft">Not enough recent complaints</td>
+                        <td colSpan={synthetic ? 3 : 2} className="text-ink-soft">Not enough recent complaints</td>
                       )}
                       <td className="num text-ink-soft">{formatNumber(b.observation_count)}</td>
                     </tr>
@@ -84,7 +89,7 @@ export const RepairPressure: React.FC<{ borough: string }> = ({ borough }) => {
             </div>
           )}
           <p className="border-t border-line-soft px-5 py-3 text-xs leading-relaxed text-ink-soft">
-            {data.explanation} Repair pace has slowed since 2024, so several boroughs can read High at once.
+            {data.explanation} {data.labels?.footnote}
           </p>
         </>
       )}

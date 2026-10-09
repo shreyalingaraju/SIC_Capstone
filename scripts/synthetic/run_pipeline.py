@@ -44,6 +44,7 @@ STEPS = [
     ("queue", ["src/models/prioritization_engine.py"]),
     ("ilp", ["src/optimization/ilp_solver.py"]),
     ("context", ["scripts/synthetic/build_context_outputs.py"]),
+    ("pressure", ["scripts/synthetic/build_repair_pressure.py"]),
 ]
 
 

@@ -51,6 +51,8 @@ def overview(borough: Optional[str] = None, priority_tier: Optional[str] = None)
 @router.get("/ml/regime", tags=["Operational context"])
 def ml_regime(borough: Optional[str] = None) -> Dict[str, Any]:
     """Borough repair-pressure context (frozen model). Context only: not a crime forecast, not used for dispatch."""
+    if config.IS_SYNTHETIC:
+        return synthetic_service.repair_pressure(borough)
     return get_regime(borough)
 
 
@@ -253,7 +255,7 @@ def synthetic_risk_model() -> Dict[str, Any]:
 def synthetic_prioritization(
     city: Optional[str] = None,
     action: Optional[Literal["Repair now", "Schedule next", "Monitor", "All"]] = None,
-    sort: Literal["priority_score", "predicted_risk", "priority_ex_ante"] = "priority_score",
+    sort: Literal["priority_score", "predicted_risk", "priority_ex_ante", "stage12_score"] = "priority_score",
     page: int = Page,
     page_size: int = Query(25, ge=1, le=config.MAX_PAGE_SIZE),
 ) -> Dict[str, Any]:
@@ -268,3 +270,14 @@ def synthetic_scenarios(scenario: Optional[str] = None) -> Dict[str, Any]:
 @router.get("/synthetic/methodology", tags=["Synthetic demonstration"])
 def synthetic_methodology() -> Dict[str, Any]:
     return synthetic_service.methodology()
+
+
+@router.get("/synthetic/decision", tags=["Synthetic demonstration"])
+def synthetic_decision() -> Dict[str, Any]:
+    """How the decision-layer priority combines XGBoost risk, the causal evidence and population/geography context."""
+    return synthetic_service.decision()
+
+
+@router.get("/synthetic/population-risk", tags=["Synthetic demonstration"])
+def synthetic_population_risk(top: int = Query(25, ge=5, le=60)) -> Dict[str, Any]:
+    return synthetic_service.population_risk(top)

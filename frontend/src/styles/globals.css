@@ -34,42 +34,55 @@
   --chart-b: #94a3b8;   /* FIFO */
   --chart-accent: #4f7f1d;
 
+  --glass-bg: rgb(251 252 248 / 0.92);
+  --glass-border: rgb(216 222 215);
+  --glass-border-hover: rgb(98 130 14 / 0.5);
+  --glass-glow: 0 8px 28px rgba(19, 44, 39, 0.10);
+  --glass-head: rgb(255 255 255);
+
   --shadow-subtle: 0 1px 2px rgba(19, 44, 39, 0.04), 0 2px 8px rgba(19, 44, 39, 0.04);
   --shadow-elevated: 0 8px 28px rgba(19, 44, 39, 0.10);
   --shadow-modal: 0 20px 50px rgba(16, 46, 41, 0.22);
 }
 
+/* Dark emerald (default): #030907 canvas, #050B09 sidebar, glass panels, emerald #21E58A / lime #B9FF66 / teal #36D9C0 accents */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --c-paper: 9 19 16;
-  --c-surface: 15 29 25;
-  --c-surface-strong: 20 37 32;
-  --c-line: 36 56 49;
-  --c-line-soft: 27 44 38;
-  --c-ink: 230 238 233;
-  --c-ink-soft: 150 170 162;
-  --c-night: 28 76 64;
-  --c-night-deep: 8 24 20;
-  --c-night-light: 40 98 83;
-  --c-signal: 201 244 91;
-  --c-signal-deep: 168 208 60;
-  --c-brand: 201 244 91;
+  --c-paper: 3 9 7;
+  --c-surface: 15 35 27;
+  --c-surface-strong: 9 22 17;
+  --c-line: 34 66 52;
+  --c-line-soft: 22 46 36;
+  --c-ink: 240 247 242;
+  --c-ink-soft: 145 166 154;
+  --c-night: 16 58 43;
+  --c-night-deep: 5 11 9;
+  --c-night-light: 24 84 62;
+  --c-signal: 33 229 138;
+  --c-signal-deep: 33 229 138;
+  --c-brand: 185 255 102;
 
-  --t-high-fg: 255 168 148;  --t-high-bg: 58 28 23;   --t-high-bd: 104 52 42;
-  --t-med-fg: 240 202 112;   --t-med-bg: 54 43 18;    --t-med-bd: 96 78 32;
-  --t-low-fg: 134 204 196;   --t-low-bg: 21 46 43;    --t-low-bd: 40 82 77;
-  --t-ok-fg: 124 222 164;    --t-ok-bg: 19 50 37;     --t-ok-bd: 36 88 63;
-  --t-neutral-fg: 150 170 162; --t-neutral-bg: 27 44 38; --t-neutral-bd: 36 56 49;
+  --t-high-fg: 255 168 148;  --t-high-bg: 70 30 24;   --t-high-bd: 120 56 44;
+  --t-med-fg: 240 208 120;   --t-med-bg: 58 46 18;    --t-med-bd: 104 84 34;
+  --t-low-fg: 134 224 208;   --t-low-bg: 14 52 46;    --t-low-bd: 32 98 86;
+  --t-ok-fg: 120 240 176;    --t-ok-bg: 14 56 40;     --t-ok-bd: 30 110 76;
+  --t-neutral-fg: 160 182 170; --t-neutral-bg: 20 42 33; --t-neutral-bd: 36 66 53;
 
-  --chart-grid: #233a32;
-  --chart-axis: #96aaa2;
-  --chart-a: #c9f45b;
-  --chart-b: #7d8f88;
-  --chart-accent: #a8d03c;
+  --chart-grid: #1b3329;
+  --chart-axis: #91a69a;
+  --chart-a: #21e58a;
+  --chart-b: #6b8c7c;
+  --chart-accent: #36d9c0;
 
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-elevated: 0 8px 28px rgba(0, 0, 0, 0.45);
-  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.6);
+  --glass-bg: linear-gradient(160deg, rgba(20, 46, 36, 0.80) 0%, rgba(11, 27, 21, 0.78) 100%);
+  --glass-border: rgba(33, 229, 138, 0.16);
+  --glass-border-hover: rgba(33, 229, 138, 0.42);
+  --glass-glow: 0 0 0 1px rgba(33, 229, 138, 0.10), 0 10px 40px -12px rgba(33, 229, 138, 0.28);
+  --glass-head: rgba(8, 20, 15, 0.92);
+
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+  --shadow-elevated: 0 12px 36px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.7);
 }
 
 /* ------------------------------------------------------------------ base */
@@ -81,6 +94,8 @@ body {
   margin: 0;
   font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background-color: rgb(var(--c-paper));
+  background-image: radial-gradient(900px 520px at 78% -8%, rgba(33, 229, 138, 0.10), transparent 60%), radial-gradient(700px 460px at 4% 108%, rgba(54, 217, 192, 0.07), transparent 60%);
+  background-attachment: fixed;
   color: rgb(var(--c-ink));
   -webkit-font-smoothing: antialiased;
   overflow: hidden; /* the app shell scrolls internally */
@@ -121,20 +136,35 @@ html.theme-transition *::after {
   .page-sub { @apply mt-1 text-[13px] leading-snug text-ink-soft; }
   .eyebrow { @apply text-[11px] font-bold uppercase tracking-wider text-ink-soft; }
 
-  .card { @apply rounded-card border border-line bg-surface shadow-subtle; }
+  .card {
+    border-radius: 14px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: var(--shadow-subtle), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+  }
+  .card:hover { border-color: var(--glass-border-hover); box-shadow: var(--glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+  .stat-card { position: relative; overflow: hidden; }
+  .stat-card::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgb(var(--c-signal) / 0.75), transparent); opacity: 0.7;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
   .card-pad { @apply p-5; }
   .card-title { @apply text-sm font-bold text-ink; }
 
   .btn {
-    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink
-      transition-colors duration-150 hover:bg-line-soft disabled:cursor-not-allowed disabled:opacity-45;
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface/70 px-3 text-xs font-semibold text-ink
+      transition-all duration-150 hover:border-signal/50 hover:bg-line-soft hover:shadow-[0_0_16px_-4px_rgb(var(--c-signal)/0.5)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45;
   }
-  .btn-primary { @apply border-night bg-night text-white hover:bg-night-light; }
+  .btn-primary { @apply border-signal/40 bg-night text-white hover:bg-night-light; }
   .btn-sm { @apply h-8 px-2.5; }
 
   .control {
-    @apply flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs text-ink
-      transition-colors duration-150 hover:border-ink-soft/50 focus-within:border-signal-deep focus-within:ring-2 focus-within:ring-signal/30;
+    @apply flex h-9 items-center gap-2 rounded-lg border border-line bg-surface/60 px-2.5 text-xs text-ink backdrop-blur
+      transition-all duration-150 hover:border-signal/40 focus-within:border-signal focus-within:ring-2 focus-within:ring-signal/25;
   }
   .control > select, .control > input {
     @apply min-w-0 flex-1 bg-transparent text-xs font-semibold text-ink outline-none;
@@ -159,14 +189,16 @@ html.theme-transition *::after {
   .notice-info { color: rgb(var(--c-ink-soft)); background: rgb(var(--c-line-soft) / 0.6); border-color: rgb(var(--c-line)); }
 
   /* tables */
-  .table-wrap { @apply overflow-auto rounded-card border border-line bg-surface shadow-subtle; }
+  .table-wrap { overflow: auto; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--shadow-subtle); }
   .data-table { @apply w-full border-collapse text-left text-[13px]; }
   .data-table thead th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface-strong px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-soft;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-soft;
+    background: var(--glass-head);
   }
   .data-table tbody td { @apply whitespace-nowrap border-b border-line-soft px-4 py-3 align-middle text-ink; }
   .data-table tbody tr:last-child td { @apply border-b-0; }
-  .data-table tbody tr.row-link { @apply cursor-pointer transition-colors duration-100 hover:bg-line-soft/60; }
+  .data-table tbody tr.row-link { @apply cursor-pointer transition-colors duration-100 hover:bg-signal/10; }
+  .data-table tbody tr[aria-selected='true'] { background: rgb(var(--c-signal) / 0.12); box-shadow: inset 2px 0 0 rgb(var(--c-signal)); }
   .data-table tbody tr.row-link:focus-visible { outline-offset: -2px; }
   .num { @apply text-right tabular-nums; }
 
@@ -174,12 +206,18 @@ html.theme-transition *::after {
     @apply relative -mb-px whitespace-nowrap border-b-2 border-transparent px-3.5 py-2.5 text-[13px] font-semibold text-ink-soft
       transition-colors duration-150 hover:text-ink;
   }
-  .tab[aria-selected='true'] { @apply border-signal-deep text-ink; }
+  .tab[aria-selected='true'] { @apply border-signal text-ink; text-shadow: 0 0 14px rgb(var(--c-signal) / 0.55); }
 
   .progress { @apply h-1.5 w-full overflow-hidden rounded-full bg-line; }
-  .progress > span { @apply block h-full rounded-full bg-signal-deep transition-[width] duration-500; }
+  .progress > span { @apply block h-full rounded-full transition-[width] duration-500; background: linear-gradient(90deg, rgb(var(--c-signal)), #b9ff66); box-shadow: 0 0 10px rgb(var(--c-signal) / 0.5); }
 
-  .skeleton { @apply animate-pulse rounded bg-line-soft; }
+  .skeleton { @apply rounded bg-line-soft; position: relative; overflow: hidden; }
+  .skeleton::after {
+    content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(var(--c-signal) / 0.10), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  .badge-high, .badge-ok { box-shadow: 0 0 12px -4px currentColor; }
 }
 
 /* maplibre popups/controls follow the theme */
@@ -188,3 +226,27 @@ html.theme-transition *::after {
 :root[data-theme='dark'] .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
 .maplibregl-ctrl-attrib { background: rgb(var(--c-surface-strong) / 0.8) !important; color: rgb(var(--c-ink-soft)) !important; }
 .maplibregl-ctrl-attrib a { color: rgb(var(--c-ink-soft)) !important; }
+
+@keyframes shimmer { to { transform: translateX(100%); } }
+/* transform only: content must stay visible even if an animation never runs (paused tab, headless capture) */
+@keyframes page-in { from { transform: translateY(6px); } to { transform: none; } }
+
+/* Soft emerald light that follows the pointer (desktop, fine pointer, motion allowed). Never intercepts input. */
+.cursor-glow {
+  position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px;
+  pointer-events: none; z-index: 0; opacity: 0; will-change: transform, opacity;
+  background: radial-gradient(circle, rgba(33, 229, 138, 0.13) 0%, rgba(54, 217, 192, 0.05) 38%, transparent 68%);
+  transition: opacity 400ms ease;
+}
+:root[data-theme='light'] .cursor-glow { display: none; }
+@media (pointer: coarse), (prefers-reduced-motion: reduce) { .cursor-glow { display: none; } }
+
+/* staggered entrance of the blocks on a page */
+.page > * { animation: page-in 260ms ease-out both; }
+.page > *:nth-child(2) { animation-delay: 40ms; }
+.page > *:nth-child(3) { animation-delay: 80ms; }
+.page > *:nth-child(4) { animation-delay: 120ms; }
+.page > *:nth-child(5) { animation-delay: 160ms; }
+
+/* maplibre in the dark emerald theme */
+:root[data-theme='dark'] .maplibregl-canvas { filter: saturate(0.85) brightness(0.95); }

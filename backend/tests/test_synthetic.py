@@ -25,7 +25,8 @@ CTX = Path(config.PROJECT_ROOT) / "outputs" / "synthetic" / "context"
 class SyntheticEndpointTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.patches = [mock.patch.object(config, "CONTEXT_DIR", CTX), mock.patch.object(config, "IS_SYNTHETIC", True)]
+        cls.patches = [mock.patch.object(config, "CONTEXT_DIR", CTX), mock.patch.object(config, "IS_SYNTHETIC", True),
+                       mock.patch.object(config, "ML_REGIME_SNAPSHOT_FILE", CTX.parent / "ml" / "regime_snapshot.json")]
         for p in cls.patches:
             p.start()
         cls.ctx = TestClient(app)
@@ -62,7 +63,7 @@ class SyntheticEndpointTests(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
         self.assertEqual([i["rank"] for i in j["items"]], list(range(1, len(scores) + 1)))
         repair = self.client.get("/api/synthetic/prioritization", params={"action": "Repair now", "page_size": 100}).json()
-        plan = pd.read_csv(CTX.parent / "optimal_dispatch_plan.csv")
+        plan = pd.read_csv(CTX.parent / "decision" / "optimal_dispatch_plan.csv")
         self.assertEqual(repair["total"], int(plan["selected_for_repair"].sum()))
 
     def test_causal_matches_stage11_file_and_truth_check(self):
@@ -92,6 +93,30 @@ class SyntheticEndpointTests(unittest.TestCase):
         ex = next(p for p in stress["policies"] if p["policy"] == "Causal priority, ex-ante")
         self.assertLess(ex["benchmark_extra_crimes"], fifo["benchmark_extra_crimes"])
         self.assertTrue(next(p for p in stress["policies"] if "Stage 12" in p["policy"])["uses_hindsight"])
+
+    def test_repair_pressure_is_karnataka_only(self):
+        j = self.client.get("/api/ml/regime").json()
+        self.assertTrue(j["available"])
+        self.assertEqual(j["labels"]["kind"], "observed_synthetic")
+        snap = json.loads((CTX.parent / "ml" / "regime_snapshot.json").read_text())
+        self.assertEqual({b["borough"] for b in j["boroughs"]}, {b["borough"] for b in snap["boroughs"]})
+        self.assertTrue({b["borough"] for b in j["boroughs"]} <= {"Bengaluru", "Mysuru", "Mangaluru", "Hubballi", "Belagavi", "Shivamogga", "Tumakuru"})
+        self.assertNotIn("XGBoost", json.dumps(j["model_status"]))        # the frozen NYC model is not involved
+
+    def test_decision_summary_and_components(self):
+        d = self.client.get("/api/synthetic/decision").json()
+        self.assertTrue(0 <= d["causal_weight"]["value"] <= 1)
+        self.assertAlmostEqual(sum(c["base_weight"] for c in d["components"]), 1.0)
+        item = self.client.get("/api/synthetic/prioritization", params={"page_size": 5}).json()["items"][0]
+        parts = sum(item[f"contrib_{k}"] for k in ("risk", "exposure", "vulnerable", "recurrence", "efficiency"))
+        self.assertAlmostEqual(parts, item["priority_score"], delta=0.02)
+        self.assertTrue(item["priority_reasons"])
+
+    def test_population_risk_percentiles(self):
+        j = self.client.get("/api/synthetic/population-risk").json()
+        for w in j["items"]:
+            for k in ("population_pct", "risk_pct", "priority_pct"):
+                self.assertTrue(0 <= w[k] <= 100)
 
     def test_nyc_only_explorer_closed(self):
         self.assertEqual(self.client.get("/api/operations/capacity").status_code, 404)

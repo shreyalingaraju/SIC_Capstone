@@ -9,6 +9,9 @@ export interface RegimeBorough {
   /** Current score is higher than every historical window. */
   above_reference_range?: boolean;
   observation_count: number;
+  /** Synthetic profile only: measured share of complaints unresolved after 7 days, and median days to close. */
+  slow_share?: number;
+  median_days_to_close?: number | null;
 }
 
 export interface MlRegime {
@@ -20,4 +23,6 @@ export interface MlRegime {
   boroughs: RegimeBorough[];
   explanation?: string;
   limitations?: string[];
+  /** Profile-specific wording: what a row is called, what history it is ranked against, and whether it is a model or a measurement. */
+  labels?: { unit: string; reference: string; kind: 'model' | 'observed_synthetic'; footnote: string };
 }

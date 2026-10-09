@@ -36,7 +36,7 @@ export const Sidebar: React.FC = () => {
       ]
     : NAV_SECTIONS;
   return (
-  <aside className="flex w-14 shrink-0 flex-col border-r border-night-light/40 bg-night-deep text-slate-300 xl:w-60" aria-label="Primary">
+  <aside className="flex w-14 shrink-0 flex-col border-r border-signal/10 bg-night-deep/95 text-slate-300 backdrop-blur xl:w-60" aria-label="Primary">
     <nav className="flex flex-col gap-0.5 p-2 xl:p-3">
       {sections.map((section) => (
         <React.Fragment key={section.title ?? 'main'}>
@@ -51,8 +51,8 @@ export const Sidebar: React.FC = () => {
           end={end}
           title={label}
           className={({ isActive }) =>
-            `group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-[13px] font-semibold transition-colors duration-150 xl:px-3 ${
-              isActive ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+            `group relative flex h-9 items-center gap-3 rounded-lg px-2.5 text-[13px] font-semibold transition-all duration-200 xl:px-3 ${
+              isActive ? 'bg-signal/10 text-white shadow-[inset_0_0_0_1px_rgb(var(--c-signal)/0.28),0_0_22px_-6px_rgb(var(--c-signal)/0.55)]' : 'text-slate-400 hover:translate-x-0.5 hover:bg-signal/5 hover:text-slate-100'
             }`
           }
         >
@@ -60,7 +60,7 @@ export const Sidebar: React.FC = () => {
             <>
               <span
                 aria-hidden
-                className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-signal transition-opacity duration-150 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute -left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-signal shadow-[0_0_10px_rgb(var(--c-signal))] transition-all duration-200 ${isActive ? 'scale-y-100 opacity-100' : 'scale-y-50 opacity-0'}`}
               />
               <Icon size={16} strokeWidth={2} className={`shrink-0 transition-colors duration-150 ${isActive ? 'text-signal' : 'text-slate-500 group-hover:text-slate-300'}`} />
               <span className="hidden xl:inline">{label}</span>

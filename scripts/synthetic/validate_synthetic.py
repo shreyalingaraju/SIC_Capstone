@@ -98,6 +98,22 @@ def main():
     st = pol[(pol.scenario == "high_density")].set_index("policy")["benchmark_extra_crimes"]
     check("prioritised policies beat FIFO under stress (benchmark)", st["Causal priority, ex-ante"] < st["FIFO (existing baseline)"])
 
+    # ---------------------------------------------------------------- decision layer + repair pressure
+    dec = json.loads((CTX / "decision_summary.json").read_text())
+    check("decision weights sum to 1", abs(sum(c["base_weight"] for c in dec["components"]) - 1) < 1e-9)
+    check("decision score uses no outcome columns",
+          not any(t in c["input_column"] for c in dec["components"] for t in ("duration", "closed", "dark_night", "observed")))
+    check("decision ranking stable under reasonable weight changes", dec["sensitivity"]["random_spearman_min"] > 0.9,
+          f"min Spearman {dec['sensitivity']['random_spearman_min']:.3f}")
+    check("decision priority scores finite and in [0, 100]", ot["priority_score"].between(0, 100).all())
+    dplan = pd.read_csv(OUT / "decision" / "optimal_dispatch_plan.csv")
+    check("decision dispatch plan respects capacity", int(dplan["selected_for_repair"].sum()) <= 20)
+    snap = json.loads((OUT / "ml" / "regime_snapshot.json").read_text())
+    cities = {b["borough"] for b in snap["boroughs"]}
+    check("repair pressure snapshot is Karnataka-only", cities == set(sl["borough"]) and snap.get("kind") == "observed_synthetic", sorted(cities))
+    check("risk model beats a constant guess on MAE and RMSE (held-out wards)",
+          risk["mae"] < risk["mae_baseline_mean_rate"] and risk["rmse"] < risk["rmse_baseline_mean_rate"])
+
     print("\nFAILS:", FAILS or "none")
     return 1 if FAILS else 0
 

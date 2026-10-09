@@ -33,7 +33,6 @@ import pandas as pd
 from pyproj import Transformer
 from scipy.spatial import cKDTree
 from scipy.stats import spearmanr
-from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import GroupKFold
 
 os.environ.setdefault("LIGHTSAFE_PROFILE", "karnataka_synthetic")
@@ -41,7 +40,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src import profile as prof  # noqa: E402
+from src.features import decision_priority as dp  # noqa: E402
 from src.features.ward_context import assign_ward, load_wards  # noqa: E402
+from src.models import prioritization_engine as stage13  # noqa: E402
+from src.optimization import ilp_solver as stage14  # noqa: E402
 
 if not prof.IS_SYNTHETIC:
     raise SystemExit("build_context_outputs.py is for the synthetic profile (LIGHTSAFE_PROFILE=karnataka_synthetic)")
@@ -49,6 +51,7 @@ if not prof.IS_SYNTHETIC:
 PROCESSED = ROOT / prof.PROCESSED_DIR
 OUTPUTS = ROOT / prof.OUTPUTS_DIR
 OUT = OUTPUTS / "context"
+DEC = OUTPUTS / "decision"          # Stage 13/14 re-run on the decision-layer score
 RAW = ROOT / prof.RAW_DIR
 TRUTH_FILE = ROOT / "LightSafe_Synthetic_Karnataka_Data" / "v2" / "ground_truth" / "outage_effect_truth.csv"
 
@@ -117,13 +120,19 @@ def dark_period_crime(outages, crime):
 
 
 # ---------------------------------------------------------------------------------------------- ML risk
-def fit_risk_model(df):
-    """Cross-fitted (ward-held-out) Poisson gradient boosting for the night-crime rate near an outage while dark.
+XGB_PARAMS = dict(objective="count:poisson", max_depth=3, learning_rate=0.05, n_estimators=250, min_child_weight=5,
+                  subsample=0.8, colsample_bytree=0.8, reg_lambda=1.0, tree_method="hist", n_jobs=1, random_state=SEED)
 
-    Features are all known when the outage is reported: ward conditions, the pre-outage local crime rate
-    (Stage 12, look-back ends before created_date), city, and the report month/hour/weekday. Duration and the
-    crime counts during the outage are outcomes and are NOT features.
+
+def fit_risk_model(df):
+    """Cross-fitted (ward-held-out) XGBoost Poisson regression of the night-crime rate near an outage while it is dark.
+
+    Target: observed night crimes within 100 m per day while the outage was open (an outcome).
+    Features: all known when the outage is reported: ward conditions, the pre-outage local crime rate (Stage 12 look-back ends
+    before created_date), city, and report month/hour/weekday. Duration, closure and crime counts during the outage are NOT features.
+    Each outage is predicted by a model that never saw its ward (GroupKFold by ward). Rows are weighted by exposure days.
     """
+    import xgboost as xgb
     d = df.copy()
     d["city_code"] = d["borough"].astype("category").cat.codes
     d["month"] = d["created_date"].dt.month
@@ -131,46 +140,62 @@ def fit_risk_model(df):
     d["dow"] = d["created_date"].dt.dayofweek
     feats = WARD_FEATURES + ["local_crime_rate", "city_code", "month", "hour", "dow"]
     X = d[feats]
+    expo = (d["outage_duration_hours"] / 24.0).clip(lower=0.25).to_numpy()
     y = d["dark_night_crimes_per_day"].to_numpy()
     groups = d["ward_id"].to_numpy()
     oof = np.zeros(len(d))
+    shap = np.zeros((len(d), len(feats)))
+    base_pred = np.zeros(len(d))
     imp = np.zeros(len(feats))
     folds = list(GroupKFold(n_splits=5).split(X, y, groups))
     rng = np.random.default_rng(SEED)
     for tr, te in folds:
-        m = HistGradientBoostingRegressor(loss="poisson", max_depth=3, learning_rate=0.05, max_iter=200,
-                                          min_samples_leaf=40, l2_regularization=1.0, random_state=SEED)
-        m.fit(X.iloc[tr], y[tr])
+        m = xgb.XGBRegressor(**XGB_PARAMS)
+        m.fit(X.iloc[tr], y[tr], sample_weight=expo[tr])
         oof[te] = m.predict(X.iloc[te])
-        # permutation importance on the held-out wards: increase in Poisson deviance
+        base_pred[te] = np.average(y[tr], weights=expo[tr])
+        contrib = m.get_booster().predict(xgb.DMatrix(X.iloc[te]), pred_contribs=True)   # log-rate scale; last column = bias
+        shap[te] = contrib[:, :-1]
         base = _poisson_dev(y[te], oof[te])
         for j, f in enumerate(feats):
             Xp = X.iloc[te].copy()
             Xp[f] = rng.permutation(Xp[f].to_numpy())
             imp[j] += _poisson_dev(y[te], m.predict(Xp)) - base
     imp /= len(folds)
-    dev_model = _poisson_dev(y, oof)
-    dev_null = _poisson_dev(y, np.full(len(y), y.mean()))
+    dev_model, dev_null = _poisson_dev(y, oof), _poisson_dev(y, base_pred)
     top = oof >= np.quantile(oof, 0.9)
+    mae = float(np.average(np.abs(y - oof), weights=expo))
+    rmse = float(np.sqrt(np.average((y - oof) ** 2, weights=expo)))
+    mae0 = float(np.average(np.abs(y - base_pred), weights=expo))
+    rmse0 = float(np.sqrt(np.average((y - base_pred) ** 2, weights=expo)))
+    mean_abs_shap = np.abs(shap).mean(axis=0)
     metrics = {
-        "model": "HistGradientBoostingRegressor (Poisson loss, depth 3, 200 iterations)",
+        "model": "XGBoost XGBRegressor (objective count:poisson, depth 3, 250 trees, learning rate 0.05)",
         "target": "observed night crimes within 100 m per day while the outage was open",
         "validation": "5-fold GroupKFold by ward: every prediction is made by a model that never saw that ward",
         "n_outages": int(len(d)),
         "features": feats,
+        "metrics_unit": "night crimes per day within 100 m (exposure-weighted)",
+        "mae": mae, "rmse": rmse, "mae_baseline_mean_rate": mae0, "rmse_baseline_mean_rate": rmse0,
+        "mae_improvement_pct": float((1 - mae / mae0) * 100), "rmse_improvement_pct": float((1 - rmse / rmse0) * 100),
         "spearman_predicted_vs_observed": float(spearmanr(oof, y).statistic),
         "poisson_deviance_explained": float(1 - dev_model / dev_null),
         "top_decile_capture": float(y[top].sum() / y.sum()),
         "top_decile_lift": float((y[top].mean()) / y.mean()),
         "no_skill_top_decile_capture": 0.1,
-        "interpretation": "Association only. The model learns which outages sit where crime is high; it cannot "
-                          "tell how much of that crime a repair would remove (see causal_summary.json).",
+        "interpretation": "Predictive association only. XGBoost learns which outages sit where night crime is high; feature "
+                          "importance and SHAP values describe the model's behaviour, not causes. The causal question is answered "
+                          "separately (causal_summary.json).",
     }
-    importance = pd.DataFrame({"feature": feats, "importance_deviance_increase": imp}).sort_values(
-        "importance_deviance_increase", ascending=False)
-    metrics["feature_importance"] = [{"feature": r.feature, "importance": float(r.importance_deviance_increase)}
-                                     for r in importance.itertuples()]
-    return oof, metrics
+    metrics["feature_importance"] = [{"feature": f, "importance": float(v), "mean_abs_shap_log_rate": float(sh)}
+                                     for f, v, sh in sorted(zip(feats, imp, mean_abs_shap), key=lambda t: -t[1])]
+    # per-outage top contributions (SHAP, log-rate scale): positive = pushes predicted risk up
+    names = np.array(feats)
+    top_shap = []
+    for i in range(len(d)):
+        idx = np.argsort(-np.abs(shap[i]))[:3]
+        top_shap.append("; ".join(f"{names[j]} ({'+' if shap[i, j] > 0 else '-'}{abs(shap[i, j]):.2f})" for j in idx))
+    return oof, metrics, top_shap
 
 
 def _poisson_dev(y, mu):
@@ -181,6 +206,25 @@ def _poisson_dev(y, mu):
 
 
 # ---------------------------------------------------------------------------------------------- tables
+def prior_complaints(scored):
+    """Earlier 'Street Light Out' complaints within 50 m during the 90 days before each outage was reported (ex-ante)."""
+    raw = pd.read_csv(RAW / "streetlight_complaints.csv", usecols=["created_date", "descriptor", "latitude", "longitude"])
+    raw = raw[raw["descriptor"] == "Street Light Out"].copy()
+    raw["created_date"] = pd.to_datetime(raw["created_date"])
+    tf = Transformer.from_crs("EPSG:4326", prof.CRS, always_xy=True)
+    rx, ry = tf.transform(raw["longitude"].to_numpy(), raw["latitude"].to_numpy())
+    ox, oy = tf.transform(scored["longitude"].to_numpy(), scored["latitude"].to_numpy())
+    tree = cKDTree(np.column_stack([rx, ry]))
+    rt = raw["created_date"].to_numpy("datetime64[us]")
+    ot = scored["created_date"].to_numpy("datetime64[us]")
+    out = np.zeros(len(scored), dtype=int)
+    for i, cand in enumerate(tree.query_ball_point(np.column_stack([ox, oy]), r=50.0)):
+        if cand:
+            t = rt[np.asarray(cand)]
+            out[i] = int(((t < ot[i]) & (t >= ot[i] - np.timedelta64(90, "D"))).sum())
+    return out
+
+
 def action_for(row):
     if row["dispatch_decision"] == "repair":
         return "Repair now"
@@ -287,6 +331,70 @@ def relationships(w):
 
 
 # ---------------------------------------------------------------------------------------------- causal
+def decision_layer(otab, outages, est, risk_metrics):
+    """Combine XGBoost risk, the causal estimate and population/geography context into the decision priority (see
+    src/features/decision_priority.py), then re-run the existing Stage 13 queue and Stage 14 ILP on that score."""
+    otab = otab.rename(columns={"priority_score": "stage12_score", "priority_tier": "stage12_tier"})
+    pairs = pd.read_parquet(PROCESSED / "control_area_pairs.parquet", columns=["treatment_key", "outage_duration_hours"])
+    treated = otab[otab["unique_key"].isin(pairs["treatment_key"])]
+    row = est[est["effect_name"] == prof.TAU_EFFECT].iloc[0]
+    mean_days = float(pairs["outage_duration_hours"].mean() / 24.0)
+    per_day = float(row["estimate"]) / mean_days
+    mean_rate = float(treated["predicted_risk"].mean())
+    cw = dp.causal_weight(float(row["estimate"]), float(row["ci_lower"]), float(row["ci_upper"]), per_day, mean_rate)
+
+    total, contrib = dp.score(otab, otab, cw)
+    otab["priority_score"] = total.to_numpy()
+    otab["priority_tier"] = dp.tiers(total).to_numpy()
+    for k in contrib.columns:
+        otab[f"contrib_{k}"] = contrib[k].round(3).to_numpy()
+    otab["priority_reasons"] = dp.reasons(contrib, otab)
+    otab["priority_ex_ante"] = otab["tau_net"] * otab["local_crime_rate"]
+
+    # Existing Stage 13 (queue) and Stage 14 (ILP) logic, fed the decision score instead of the Stage 12 index.
+    DEC.mkdir(parents=True, exist_ok=True)
+    full = pd.read_parquet(PROCESSED / "outages_scored.parquet")
+    m = otab.set_index("unique_key")
+    ok = full["unique_key"].isin(m.index) & full["scored"]
+    full.loc[ok, "priority_score"] = full.loc[ok, "unique_key"].map(m["priority_score"]).to_numpy()
+    full.loc[ok, "priority_tier"] = full.loc[ok, "unique_key"].map(m["priority_tier"]).to_numpy()
+    full.loc[ok, "raw_priority"] = full.loc[ok, "priority_score"]
+    path = DEC / "decision_scored.parquet"
+    full.to_parquet(path, index=False)
+    stage13.main(["--scored", str(path), "--out", str(DEC)])
+    stage14.main(["--scored", str(path), "--out", str(DEC)])
+    plan = pd.read_csv(DEC / "optimal_dispatch_plan.csv")
+    pr = plan.set_index(plan["outage_id"].astype(str))
+    otab["dispatch_decision"] = otab["unique_key"].astype(str).map(pr["decision"]).fillna("defer")
+    otab["optimization_rank"] = otab["unique_key"].astype(str).map(pr["optimization_rank"])
+    otab["recommended_action"] = otab.apply(action_for, axis=1)
+
+    sens = dp.sensitivity(otab, otab, cw)
+    summary = {
+        "formula": "score = 100 * sum(w_k * c_k) / sum(w_k), over the components available for the outage",
+        "components": [{"key": k, "label": dp.LABEL[k], "input_column": dp.SOURCE[k], "base_weight": dp.BASE_WEIGHTS[k],
+                        "effective_weight": dp.BASE_WEIGHTS[k] * (cw if k == "risk" else 1.0)} for k in dp.BASE_WEIGHTS],
+        "causal_weight": {
+            "value": cw, "effect": prof.TAU_EFFECT, "estimate_per_outage": float(row["estimate"]),
+            "ci": [float(row["ci_lower"]), float(row["ci_upper"])], "mean_outage_days_matched": mean_days,
+            "effect_per_outage_day": per_day, "mean_predicted_rate_matched_treated": mean_rate,
+            "rule": "0 if the 95% interval includes zero; else (effect per outage-day) / (mean XGBoost predicted rate at matched treated "
+                    "outages), clipped to [0, 1]. A population-average share of dark-period crime attributable to the outage. It scales "
+                    "the weight of the risk component; it is not applied per ward because only an average effect is estimated.",
+        },
+        "tiers": "top 10% by score = High, next 20% = Medium, rest Low",
+        "missing_data_rule": "components with missing inputs are dropped for that outage and the remaining weights are renormalised (never imputed as zero)",
+        "weights_note": "Weights are documented judgement calls, not fitted or validated. Density, elevation, slope and rainfall act only through the XGBoost risk model.",
+        "not_used": ["realised outage duration", "closure time", "crime counts during the outage", "ground-truth effect file"],
+        "sensitivity": sens,
+        "spearman_vs_stage12_hindsight_score": float(otab[["priority_score", "stage12_score"]].corr(method="spearman").iloc[0, 1]),
+        "n_missing_inputs": {k: int(otab[dp.SOURCE[k]].isna().sum()) for k in dp.BASE_WEIGHTS},
+    }
+    (OUT / "decision_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    log(f"decision layer: causal_weight={cw:.3f}; sensitivity median spearman={sens['random_spearman_median']:.3f}")
+    return otab
+
+
 def causal_summary(est, wards, outages, otab):
     panel = pd.read_parquet(PROCESSED / "causal_panel.parquet")
     pairs = pd.read_parquet(PROCESSED / "control_area_pairs.parquet")
@@ -392,7 +500,8 @@ POLICIES = [
     ("FIFO (existing baseline)", "fifo_score", False),
     ("ML risk ranking", "predicted_risk", False),
     ("Causal priority, ex-ante", "priority_ex_ante", False),
-    ("Causal priority (Stage 12 score)", "priority_score", True),
+    ("Causal priority (Stage 12 score)", "stage12_score", True),
+    ("Decision priority (XGBoost + causal + population)", "priority_score", False),
 ]
 
 
@@ -403,7 +512,7 @@ def policy_table(otab, truth_rate):
     generator's ground truth, so it exists only for synthetic data and is used for evaluation, never for ranking.
     The Stage 12 score multiplies in the realised outage duration (hindsight), flagged by `uses_hindsight`.
     """
-    base = otab[["unique_key", "created_date", "outage_duration_hours", "priority_score", "priority_ex_ante", "predicted_risk",
+    base = otab[["unique_key", "created_date", "outage_duration_hours", "priority_score", "stage12_score", "priority_ex_ante", "predicted_risk",
                  "ward_id", "rainfall_mm_year", "pop_density_per_km2", "pole_age_years"]].copy()
     base["observed_wait"] = base["outage_duration_hours"] / 24.0
     base["fifo_score"] = -(base["created_date"] - base["created_date"].min()).dt.total_seconds()
@@ -444,28 +553,31 @@ def policy_table(otab, truth_rate):
 
 # ---------------------------------------------------------------------------------------------- main
 def _bench(pol, scenario):
-    r = pol[(pol["scenario"] == scenario) & (pol["policy"] == "Causal priority, ex-ante")]
+    r = pol[(pol["scenario"] == scenario) & (pol["policy"] == "Decision priority (XGBoost + causal + population)")]
     return float(r["benchmark_vs_fifo_pct"].iloc[0]) if len(r) else None
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    wards, outages, crime, plan, est, comparison = load_inputs()
+    wards, outages, crime, plan, est, _legacy_comparison = load_inputs()
     outages, crime = attach_ward(outages, crime, wards)
 
     scored = outages[outages["scored"]].copy()
     scored["dark_night_crimes"] = dark_period_crime(scored, crime)
     scored["dark_night_crimes_per_day"] = scored["dark_night_crimes"] / (scored["outage_duration_hours"] / 24.0).clip(lower=0.25)
     scored = scored.merge(wards[["ward_id", *WARD_FEATURES]], on="ward_id", how="left")
+    scored["prior_complaints_90d_50m"] = prior_complaints(scored)
     log(f"scored outages: {len(scored)}; wards: {scored['ward_id'].nunique()}")
 
-    oof, risk_metrics = fit_risk_model(scored)
-    log(f"ML risk model: spearman={risk_metrics['spearman_predicted_vs_observed']:.3f}, "
+    oof, risk_metrics, top_shap = fit_risk_model(scored)
+    log(f"XGBoost risk model: spearman={risk_metrics['spearman_predicted_vs_observed']:.3f}, "
         f"D2={risk_metrics['poisson_deviance_explained']:.3f}, top-decile capture={risk_metrics['top_decile_capture']:.3f}")
     (OUT / "risk_model.json").write_text(json.dumps(risk_metrics, indent=1), encoding="utf-8")
 
     otab = build_outage_table(scored, crime, wards, plan, oof)
     otab["observed_dark_night_crimes_100m"] = otab["dark_night_crimes"]
+    otab["xgb_top_features"] = top_shap
+    otab = decision_layer(otab, outages, est, risk_metrics)
     ward_sum = build_ward_summary(otab, outages, crime, wards)
     pop = population_analysis(otab, ward_sum)
     rel = relationships(ward_sum)
@@ -473,8 +585,9 @@ def main():
     keep = ["unique_key", "ward_id", "city", "area_class", "created_date", "closed_date", "duration_days", "latitude", "longitude",
             "population", "pop_density_per_km2", "income_index", "vulnerable_pop_share", "rainfall_mm_year", "elevation_m", "slope_pct",
             "dist_main_road_km", "dist_depot_km", "pole_age_years", "local_crime_rate", "predicted_risk", "risk_percentile",
-            "priority_score", "priority_ex_ante", "priority_tier", "dispatch_decision", "optimization_rank", "recommended_action",
-            "observed_dark_night_crimes_100m"]
+            "priority_score", "priority_tier", "stage12_score", "stage12_tier", "priority_ex_ante", "prior_complaints_90d_50m", "xgb_top_features",
+            "priority_reasons", *[f"contrib_{k}" for k in dp.BASE_WEIGHTS], "dispatch_decision", "optimization_rank",
+            "recommended_action", "observed_dark_night_crimes_100m"]
     otab[keep].to_csv(OUT / "outage_table.csv", index=False)
     ward_sum.to_csv(OUT / "ward_summary.csv", index=False)
     pop.to_csv(OUT / "population_analysis.csv", index=False)
@@ -495,6 +608,7 @@ def main():
 
     # ---- KPIs
     wards_high = int((ward_sum["risk_category"] == "High").sum())
+    comparison = pd.read_csv(DEC / "fifo_vs_lightsafe_comparison.csv")
     f30 = comparison[comparison["day"] == 30]
     kpis = {
         "population_covered": int(wards["population"].sum()),
@@ -504,6 +618,7 @@ def main():
         "outages_scored": int(len(otab)),
         "high_risk_wards": wards_high,
         "high_medium_priority_outages": int(otab["priority_tier"].isin(["High", "Medium"]).sum()),
+        "causal_weight": json.loads((OUT / "decision_summary.json").read_text())["causal_weight"]["value"],
         "high_priority_outages": int((otab["priority_tier"] == "High").sum()),
         "repairs_recommended_per_day": int((otab["dispatch_decision"] == "repair").sum()),
         "daily_repair_capacity_k": BASE_CAPACITY_K,
@@ -533,21 +648,28 @@ TRACEABILITY = [
      "source": "ML risk model (risk_model.json) on outage_table.csv: predicted_risk averaged per ward; top third = High"},
     {"ui_metric": "High/Medium-priority outages", "endpoint": "/api/synthetic/overview, /api/synthetic/prioritization", "file": "outages_scored.parquet -> outage_table.csv (priority_tier)",
      "source": "Stage 12: tau_net x local_crime_rate (clean_crime.parquet, 14-day pre-window) x duration; min-max 0-100"},
-    {"ui_metric": "Predicted impact (priority points, day 30)", "endpoint": "/api/synthetic/overview", "file": "outputs/synthetic/fifo_vs_lightsafe_comparison.csv",
-     "source": "Stage 13 prioritization_engine: cumulative priority_score of repaired outages"},
-    {"ui_metric": "Repairs recommended per day", "endpoint": "/api/synthetic/overview, /api/synthetic/prioritization", "file": "outputs/synthetic/optimal_dispatch_plan.csv",
-     "source": "Stage 14 ILP (PuLP/CBC): selected_for_repair"},
+    {"ui_metric": "Predicted impact (priority points, day 30)", "endpoint": "/api/synthetic/overview", "file": "outputs/synthetic/decision/fifo_vs_lightsafe_comparison.csv",
+     "source": "Stage 13 prioritization_engine run on the decision score: cumulative priority points of repaired outages"},
+    {"ui_metric": "Repairs recommended per day", "endpoint": "/api/synthetic/overview, /api/synthetic/prioritization", "file": "outputs/synthetic/decision/optimal_dispatch_plan.csv",
+     "source": "Stage 14 ILP (PuLP/CBC) on the decision score: selected_for_repair"},
     {"ui_metric": "Causal estimates (direct / ring / net)", "endpoint": "/api/synthetic/causal", "file": "outputs/synthetic/displacement_estimates.csv -> causal_summary.json",
      "source": "causal_panel.parquet: crime_100m, crime_250m; control_area_pairs.parquet (Stage 7 matching)"},
     {"ui_metric": "Naive before/after vs matched DiD", "endpoint": "/api/synthetic/causal", "file": "causal_summary.json", "source": "causal_panel.parquet (periods pre/during, roles T/C)"},
     {"ui_metric": "Planted-effect check", "endpoint": "/api/synthetic/causal", "file": "causal_summary.json (planted_effect_check)",
      "source": "LightSafe_Synthetic_Karnataka_Data/v2/ground_truth/outage_effect_truth.csv (evaluation only; never an input)"},
-    {"ui_metric": "ML risk score and model quality", "endpoint": "/api/synthetic/risk-model", "file": "risk_model.json, outage_table.csv",
-     "source": "ward conditions + pre-outage local_crime_rate -> observed night crimes within 100 m per day while dark (clean_crime.parquet)"},
+    {"ui_metric": "XGBoost risk, MAE / RMSE, feature importance, SHAP", "endpoint": "/api/synthetic/risk-model", "file": "risk_model.json, outage_table.csv (predicted_risk, xgb_top_features)",
+     "source": "ward conditions (synthetic_wards.csv) + pre-outage local_crime_rate -> observed night crimes within 100 m per day while dark (clean_crime.parquet); ward-held-out folds"},
+    {"ui_metric": "Decision priority score, components, 'Why this location?'", "endpoint": "/api/synthetic/prioritization, /api/synthetic/decision", "file": "outage_table.csv (priority_score, contrib_*), decision_summary.json",
+     "source": "predicted_risk x causal weight, ward population, vulnerable_pop_share, prior complaints (streetlight_complaints.csv), dist_depot_km; src/features/decision_priority.py"},
+    {"ui_metric": "Causal weight (share of dark-period crime attributable to outages)", "endpoint": "/api/synthetic/decision, /api/synthetic/overview", "file": "decision_summary.json",
+     "source": "displacement_estimates.csv direct_during, control_area_pairs.parquet outage_duration_hours, XGBoost predicted_risk at matched treated outages"},
+    {"ui_metric": "Population vs risk vs priority chart", "endpoint": "/api/synthetic/population-risk", "file": "ward_summary.csv", "source": "ward population, mean predicted_risk, mean priority_score (percentiles computed by the API)"},
+    {"ui_metric": "Repair pressure by city", "endpoint": "/api/ml/regime", "file": "outputs/synthetic/ml/regime_snapshot.json (synthetic profile)",
+     "source": "streetlight_complaints.csv: created_date, closed_date, descriptor (share unresolved after 168 h; scripts/synthetic/build_repair_pressure.py)"},
     {"ui_metric": "Ward map and table", "endpoint": "/api/synthetic/wards", "file": "ward_summary.csv", "source": "synthetic_wards.csv joined to outage_table.csv and clean_crime.parquet by geography"},
     {"ui_metric": "Population analysis", "endpoint": "/api/synthetic/population", "file": "population_analysis.csv", "source": "ward_summary.csv grouped by density / vulnerability / income / area class / city"},
     {"ui_metric": "Relationship charts", "endpoint": "/api/synthetic/wards, /api/synthetic/relationships", "file": "ward_summary.csv, relationships.csv", "source": "ward columns (see names on each chart axis)"},
-    {"ui_metric": "Ranked priority list", "endpoint": "/api/synthetic/prioritization", "file": "outage_table.csv", "source": "outages_scored.parquet + optimal_dispatch_plan.csv + synthetic_wards.csv"},
+    {"ui_metric": "Ranked priority list", "endpoint": "/api/synthetic/prioritization", "file": "outage_table.csv", "source": "outages_scored.parquet + decision/optimal_dispatch_plan.csv + synthetic_wards.csv"},
     {"ui_metric": "Policy / scenario comparison", "endpoint": "/api/synthetic/scenarios", "file": "policy_comparison.csv",
      "source": "outage_table.csv replayed through a daily dispatch simulation (build_context_outputs.simulate_policy)"},
 ]

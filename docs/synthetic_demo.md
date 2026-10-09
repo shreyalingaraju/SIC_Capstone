@@ -71,3 +71,13 @@ Served by `/api/synthetic/methodology` and shown in the dashboard's Methodology 
 `scripts/synthetic/build_context_outputs.py`). Example: *High-risk wards* → `/api/synthetic/overview` →
 `ward_summary.csv (risk_category)` → ML risk on `outage_table.csv` ← `outages_scored.parquet` ← `synthetic_streetlights.csv`,
 `synthetic_crime.csv`, `synthetic_wards.csv`.
+
+## Decision layer (added)
+
+`src/features/decision_priority.py` combines the pieces without conflating them:
+
+* **XGBoost** (`count:poisson`, ward-held-out folds) predicts night crimes/day within 100 m while an outage is open. Features are all known at report time.
+* **Causal AI** supplies one average effect. Effect per outage-day / mean predicted rate gives the share of dark-period crime attributable to outages (about 38%). That share is the *weight on the risk component*; it is 0 if the interval includes zero. It is never applied per ward.
+* **Context** components: ward population, vulnerable share, repeat failures within 50 m in the prior 90 days, distance to depot.
+* Weights are documented judgement calls; `decision_summary.json` reports sensitivity. Stage 13/14 are re-run on this score into `outputs/synthetic/decision/`.
+* Repair pressure for the synthetic profile: `scripts/synthetic/build_repair_pressure.py` (share of complaints unresolved after 7 days, per city, from the simulated timestamps).

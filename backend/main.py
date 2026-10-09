@@ -27,7 +27,8 @@ logger = logging.getLogger("lightsafe.api")
 async def lifespan(app: FastAPI):
     logger.info("Loading LightSafe artifacts...")
     store.load_all()
-    ml_model.load()  # integrity-checked; failure or LIGHTSAFE_ML_ENABLED=0 only switches the ML context off
+    if not config.IS_SYNTHETIC:  # the frozen model is NYC-only and is never loaded for the synthetic profile
+        ml_model.load()  # integrity-checked; failure or LIGHTSAFE_ML_ENABLED=0 only switches the ML context off
     # Explorer simulation inputs load in the background; existing endpoints are not delayed.
     if not config.IS_SYNTHETIC:  # the frozen FIFO/capacity explorer is NYC-only (see routes._nyc_only)
         threading.Thread(target=operations_service.warm, daemon=True).start()

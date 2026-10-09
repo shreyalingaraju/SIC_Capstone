@@ -44,6 +44,14 @@ function addOverlays(map: any) {
 
   map.addSource('outages', { type: 'geojson', data: EMPTY });
   map.addLayer({
+    id: 'outages-halo', type: 'circle', source: 'outages',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'score'], 0], 0, 9, 100, 22],
+      'circle-color': ['match', ['get', 'tier'], 'High', TIER_MAP_COLORS.High, 'Medium', TIER_MAP_COLORS.Medium, TIER_MAP_COLORS.Low],
+      'circle-opacity': 0.22, 'circle-blur': 1,
+    },
+  });
+  map.addLayer({
     id: 'outages-layer', type: 'circle', source: 'outages',
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'score'], 0], 0, 4, 40, 6, 80, 8.5, 100, 11],

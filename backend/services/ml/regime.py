@@ -73,8 +73,12 @@ def build_snapshot(featured: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
+NYC_LABELS = {"unit": "Borough", "reference": "2024–2025", "kind": "model",
+              "footnote": "Repair pace has slowed since 2024, so several boroughs can read High at once."}
+
+
 def _empty(status: Dict[str, Any], note: str) -> Dict[str, Any]:
-    return {"available": False, "model_status": status, "note": note, "boroughs": []}
+    return {"available": False, "model_status": status, "note": note, "boroughs": [], "labels": NYC_LABELS}
 
 
 def get_regime(borough: Optional[str] = None) -> Dict[str, Any]:
@@ -104,4 +108,5 @@ def get_regime(borough: Optional[str] = None) -> Dict[str, Any]:
         "explanation": EXPLANATION,
         "limitations": LIMITATIONS,
         "role": "context_only",
+        "labels": NYC_LABELS,
     }

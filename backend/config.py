@@ -27,15 +27,23 @@ MAP_CENTER = (-73.98, 40.72) if not IS_SYNTHETIC else (76.0, 14.0)    # lon, lat
 MAP_ZOOM = 10.5 if not IS_SYNTHETIC else 6.2
 SYNTHETIC_LABEL = "Synthetic Dataset — Demonstration / Simulation"
 
+# Synthetic profile: the dispatch pages (overview, outages, map, plan) show the decision-layer score and the Stage 13/14
+# outputs re-run on it (outputs/synthetic/decision/), so they agree with the Synthetic Analysis tab. The Stage 12 index
+# multiplies in the realised outage duration and concentrates repairs in the cities with the longest outages. If the
+# decision outputs have not been generated the legacy Stage 12-14 files are used instead.
+DECISION_DIR = OUTPUTS_DIR / "decision"
+_USE_DECISION = IS_SYNTHETIC and (DECISION_DIR / "decision_scored.parquet").exists() and (DECISION_DIR / "optimal_dispatch_plan.csv").exists()
+_DISPATCH_DIR = DECISION_DIR if _USE_DECISION else OUTPUTS_DIR
+
 # Parquet files
 CLEAN_CRIME_FILE = DATA_PROCESSED_DIR / "clean_crime.parquet"
-OUTAGES_SCORED_FILE = DATA_PROCESSED_DIR / "outages_scored.parquet"
+OUTAGES_SCORED_FILE = (DECISION_DIR / "decision_scored.parquet") if _USE_DECISION else (DATA_PROCESSED_DIR / "outages_scored.parquet")
 
 # Output artifacts
-PRIORITIZED_QUEUE_FILE = OUTPUTS_DIR / "prioritized_queue.csv"
-FIFO_COMPARISON_FILE = OUTPUTS_DIR / "fifo_vs_lightsafe_comparison.csv"
-OPTIMAL_DISPATCH_FILE = OUTPUTS_DIR / "optimal_dispatch_plan.csv"
-OPTIMAL_DISPATCH_SUMMARY_FILE = OUTPUTS_DIR / "optimal_dispatch_summary.json"
+PRIORITIZED_QUEUE_FILE = _DISPATCH_DIR / "prioritized_queue.csv"
+FIFO_COMPARISON_FILE = _DISPATCH_DIR / "fifo_vs_lightsafe_comparison.csv"
+OPTIMAL_DISPATCH_FILE = _DISPATCH_DIR / "optimal_dispatch_plan.csv"
+OPTIMAL_DISPATCH_SUMMARY_FILE = _DISPATCH_DIR / "optimal_dispatch_summary.json"
 DID_SUMMARY_FILE = OUTPUTS_DIR / "did_summary.json"
 EVENT_STUDY_FILE = OUTPUTS_DIR / "event_study_coefficients.csv"
 DISPLACEMENT_FILE = OUTPUTS_DIR / "displacement_estimates.csv"
@@ -79,8 +87,9 @@ MAX_MAP_POINTS = 5000
 # Shown in the UI so the score/optimisation are never read as a crime forecast.
 IMPACT_UNIT = "priority index points"
 IMPACT_UNIT_NOTE = (
-    "Impact is the sum of Stage 12 priority scores (a 0-100 decision-support index). "
-    "It is not a number of crimes, a probability, or a prediction of crimes prevented."
+    ("Impact is the sum of decision-layer priority scores (a 0-100 decision-support index). "
+     if _USE_DECISION else "Impact is the sum of Stage 12 priority scores (a 0-100 decision-support index). ")
+    + "It is not a number of crimes, a probability, or a prediction of crimes prevented."
 )
 if IS_SYNTHETIC:
     PIPELINE_NOTICE = (

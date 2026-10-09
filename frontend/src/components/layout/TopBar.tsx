@@ -1,6 +1,7 @@
 import React from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { useProfile } from '../../context/ProfileContext';
 
 interface TopBarProps {
   setSlot: (el: HTMLElement | null) => void;
@@ -9,13 +10,14 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ setSlot }) => {
   const { theme, toggleTheme } = useTheme();
   const night = theme === 'dark';
+  const { synthetic, region, loaded } = useProfile();
 
   return (
-    <header className="z-30 flex h-14 shrink-0 items-center border-b border-line bg-surface-strong">
+    <header className="z-30 flex h-14 shrink-0 items-center border-b border-signal/15 bg-surface-strong/70 backdrop-blur-xl">
       {/* brand: width matches the sidebar below */}
       <div className="flex h-full w-14 shrink-0 items-center justify-center gap-3 border-r border-line xl:w-60 xl:justify-start xl:px-5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-night" aria-hidden>
-          <div className="h-4 w-2.5 rounded-t-full rounded-b-sm bg-signal" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-signal/40 bg-night shadow-[0_0_18px_-2px_rgb(var(--c-signal)/0.6)]" aria-hidden>
+          <div className="h-4 w-2.5 rounded-t-full rounded-b-sm bg-gradient-to-b from-[#b9ff66] to-signal" />
         </div>
         <div className="hidden min-w-0 leading-tight xl:block">
           <p className="text-[13px] font-extrabold tracking-wide text-ink">LIGHTSAFE</p>
@@ -27,6 +29,11 @@ export const TopBar: React.FC<TopBarProps> = ({ setSlot }) => {
       <div ref={setSlot} className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden px-4 xl:px-6" />
 
       <div className="flex shrink-0 items-center gap-2 pr-4 xl:pr-6">
+        {loaded && (
+          <span className={`badge hidden sm:inline-flex ${synthetic ? 'badge-medium' : 'badge-ok'}`} title="Dataset served by the API">
+            {synthetic ? `Synthetic · ${region}` : region}
+          </span>
+        )}
         <button
           type="button"
           onClick={toggleTheme}
