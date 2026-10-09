@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -27,11 +27,6 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
-const BASEMAP = {
-  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-};
-const RISK_COLOR: Record<string, string> = { High: '#f06f51', Moderate: '#eeb64b', Low: '#6fa6a0', 'n/a': '#94a3b8' };
 
 const n1 = (v: number | null | undefined, d = 1) => (v === null || v === undefined || Number.isNaN(v) ? '–' : v.toFixed(d));
 const n3 = (v: number | null | undefined) => n1(v, 3);
@@ -89,133 +84,62 @@ const OverviewTab: React.FC = () => {
 
 /* ------------------------------------------------------------------ geographic */
 const GeoTab: React.FC = () => {
-  const { theme } = useTheme();
-  const { mapCenter, mapZoom } = useProfile();
   const { data, isLoading } = useSyn('wards', fetchSynWards);
   const [city, setCity] = useState('All');
   const [sel, setSel] = useState<Ward | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const [ready, setReady] = useState(false);
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
 
   const items = useMemo(() => (data?.items ?? []).filter((w) => city === 'All' || w.city === city), [data, city]);
   const cities = useMemo(() => ['All', ...Array.from(new Set((data?.items ?? []).map((w) => w.city))).sort()], [data]);
 
-  useEffect(() => {
-    if (!ref.current || mapRef.current) return;
-    let mounted = true;
-    let ro: ResizeObserver | null = null;
-    (async () => {
-      const mgl = await import('maplibre-gl');
-      if (!mounted || !ref.current) return;
-      const map = new mgl.Map({ container: ref.current, style: BASEMAP[themeRef.current], center: mapCenter, zoom: mapZoom, attributionControl: false });
-      map.addControl(new mgl.NavigationControl({ showCompass: false }), 'bottom-right');
-      ro = new ResizeObserver(() => map.resize());
-      ro.observe(ref.current);
-      const add = () => {
-        if (map.getSource('wards')) return;
-        map.addSource('wards', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({
-          id: 'wards-halo', type: 'circle', source: 'wards',
-          paint: {
-            'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'population']], 100, 10, 400, 20, 800, 34],
-            'circle-color': ['match', ['get', 'risk_category'], 'High', RISK_COLOR.High, 'Moderate', RISK_COLOR.Moderate, 'Low', RISK_COLOR.Low, RISK_COLOR['n/a']],
-            'circle-opacity': 0.2, 'circle-blur': 1,
-          },
-        });
-        map.addLayer({
-          id: 'wards-layer', type: 'circle', source: 'wards',
-          paint: {
-            'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'population']], 100, 4, 400, 9, 800, 16],
-            'circle-color': ['match', ['get', 'risk_category'], 'High', RISK_COLOR.High, 'Moderate', RISK_COLOR.Moderate, 'Low', RISK_COLOR.Low, RISK_COLOR['n/a']],
-            'circle-opacity': 0.85, 'circle-stroke-width': 1, 'circle-stroke-color': 'rgba(15,29,25,0.8)',
-          },
-        });
-        map.on('click', 'wards-layer', (e: any) => setSel(e.features?.[0]?.properties ? ({ ...e.features[0].properties } as Ward) : null));
-        setReady((r) => !r || r);
-      };
-      map.on('load', () => { add(); mapRef.current = map; setReady(true); });
-      map.on('styledata', () => { try { add(); } catch { /* retried on next event */ } });
-    })();
-    return () => { mounted = false; ro?.disconnect(); mapRef.current?.remove(); mapRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-    const src = map.getSource('wards');
-    if (!src) return;
-    src.setData({
-      type: 'FeatureCollection',
-      features: items.map((w) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.longitude, w.latitude] }, properties: w })),
-    });
-    if (city !== 'All' && items.length) {
-      const lon = items.reduce((a, w) => a + w.longitude, 0) / items.length;
-      const lat = items.reduce((a, w) => a + w.latitude, 0) / items.length;
-      map.flyTo({ center: [lon, lat], zoom: 10.5 });
-    } else map.flyTo({ center: mapCenter, zoom: mapZoom });
-  }, [items, ready, city]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => { mapRef.current?.setStyle?.(BASEMAP[theme]); }, [theme]);
-
   if (isLoading) return <Loading />;
   const top = [...items].sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1)).slice(0, 12);
+  // Show the clicked ward; until one is clicked (or after the city filter excludes it), show the top-ranked ward.
+  const shown = sel && items.some((w) => w.ward_id === sel.ward_id) ? sel : top[0] ?? null;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <SelectControl label="City" value={city} onChange={setCity} options={cities.map((c) => ({ value: c, label: c === 'All' ? 'All cities' : c }))} />
-        <span className="flex items-center gap-3 text-xs text-ink-soft">
-          Colour = ML risk category; size = population.
-          {(['High', 'Moderate', 'Low'] as const).map((r) => (
-            <span key={r} className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: RISK_COLOR[r] }} />{r}</span>
-          ))}
-        </span>
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="card relative h-[520px] overflow-hidden xl:col-span-2">
-          <div ref={ref} className="h-full w-full" aria-label="Map of wards" />
-        </div>
-        <div className="card p-4 text-sm">
-          {sel ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between"><h3 className="card-title">{String(sel.ward_id)} · {sel.city}</h3><SyntheticTag /></div>
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+      <div className="grid grid-cols-1 items-start gap-4 min-[1680px]:grid-cols-[minmax(0,1fr)_20rem]">
+        <Card title="Highest-risk wards" sub="Ranked by the ML risk score (mean predicted night-crime rate near outages). Click a row to see the ward profile.">
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead><tr><th>Ward</th><th>City</th><th className="num">Population</th><th className="num">Density /km²</th><th className="num">Rain mm</th><th className="num">Pole age</th><th className="num">Outages</th><th className="num">Risk</th><th className="num">Mean priority</th><th className="num">Repair now</th></tr></thead>
+              <tbody>
+                {top.map((w) => (
+                  <tr key={w.ward_id} className={`row-link ${shown?.ward_id === w.ward_id ? 'bg-signal/10' : ''}`} onClick={() => setSel(w)} aria-selected={shown?.ward_id === w.ward_id}>
+                    <td className="font-mono">{w.ward_id}</td><td>{w.city}</td><td className="num">{formatNumber(w.population)}</td>
+                    <td className="num">{formatNumber(w.pop_density_per_km2)}</td><td className="num">{formatNumber(w.rainfall_mm_year)}</td>
+                    <td className="num">{n1(w.pole_age_years)}</td><td className="num">{w.outages}</td><td className="num font-bold">{n1(w.risk_score, 0)}</td>
+                    <td className="num">{n1(w.mean_priority_score)}</td><td className="num">{w.repair_now}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <Card title="Ward profile" sub="Population, geography, weather, infrastructure, risk and priority.">
+          {shown ? (
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-2"><h3 className="card-title">{String(shown.ward_id)} · {shown.city}</h3><SyntheticTag /></div>
+              <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 text-[13px] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] md:gap-x-10 min-[1680px]:grid-cols-[minmax(0,1fr)_auto] min-[1680px]:gap-x-4">
                 {([
-                  ['Population', formatNumber(Number(sel.population))], ['Density /km²', formatNumber(Number(sel.pop_density_per_km2))],
-                  ['Area class', String(sel.area_class)], ['Income index', n1(Number(sel.income_index))],
-                  ['Vulnerable share', n1(Number(sel.vulnerable_pop_share) * 100, 0) + '%'], ['Rainfall mm/yr', formatNumber(Number(sel.rainfall_mm_year))],
-                  ['Elevation m', formatNumber(Number(sel.elevation_m))], ['Pole age (yr)', n1(Number(sel.pole_age_years))],
-                  ['Dist. to road km', n1(Number(sel.dist_main_road_km), 2)], ['Dist. to depot km', n1(Number(sel.dist_depot_km), 1)],
-                  ['Outages', formatNumber(Number(sel.outages))], ['Mean outage days', n1(Number(sel.mean_outage_days))],
-                  ['ML risk score', n1(Number(sel.risk_score), 0)], ['Risk category', String(sel.risk_category)],
-                  ['Mean priority', n1(Number(sel.mean_priority_score))], ['Repair now', String(sel.repair_now)],
+                  ['Population', formatNumber(Number(shown.population))], ['Density /km²', formatNumber(Number(shown.pop_density_per_km2))],
+                  ['Area class', String(shown.area_class)], ['Income index', n1(Number(shown.income_index))],
+                  ['Vulnerable share', n1(Number(shown.vulnerable_pop_share) * 100, 0) + '%'], ['Rainfall mm/yr', formatNumber(Number(shown.rainfall_mm_year))],
+                  ['Elevation m', formatNumber(Number(shown.elevation_m))], ['Pole age (yr)', n1(Number(shown.pole_age_years))],
+                  ['Dist. to road km', n1(Number(shown.dist_main_road_km), 2)], ['Dist. to depot km', n1(Number(shown.dist_depot_km), 1)],
+                  ['Outages', formatNumber(Number(shown.outages))], ['Mean outage days', n1(Number(shown.mean_outage_days))],
+                  ['ML risk score', n1(Number(shown.risk_score), 0)], ['Risk category', String(shown.risk_category)],
+                  ['Mean priority', n1(Number(shown.mean_priority_score))], ['Repair now', String(shown.repair_now)],
                 ] as [string, string][]).map(([a, b]) => (<React.Fragment key={a}><dt className="text-ink-soft">{a}</dt><dd className="text-right font-semibold tabular-nums">{b}</dd></React.Fragment>))}
               </dl>
             </div>
           ) : (
-            <EmptyState title="Click a ward" detail="Shows its population, geography, weather, infrastructure, risk and priority." />
+            <EmptyState title="No wards" detail="No wards match the selected city." />
           )}
-        </div>
+        </Card>
       </div>
-      <Card title="Highest-risk wards" sub="Ranked by the ML risk score (mean predicted night-crime rate near outages).">
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead><tr><th>Ward</th><th>City</th><th className="num">Population</th><th className="num">Density /km²</th><th className="num">Rain mm</th><th className="num">Pole age</th><th className="num">Outages</th><th className="num">Risk</th><th className="num">Mean priority</th><th className="num">Repair now</th></tr></thead>
-            <tbody>
-              {top.map((w) => (
-                <tr key={w.ward_id} className="row-link" onClick={() => setSel(w)}>
-                  <td className="font-mono">{w.ward_id}</td><td>{w.city}</td><td className="num">{formatNumber(w.population)}</td>
-                  <td className="num">{formatNumber(w.pop_density_per_km2)}</td><td className="num">{formatNumber(w.rainfall_mm_year)}</td>
-                  <td className="num">{n1(w.pole_age_years)}</td><td className="num">{w.outages}</td><td className="num font-bold">{n1(w.risk_score, 0)}</td>
-                  <td className="num">{n1(w.mean_priority_score)}</td><td className="num">{w.repair_now}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   );
 };
