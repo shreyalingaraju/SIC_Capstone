@@ -132,7 +132,9 @@ Review this README, the methodology documentation, and the backend and data-proc
 Install the Python dependencies for the project (GeoPandas, H3, pandas, scikit-learn, XGBoost and FastAPI, among others). The ML component checks library versions against the frozen model, and falls back gracefully if they do not match, so install the pinned versions from the project's environment files.
  
 ```bash
-uvicorn backend.main:app --port 8000
+.\.venv\Scripts\Activate.ps1
+$env:LIGHTSAFE_PROFILE = "karnataka_synthetic"
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
  
 ### 4. Set up the frontend
